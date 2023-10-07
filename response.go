@@ -95,6 +95,10 @@ func NewResponseHandlerWithErrorHandler(ctx ResponseContext, errHandler ErrorHan
 }
 
 func (h *responseHandler) Use(handler ResponseHandler) {
+	if handler == nil {
+		return
+	}
+
 	h.resHandlers = append(h.resHandlers, handler)
 }
 

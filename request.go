@@ -99,6 +99,10 @@ func NewRequestHandlerWithErrorHandler(ctx RequestContext, errHandler ErrorHandl
 }
 
 func (h *requestHandler) Use(handler RequestHandler) {
+	if handler == nil {
+		return
+	}
+
 	h.reqHandlers = append(h.reqHandlers, handler)
 }
 

@@ -1,7 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/ardikabs/go-envoy v0.1.0 h1:3R7BtujGRLKJC1WLdHFzMd0Pla0BLocfHz+HGj9XI5Q=
-github.com/ardikabs/go-envoy v0.1.0/go.mod h1:VnzPwuquJhJ+fgT8ufVXAkI5OjDXy/2okBlwJKNmUrc=
+github.com/ardikabs/go-envoy v0.0.1 h1:8yhTOlCS54McnhlhianfY0dj50ZNU15ybUmKOk2mAi0=
+github.com/ardikabs/go-envoy v0.0.1/go.mod h1:VnzPwuquJhJ+fgT8ufVXAkI5OjDXy/2okBlwJKNmUrc=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/xds/go v0.0.0-20230607035331-e9ce68804cb4 h1:/inchEIKaYC1Akx+H+gqO04wryn5h75LSazbRlnya1k=

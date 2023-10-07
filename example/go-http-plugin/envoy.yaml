@@ -1,0 +1,148 @@
+# envoy demo with golang extension enabled
+static_resources:
+  listeners:
+    - name: listener_0
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 10000
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                http_filters:
+                  - name: envoy.filters.http.jwt_authn
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+                      providers:
+                        example:
+                          claim_to_headers:
+                            - claim_name: name
+                              header_name: x-claim-name
+                          remote_jwks:
+                            http_uri:
+                              cluster: raw.githubusercontent.com||443
+                              timeout: 5s
+                              uri: https://raw.githubusercontent.com/envoyproxy/gateway/main/examples/kubernetes/authn/jwks.json
+                          from_headers:
+                            - name: Bearer
+                              value_prefix: " "
+                          from_params:
+                            - access_token
+                          from_cookies:
+                            - session_access_token
+                      requirement_map:
+                        optional:
+                          requires_any:
+                            requirements:
+                              - provider_name: example
+                              - allow_missing: {}
+                  - name: envoy.filters.http.golang
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+                      library_id: go_http_plugin
+                      library_path: "lib/go_http_plugin.so"
+                      plugin_name: go_http_plugin
+                      plugin_config:
+                        "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                        value:
+                          request_headers:
+                            foo: bar
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/details"
+                          route:
+                            cluster: helloworld_service_cluster
+                          typed_per_filter_config:
+                            envoy.filters.http.jwt_authn:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                              requirement_name: example-auth-jwt
+                            envoy.filters.http.golang:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.ConfigsPerRoute
+                              plugins_config:
+                                go_http_plugin:
+                                  config:
+                                    "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                                    value:
+                                      request_headers:
+                                        foo: bar
+                        - match:
+                            prefix: "/index.html"
+                          route:
+                            cluster: helloworld_service_cluster
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: podinfo_service_cluster
+                          typed_per_filter_config:
+                            envoy.filters.http.jwt_authn:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+                              requirement_name: optional
+                            envoy.filters.http.golang:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.ConfigsPerRoute
+                              plugins_config:
+                                go_http_plugin:
+                                  config:
+                                    "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                                    value:
+                                      request_headers:
+                                        foo: bar
+  clusters:
+    - name: helloworld_service_cluster
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: helloworld_service_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: helloworld_service
+                      port_value: 8080
+    - name: podinfo_service_cluster
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: podinfo_service_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: podinfo_service
+                      port_value: 9898
+    - name: raw.githubusercontent.com||443
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: raw.githubusercontent.com||443
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: raw.githubusercontent.com
+                      port_value: 443
+      per_connection_buffer_limit_bytes: 32768
+      respect_dns_ttl: true
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 10s
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          common_tls_context:
+            validation_context:
+              trusted_ca:
+                filename: /etc/ssl/certs/ca-certificates.crt

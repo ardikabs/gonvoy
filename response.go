@@ -122,9 +122,9 @@ func (h *responseHandler) Handle() (status api.StatusType) {
 		return
 	}
 
-	var stack ResponseHandlerFunc
+	stack := h.outerHandler
 	for i := len(h.resHandlers) - 1; i >= 0; i-- {
-		stack = h.resHandlers[i](stack)
+		stack = h.decorate(h.resHandlers[i](stack))
 	}
 
 	statusCode, ok := h.ctx.Status()
@@ -140,4 +140,22 @@ func (h *responseHandler) Handle() (status api.StatusType) {
 
 	err = stack(h.ctx, res)
 	return
+}
+
+func (h *responseHandler) decorate(next ResponseHandlerFunc) ResponseHandlerFunc {
+	return func(ctx ResponseContext, res *http.Response) error {
+		if ctx.StatusType() == api.LocalReply {
+			return nil
+		}
+
+		if err := next(ctx, res); err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
+func (h *responseHandler) outerHandler(ctx ResponseContext, res *http.Response) error {
+	return nil
 }

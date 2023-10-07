@@ -126,9 +126,9 @@ func (h *requestHandler) Handle() (status api.StatusType) {
 		return
 	}
 
-	var stack RequestHandlerFunc
+	stack := h.outerHandler
 	for i := len(h.reqHandlers) - 1; i >= 0; i-- {
-		stack = h.reqHandlers[i](stack)
+		stack = h.decorateHandler(h.reqHandlers[i](stack))
 	}
 
 	req, err := types.NewRequest(h.ctx.Method(), h.ctx.Host(),
@@ -142,4 +142,22 @@ func (h *requestHandler) Handle() (status api.StatusType) {
 
 	err = stack(h.ctx, req)
 	return
+}
+
+func (h *requestHandler) decorateHandler(next RequestHandlerFunc) RequestHandlerFunc {
+	return func(ctx RequestContext, req *http.Request) error {
+		if ctx.StatusType() == api.LocalReply {
+			return nil
+		}
+
+		if err := next(ctx, req); err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
+func (h *requestHandler) outerHandler(ctx RequestContext, req *http.Request) error {
+	return nil
 }

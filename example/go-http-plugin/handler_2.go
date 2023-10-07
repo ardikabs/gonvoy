@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ardikabs/go-envoy/v0"
-	"github.com/ardikabs/go-envoy/v0/pkg/errs"
+	"github.com/ardikabs/go-envoy"
+	"github.com/ardikabs/go-envoy/pkg/errs"
 )
 
 type HandlerTwo struct{}

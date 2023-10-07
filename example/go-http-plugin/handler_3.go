@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	"github.com/ardikabs/go-envoy/v0"
+	"github.com/ardikabs/go-envoy"
 )
 
 type HandlerThree struct {

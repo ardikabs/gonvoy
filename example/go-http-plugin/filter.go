@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/ardikabs/go-envoy/v1"
+	"github.com/ardikabs/go-envoy"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 

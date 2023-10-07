@@ -16,9 +16,6 @@ func (h *HandlerThree) RequestHandler(next envoy.RequestHandlerFunc) envoy.Reque
 			ctx.Set(k, v)
 		}
 
-		if next == nil {
-			return nil
-		}
 		return next(ctx, req)
 	}
 }
@@ -34,9 +31,6 @@ func (h *HandlerThree) ResponseHandler(next envoy.ResponseHandlerFunc) envoy.Res
 			return ctx.JSON(sc, envoy.CreateSimpleJSONBody("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"), envoy.ToFlatHeader(res.Header), envoy.WithLocalReplyDetail("service unavailable"))
 		}
 
-		if next == nil {
-			return nil
-		}
 		return next(ctx, res)
 	}
 }

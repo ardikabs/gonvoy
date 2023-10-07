@@ -28,10 +28,6 @@ func (h *HandlerTwo) RequestHandler(next envoy.RequestHandlerFunc) envoy.Request
 		}
 
 		ctx.Log(envoy.InfoLevel, "second handler executed")
-
-		if next == nil {
-			return nil
-		}
 		return next(ctx, req)
 	}
 }
@@ -40,9 +36,6 @@ func (h *HandlerTwo) ResponseHandler(next envoy.ResponseHandlerFunc) envoy.Respo
 	return func(ctx envoy.ResponseContext, res *http.Response) error {
 		ctx.Set("from", "gateway.ardikabs.com/v0")
 
-		if next == nil {
-			return nil
-		}
 		return next(ctx, res)
 	}
 }

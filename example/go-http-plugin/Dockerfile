@@ -2,7 +2,7 @@ FROM golang:1.20-bullseye AS builder
 WORKDIR /app
 
 COPY . .
-RUN GOFLAGS=-buildvcs=false go build -o lib/go_http_plugin.so -buildmode=c-shared example/go-http-plugin/*.go
+RUN GOFLAGS=-buildvcs=false go build -o lib/go_http_plugin.so -buildmode=c-shared *.go
 
 FROM envoyproxy/envoy:contrib-v1.27-latest
 

@@ -19,12 +19,16 @@ func (h *HandlerOne) RequestHandler(next envoy.RequestHandlerFunc) envoy.Request
 			return fmt.Errorf("intentionally return unauthorized, %w", errs.ErrUnauthorized)
 		}
 
+		if req.Header.Get("x-error") == "200" {
+			if err := func() error {
+				return ctx.JSON(http.StatusOK, envoy.CreateSimpleJSONBody("SUCCESS", "SUCCESS"), nil)
+			}(); err != nil {
+				return err
+			}
+		}
+
 		ctx.Log(envoy.InfoLevel, "first handler executed")
 		ctx.Log(envoy.ErrorLevel, fmt.Sprintln(ctx.Host(), ctx.Path(), ctx.Method(), req.URL.Query()))
-
-		if next == nil {
-			return nil
-		}
 
 		return next(ctx, req)
 	}
@@ -34,9 +38,6 @@ func (h *HandlerOne) ResponseHandler(next envoy.ResponseHandlerFunc) envoy.Respo
 	return func(ctx envoy.ResponseContext, res *http.Response) error {
 		ctx.Set("via", "gateway.ardikabs.com")
 
-		if next == nil {
-			return nil
-		}
 		return next(ctx, res)
 	}
 }

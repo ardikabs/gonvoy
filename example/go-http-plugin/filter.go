@@ -9,26 +9,53 @@ type filter struct {
 	callbacks api.FilterCallbackHandler
 	config    *config
 
-	reqCtx envoy.RequestContext
-	resCtx envoy.ResponseContext
+	ctx envoy.Context
+}
+
+func NewFilter(c *config, callbacks api.FilterCallbackHandler) *filter {
+	ctx, err := envoy.NewContext(callbacks)
+	if err != nil {
+		panic(err)
+	}
+
+	f := &filter{
+		ctx:       ctx,
+		config:    c,
+		callbacks: callbacks,
+	}
+
+	return f
 }
 
 func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	var err error
-	f.reqCtx, err = envoy.NewRequestContext(header, f.callbacks)
-	if err != nil {
-		return api.Continue
-	}
+	f.ctx.SetRequest(header)
 
 	handlerOne := &HandlerOne{}
 	handlerTwo := &HandlerTwo{}
 	handlerThree := &HandlerThree{f.config.RequestHeaders}
 
-	handler := envoy.NewRequestHandler(f.reqCtx)
-	handler.Use(handlerOne.RequestHandler)
-	handler.Use(handlerTwo.RequestHandler)
-	handler.Use(handlerThree.RequestHandler)
-	return handler.Handle()
+	mgr := envoy.NewManager()
+	mgr.Use(handlerOne.RequestHandler)
+	mgr.Use(handlerTwo.RequestHandler)
+	mgr.Use(handlerThree.RequestHandler)
+
+	return mgr.Handle(f.ctx)
+}
+
+func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
+	f.ctx.SetResponse(header)
+
+	handlerOne := &HandlerOne{}
+	handlerTwo := &HandlerTwo{}
+	handlerThree := &HandlerThree{f.config.RequestHeaders}
+
+	mgr := envoy.NewManager()
+	mgr.Use(handlerOne.ResponseHandler)
+	mgr.Use(handlerTwo.ResponseHandler)
+	mgr.Use(handlerThree.ResponseHandler)
+
+	return mgr.Handle(f.ctx)
+
 }
 
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
@@ -37,24 +64,6 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 
 func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	return api.Continue
-}
-
-func (f *filter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	var err error
-	f.resCtx, err = envoy.NewResponseContext(header, f.callbacks)
-	if err != nil {
-		return api.Continue
-	}
-
-	handlerOne := &HandlerOne{}
-	handlerTwo := &HandlerTwo{}
-	handlerThree := &HandlerThree{f.config.RequestHeaders}
-
-	handler := envoy.NewResponseHandler(f.resCtx)
-	handler.Use(handlerOne.ResponseHandler)
-	handler.Use(handlerTwo.ResponseHandler)
-	handler.Use(handlerThree.ResponseHandler)
-	return handler.Handle()
 }
 
 func (f *filter) DecodeTrailers(trailers api.RequestTrailerMap) api.StatusType {

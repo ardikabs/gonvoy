@@ -10,27 +10,27 @@ type HandlerThree struct {
 	RequestHeaders map[string]string
 }
 
-func (h *HandlerThree) RequestHandler(next envoy.RequestHandlerFunc) envoy.RequestHandlerFunc {
-	return func(ctx envoy.RequestContext, req *http.Request) error {
+func (h *HandlerThree) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
+	return func(c envoy.Context) error {
 		for k, v := range h.RequestHeaders {
-			ctx.Set(k, v)
+			c.RequestHeader().Set(k, v)
 		}
 
-		return next(ctx, req)
+		return next(c)
 	}
 }
 
-func (h *HandlerThree) ResponseHandler(next envoy.ResponseHandlerFunc) envoy.ResponseHandlerFunc {
-	return func(ctx envoy.ResponseContext, res *http.Response) error {
-		switch sc := res.StatusCode; sc {
+func (h *HandlerThree) ResponseHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
+	return func(c envoy.Context) error {
+		switch sc := c.Response().StatusCode; sc {
 		case http.StatusUnauthorized:
-			return ctx.JSON(sc, envoy.CreateSimpleJSONBody("UNAUTHORIZED", "UNAUTHORIZED"), envoy.ToFlatHeader(res.Header))
+			return c.JSON(sc, envoy.CreateSimpleJSONBody("UNAUTHORIZED", "UNAUTHORIZED"), envoy.ToFlatHeader(c.Response().Header))
 		case http.StatusTooManyRequests:
-			return ctx.JSON(sc, envoy.CreateSimpleJSONBody("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"), envoy.ToFlatHeader(res.Header), envoy.WithLocalReplyDetail("rate limit exceeded"))
+			return c.JSON(sc, envoy.CreateSimpleJSONBody("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"), envoy.ToFlatHeader(c.Response().Header), envoy.WithResponseCodeDetails("rate limit exceeded"))
 		case http.StatusServiceUnavailable:
-			return ctx.JSON(sc, envoy.CreateSimpleJSONBody("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"), envoy.ToFlatHeader(res.Header), envoy.WithLocalReplyDetail("service unavailable"))
+			return c.JSON(sc, envoy.CreateSimpleJSONBody("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"), envoy.ToFlatHeader(c.Response().Header), envoy.WithResponseCodeDetails("service unavailable"))
 		}
 
-		return next(ctx, res)
+		return next(c)
 	}
 }

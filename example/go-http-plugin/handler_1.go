@@ -10,34 +10,32 @@ import (
 
 type HandlerOne struct{}
 
-func (h *HandlerOne) RequestHandler(next envoy.RequestHandlerFunc) envoy.RequestHandlerFunc {
-	return func(ctx envoy.RequestContext, req *http.Request) error {
-		ctx.Add("x-key-id", "0")
-		ctx.Add("x-key-id", "1")
+func (h *HandlerOne) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
+	return func(c envoy.Context) error {
+		c.RequestHeader().Add("x-key-id", "0")
+		c.RequestHeader().Add("x-key-id", "1")
 
-		if req.Header.Get("x-error") == "401" {
+		if c.Request().Header.Get("x-error") == "401" {
 			return fmt.Errorf("intentionally return unauthorized, %w", errs.ErrUnauthorized)
 		}
 
-		if req.Header.Get("x-error") == "200" {
+		if c.Request().Header.Get("x-error") == "200" {
 			if err := func() error {
-				return ctx.JSON(http.StatusOK, envoy.CreateSimpleJSONBody("SUCCESS", "SUCCESS"), nil)
+				return c.JSON(http.StatusOK, envoy.CreateSimpleJSONBody("SUCCESS", "SUCCESS"), nil)
 			}(); err != nil {
 				return err
 			}
 		}
 
-		ctx.Log(envoy.InfoLevel, "first handler executed")
-		ctx.Log(envoy.ErrorLevel, fmt.Sprintln(ctx.Host(), ctx.Path(), ctx.Method(), req.URL.Query()))
-
-		return next(ctx, req)
+		c.Log(envoy.ErrorLevel, fmt.Sprintln(c.Request().Host, c.Request().URL.Path, c.Request().Method, c.Request().URL.Query()))
+		return next(c)
 	}
 }
 
-func (h *HandlerOne) ResponseHandler(next envoy.ResponseHandlerFunc) envoy.ResponseHandlerFunc {
-	return func(ctx envoy.ResponseContext, res *http.Response) error {
-		ctx.Set("via", "gateway.ardikabs.com")
+func (h *HandlerOne) ResponseHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
+	return func(c envoy.Context) error {
+		c.ResponseHeader().Set("via", "gateway.ardikabs.com")
 
-		return next(ctx, res)
+		return next(c)
 	}
 }

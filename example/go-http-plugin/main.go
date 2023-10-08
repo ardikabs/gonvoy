@@ -17,9 +17,6 @@ func filterFactory(c interface{}) api.StreamFilterFactory {
 		panic("unexpected config type")
 	}
 	return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
-		return &filter{
-			callbacks: callbacks,
-			config:    conf,
-		}
+		return NewFilter(conf, callbacks)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"runtime"
+	"sync"
 
 	"github.com/ardikabs/go-envoy/pkg/types"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -28,6 +29,15 @@ type Context interface {
 
 	StreamInfo() api.StreamInfo
 
+	// Store stores a value of any types to a key of any types.
+	// Caution! The Store behavior is overwrite.
+	Store(key any, value any)
+
+	// Load loads a value from a key and put it to the receiver.
+	// Load will return with true if value is loaded and compatible with the receiver,
+	// otherwise return false if no value is found or an error occured during the load.
+	Load(key any, receiver interface{}) (ok bool, err error)
+
 	Log(lvl LogLevel, msg string)
 
 	JSON(code int, b []byte, headers map[string]string, opts ...ReplyOption) error
@@ -35,10 +45,9 @@ type Context interface {
 	String(code int, s string, opts ...ReplyOption) error
 
 	StatusType() api.StatusType
+
 	Committed() bool
 }
-
-var _ Context = &context{}
 
 type context struct {
 	reqHeaderMap  api.RequestHeaderMap
@@ -50,10 +59,12 @@ type context struct {
 	httpReq  *http.Request
 	httpResp *http.Response
 
+	storage sync.Map
+
 	committed bool
 }
 
-func NewContext(callback api.FilterCallbacks) (*context, error) {
+func NewContext(callback api.FilterCallbacks) (Context, error) {
 	if callback == nil {
 		return nil, errors.New("callback MUST not nil")
 	}
@@ -170,6 +181,27 @@ func (c *context) Committed() bool {
 func (c *context) reset() {
 	c.statusType = api.Continue
 	c.committed = false
+}
+
+func (c *context) Store(key any, value any) {
+	c.storage.Store(key, value)
+}
+
+func (c *context) Load(key any, receiver interface{}) (bool, error) {
+	if receiver == nil {
+		return false, errors.New("context: receiver should not be nil")
+	}
+
+	v, ok := c.storage.Load(key)
+	if !ok {
+		return false, nil
+	}
+
+	if !CastTo(receiver, v) {
+		return false, errors.New("context: receiver and value has an incompatible type")
+	}
+
+	return true, nil
 }
 
 type ReplyOptions struct {

@@ -3,6 +3,7 @@ package envoy
 import (
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"time"
 )
 
@@ -36,4 +37,14 @@ func ToFlatHeader(header http.Header) map[string]string {
 	}
 
 	return flatHeader
+}
+
+func CastTo(target interface{}, value interface{}) bool {
+	t := reflect.ValueOf(target).Elem()
+	v := reflect.ValueOf(value)
+	if !v.Type().AssignableTo(t.Type()) {
+		return false
+	}
+	t.Set(v)
+	return true
 }

@@ -10,10 +10,6 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-type Header interface {
-	api.HeaderMap
-}
-
 type Context interface {
 	RequestHeader() Header
 
@@ -75,11 +71,11 @@ func NewContext(callback api.FilterCallbacks) (Context, error) {
 }
 
 func (c *context) RequestHeader() Header {
-	return c.reqHeaderMap
+	return &header{c.reqHeaderMap}
 }
 
 func (c *context) ResponseHeader() Header {
-	return c.respHeaderMap
+	return &header{c.respHeaderMap}
 }
 
 func (c *context) StreamInfo() api.StreamInfo {

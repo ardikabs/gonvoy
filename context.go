@@ -11,37 +11,59 @@ import (
 )
 
 type Context interface {
+	// RequestHeader provides an interface to access HTTP Request header, including
+	// add, overwrite, or delete existing header.
 	RequestHeader() Header
 
-	ResponseHeader() Header
-
+	// Request returns an http.Request struct, which is a read-only data.
+	// Attempting to modify this value will have no effect.
+	// To make modifications to the request, such as its headers, please use the RequestHeader() method instead.
 	Request() *http.Request
 
+	// SetRequest is a low-level API, it set response from RequestHeaderMap interface
 	SetRequest(api.RequestHeaderMap)
 
+	// ResponseHeader provides an interface to access HTTP Response header, including
+	// add, overwrite, or delete existing header.
+	ResponseHeader() Header
+
+	// Response returns an http.Response struct, which is a read-only data.
+	// It means, update anything to this value will result nothing.
+	// To make modifications to the response, such as its headers, please use the ResponseHeader() method instead.
 	Response() *http.Response
 
+	// SetResponse is a low-level API, it set response from ResponseHeaderMap interface
 	SetResponse(api.ResponseHeaderMap)
 
+	// StreamInfo offers an interface for retrieving comprehensive details about the incoming HTTP traffic, including
+	// information such as the route name, filter chain name, dynamic metadata, and more.
+	// It provides direct access to low-level Envoy information, so it's important to use it with a clear understanding of your intent.
 	StreamInfo() api.StreamInfo
 
-	// Store stores a value of any types to a key of any types.
-	// Caution! The Store behavior is overwrite.
+	// Store allows you to save a value of any type under a key of any type.
+	// Please be cautious! The Store function overwrites any existing data.
 	Store(key any, value any)
 
-	// Load loads a value from a key and put it to the receiver.
-	// Load will return with true if value is loaded and compatible with the receiver,
-	// otherwise return false if no value is found or an error occured during the load.
+	// Load retrieves a value associated with a specific key and assigns it to the receiver.
+	// It returns true if a compatible value is successfully loaded,
+	// and false if no value is found or an error occurs during the process.
 	Load(key any, receiver interface{}) (ok bool, err error)
 
+	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` component.
+	// e.g., Envoy flag `--component-log-level http:{debug,info,warn,error,critical}`
 	Log(lvl LogLevel, msg string)
 
+	// JSON sends a JSON response with status code.
 	JSON(code int, b []byte, headers map[string]string, opts ...ReplyOption) error
 
+	// String sends a plain text response with status code.
 	String(code int, s string, opts ...ReplyOption) error
 
+	// StatusType is a low-level API used to specify the type of status to be communicated to Envoy.
 	StatusType() api.StatusType
 
+	// Committed indicates whether the current context has already completed its processing
+	// within the plugin and forwarded the result to Envoy.
 	Committed() bool
 }
 

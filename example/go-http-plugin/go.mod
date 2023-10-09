@@ -3,7 +3,7 @@ module go-http-plugin
 go 1.20
 
 require (
-	github.com/ardikabs/go-envoy v0.0.0-20231009041937-4ec3c03ce6b1
+	github.com/ardikabs/go-envoy v0.0.0-20231009050710-6616a0b57504
 	github.com/cncf/xds/go v0.0.0-20230607035331-e9ce68804cb4
 	github.com/envoyproxy/envoy v1.27.1-0.20230801142442-ddd12f75f6aa
 	google.golang.org/protobuf v1.31.0

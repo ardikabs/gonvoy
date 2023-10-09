@@ -35,7 +35,6 @@ func (h *HandlerOne) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 func (h *HandlerOne) ResponseHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 	return func(c envoy.Context) error {
 		c.ResponseHeader().Set("via", "gateway.ardikabs.com")
-
 		return next(c)
 	}
 }

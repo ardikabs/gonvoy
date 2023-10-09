@@ -16,6 +16,8 @@ github.com/ardikabs/go-envoy v0.0.0-20231009041937-4ec3c03ce6b1 h1:gPRi6uGV3DzJm
 github.com/ardikabs/go-envoy v0.0.0-20231009041937-4ec3c03ce6b1/go.mod h1:VZMdpaWPbhTLcPQNgecqaeV1lunqZFeGKy2X04QCZs0=
 github.com/ardikabs/go-envoy v0.0.0-20231009050710-6616a0b57504 h1:BwV+6fbe0Rbx6h9xWXueH1N60KhaDOk9MSgDzN7Wo7A=
 github.com/ardikabs/go-envoy v0.0.0-20231009050710-6616a0b57504/go.mod h1:VZMdpaWPbhTLcPQNgecqaeV1lunqZFeGKy2X04QCZs0=
+github.com/ardikabs/go-envoy v0.0.0-20231009053952-ace845d7b847 h1:IcXCvKBaykwZ+i0LcuaPQk+FtfmjbiC/p3d2Q15GCfE=
+github.com/ardikabs/go-envoy v0.0.0-20231009053952-ace845d7b847/go.mod h1:VZMdpaWPbhTLcPQNgecqaeV1lunqZFeGKy2X04QCZs0=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/xds/go v0.0.0-20230607035331-e9ce68804cb4 h1:/inchEIKaYC1Akx+H+gqO04wryn5h75LSazbRlnya1k=

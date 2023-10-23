@@ -3,15 +3,14 @@ package envoy
 import (
 	"testing"
 
-	"github.com/ardikabs/go-envoy/mocks"
+	mock_envoy "github.com/ardikabs/go-envoy/test/mock/envoy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestHaderAsMap(t *testing.T) {
-	reqHeaderMap := new(mocks.RequestHeaderMap)
-	reqHeaderMap.On("Range", mock.Anything).Return().Run(func(args mock.Arguments) {
-		fn := args.Get(0).(func(key, value string) bool)
+	reqHeaderMap := mock_envoy.NewRequestHeaderMap(t)
+	reqHeaderMap.EXPECT().Range(mock.Anything).Return().Run(func(f func(string, string) bool) {
 		headers := map[string][]string{
 			"foo":       {"bar"},
 			"x-foo":     {"x-bar", "x-foobar"},
@@ -19,7 +18,7 @@ func TestHaderAsMap(t *testing.T) {
 		}
 		for k, values := range headers {
 			for _, v := range values {
-				fn(k, v)
+				f(k, v)
 			}
 		}
 	})

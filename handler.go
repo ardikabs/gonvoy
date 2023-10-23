@@ -1,7 +1,6 @@
 package envoy
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/ardikabs/go-envoy/pkg/errs"
@@ -43,7 +42,7 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 	default:
 		// hide internal error to end user
 		// but printed out the error details to envoy log
-		ctx.Log(ErrorLevel, fmt.Sprintf("unidentified error; %v", err))
+		ctx.Log().Error(err, "unidentified error", "host", ctx.Request().Host, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		err = ctx.JSON(http.StatusInternalServerError, responseBody_500, map[string]string{"reporter": "gateway"}, WithResponseCodeDetails(err.Error()))
 	}
 

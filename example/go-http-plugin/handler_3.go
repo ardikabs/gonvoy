@@ -12,10 +12,13 @@ type HandlerThree struct {
 
 func (h *HandlerThree) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 	return func(c envoy.Context) error {
+		log := c.Log().WithName("handlerThree")
+
 		for k, v := range h.RequestHeaders {
 			c.RequestHeader().Set(k, v)
 		}
 
+		log.Info("handling request", "request", c.RequestHeader().AsMap())
 		return next(c)
 	}
 }

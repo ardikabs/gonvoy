@@ -6,6 +6,8 @@
 
 * Porting `net/http` interface experience to extend Envoy Proxy behavior with [HTTP Golang Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/golang_filter).
 
+* Logging with [go-logr](https://github.com/go-logr/logr).
+
 ## Development Guide
 
 ### Prerequisites

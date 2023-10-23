@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ardikabs/go-envoy/mocks"
+	mock_envoy "github.com/ardikabs/go-envoy/test/mock/envoy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestContext_StoreAndLoad(t *testing.T) {
-	fc := new(mocks.FilterCallbacks)
+	fc := mock_envoy.NewFilterCallbackHandler(t)
 	ctx, err := NewContext(fc)
 	require.NoError(t, err)
 

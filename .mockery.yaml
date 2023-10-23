@@ -1,0 +1,12 @@
+with-expecter: true
+filename: "{{.InterfaceName}}.go"
+mockname: "{{.InterfaceName}}"
+packages:
+  github.com/envoyproxy/envoy/contrib/golang/common/go/api:
+    config:
+      dir: test/mock/envoy
+      outpkg: mock_envoy
+    interfaces:
+      FilterCallbackHandler:
+      RequestHeaderMap:
+      ResponseHeaderMap:

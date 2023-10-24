@@ -47,8 +47,6 @@ func (h *manager) Handle(ctx Context) (status api.StatusType) {
 		if err != nil {
 			status = h.errorHandler(ctx, err)
 		}
-
-		return
 	}()
 
 	if len(h.handlers) == 0 {

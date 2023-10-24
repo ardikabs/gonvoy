@@ -57,74 +57,79 @@ func NewLogger(callback api.FilterCallbacks) logr.Logger {
 		},
 	}
 
-	logger := zerolog.New(writer).Level(zerolog.NoLevel).With().Caller().Stack().Logger()
-	return logr.New(&logSink{
+	logger := zerolog.New(writer).Level(zerolog.InfoLevel).With().Caller().Stack().Logger()
+	logSink := &logSink{
 		callback:  callback,
 		logWriter: out,
 		logger:    &logger,
-	})
+	}
+
+	return logr.New(logSink)
 }
 
 var _ logr.LogSink = &logSink{}
 
+// Init receives runtime info about the logr library.
 func (ls *logSink) Init(ri logr.RuntimeInfo) {
 	ls.depth = ri.CallDepth + 2
 }
 
-func (l *logSink) Enabled(i int) bool {
+// Enabled tests whether this LogSink is enabled at the specified V-level.
+func (ls *logSink) Enabled(i int) bool {
 	return true
 }
 
-func (l *logSink) Error(err error, msg string, keysAndValues ...interface{}) {
-	e := l.logger.Log()
-
-	if err != nil {
-		e = e.Str("error", err.Error())
-	}
-
-	l.msg(api.Error, e, msg, keysAndValues)
+// Error logs an error, with the given message and key/value pairs as context.
+func (ls *logSink) Error(err error, msg string, keysAndValues ...interface{}) {
+	e := ls.logger.Error().Err(err)
+	ls.msg(api.Error, e, msg, keysAndValues)
 }
 
-func (l *logSink) Info(level int, msg string, keysAndValues ...interface{}) {
-	e := l.logger.Log()
-	l.msg(levelToLogType(level), e, msg, keysAndValues)
+// Info logs a non-error message at specified V-level with the given key/value pairs as context.
+func (ls *logSink) Info(level int, msg string, keysAndValues ...interface{}) {
+	e := ls.logger.Info().Int("v", level)
+	ls.msg(levelToLogType(level), e, msg, keysAndValues)
 }
 
-func (l *logSink) msg(level api.LogType, e *zerolog.Event, msg string, keysAndValues []interface{}) {
+func (ls *logSink) msg(level api.LogType, e *zerolog.Event, msg string, keysAndValues []interface{}) {
 	if e == nil {
 		return
 	}
-	if l.name != "" {
-		e.Str("logger", l.name)
+	if ls.name != "" {
+		e.Str("logger", ls.name)
 	}
 
 	e.Fields(DefaultRender(keysAndValues))
-	e.CallerSkipFrame(l.depth)
+	e.CallerSkipFrame(ls.depth)
 	e.Msg(msg)
 
-	l.callback.Log(level, l.logWriter.String())
+	ls.callback.Log(level, ls.logWriter.String())
 }
 
-func (l logSink) WithName(name string) logr.LogSink {
-	if l.name != "" {
-		l.name += "/" + name
+// WithName returns a new LogSink with the specified name appended, it splits with "/".
+func (ls logSink) WithName(name string) logr.LogSink {
+	if ls.name != "" {
+		ls.name += "/" + name
 	} else {
-		l.name = name
+		ls.name = name
 	}
-	return &l
+	return &ls
 }
 
-func (l logSink) WithValues(keysAndValues ...interface{}) logr.LogSink {
-	zl := l.logger.With().Fields(DefaultRender(keysAndValues)).Logger()
-	l.logger = &zl
-	return &l
+// WithValues returns a new LogSink with additional key/value pairs.
+func (ls logSink) WithValues(keysAndValues ...interface{}) logr.LogSink {
+	zl := ls.logger.With().Fields(DefaultRender(keysAndValues)).Logger()
+	ls.logger = &zl
+	return &ls
 }
 
-func (l logSink) WithCallDepth(depth int) logr.LogSink {
-	l.depth += depth
-	return &l
+// WithCallDepth returns a new LogSink that offsets the call stack by adding specified depths.
+func (ls logSink) WithCallDepth(depth int) logr.LogSink {
+	ls.depth += depth
+	return &ls
 }
 
+// DefaultRender supports logr.Marshaler and fmt.Stringer.
 func DefaultRender(keysAndValues []interface{}) []interface{} {
 	for i, n := 1, len(keysAndValues); i < n; i += 2 {
 		value := keysAndValues[i]

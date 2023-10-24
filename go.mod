@@ -3,7 +3,7 @@ module github.com/ardikabs/go-envoy
 go 1.20
 
 require (
-	github.com/envoyproxy/envoy v1.27.1-0.20230801142442-ddd12f75f6aa
+	github.com/envoyproxy/envoy v1.27.2
 	github.com/go-logr/logr v1.2.4
 	github.com/rs/zerolog v1.31.0
 	github.com/stretchr/testify v1.8.4

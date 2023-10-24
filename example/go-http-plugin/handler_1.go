@@ -22,12 +22,20 @@ func (h *HandlerOne) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 			return fmt.Errorf("intentionally return unauthorized, %w", errs.ErrUnauthorized)
 		}
 
+		if c.Request().Header.Get("x-error") == "5xx" {
+			return errors.New("intentionally return unidentified error")
+		}
+
 		if c.Request().Header.Get("x-error") == "200" {
 			if err := func() error {
 				return c.JSON(http.StatusOK, envoy.CreateSimpleJSONBody("SUCCESS", "SUCCESS"), nil)
 			}(); err != nil {
 				return err
 			}
+		}
+
+		if c.Request().Header.Get("x-error") == "panick" {
+			panicNilMapOuter()
 		}
 
 		log.Error(errors.New("error from handler one"), "handling request", "host", c.Request().Host, "path", c.Request().URL.Path, "method", c.Request().Method, "query", c.Request().URL.Query())
@@ -40,4 +48,13 @@ func (h *HandlerOne) ResponseHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 		c.ResponseHeader().Set("via", "gateway.ardikabs.com")
 		return next(c)
 	}
+}
+
+func panicNilMapOuter() {
+	panicNilMapInner()
+}
+
+func panicNilMapInner() {
+	var a map[string]string
+	a["blbl"] = "sdasd"
 }

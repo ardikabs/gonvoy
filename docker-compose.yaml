@@ -21,6 +21,4 @@ services:
     # if you are using Apple M1, use below image, otherwise above.
     image: kicbase/echo-server:1.0
   podinfo_service:
-    # image: registry.k8s.io/echoserver:1.10
-    # if you are using Apple M1, use below image, otherwise above.
     image: ghcr.io/stefanprodan/podinfo:6.5.0

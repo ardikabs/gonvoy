@@ -87,7 +87,7 @@ func (l *logSink) Error(err error, msg string, keysAndValues ...interface{}) {
 
 func (l *logSink) Info(level int, msg string, keysAndValues ...interface{}) {
 	e := l.logger.Log()
-	l.msg(lvlToLogType(level), e, msg, keysAndValues)
+	l.msg(levelToLogType(level), e, msg, keysAndValues)
 }
 
 func (l *logSink) msg(level api.LogType, e *zerolog.Event, msg string, keysAndValues []interface{}) {
@@ -98,9 +98,9 @@ func (l *logSink) msg(level api.LogType, e *zerolog.Event, msg string, keysAndVa
 		e.Str("logger", l.name)
 	}
 
-	e.Fields(DefaultRender(keysAndValues)).
-		CallerSkipFrame(l.depth).
-		Msg(msg)
+	e.Fields(DefaultRender(keysAndValues))
+	e.CallerSkipFrame(l.depth)
+	e.Msg(msg)
 
 	l.callback.Log(level, l.logWriter.String())
 }
@@ -138,14 +138,8 @@ func DefaultRender(keysAndValues []interface{}) []interface{} {
 	return keysAndValues
 }
 
-func lvlToLogType(lvl int) api.LogType {
-	if lvl <= -2 {
-		return api.Critical
-	}
-
+func levelToLogType(lvl int) api.LogType {
 	switch lvl {
-	case -1:
-		return api.Warn
 	case 0:
 		return api.Info
 	default:

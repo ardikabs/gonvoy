@@ -10,6 +10,8 @@ type HandlerTwo struct{}
 
 func (h *HandlerTwo) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 	return func(c envoy.Context) error {
+		log := c.Log().WithName("handlerTwo")
+
 		c.RequestHeader().Add("x-user-id", "0")
 		c.RequestHeader().Add("x-user-id", "1")
 
@@ -25,6 +27,7 @@ func (h *HandlerTwo) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 			return c.String(http.StatusServiceUnavailable, "service unavailable")
 		}
 
+		log.Info("handling request", "host", c.Request().Host, "path", c.Request().URL.Path, "method", c.Request().Method, "query", c.Request().URL.Query())
 		return next(c)
 	}
 }

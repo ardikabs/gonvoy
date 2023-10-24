@@ -1,7 +1,7 @@
 package envoy
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 
 	"github.com/ardikabs/go-envoy/pkg/errs"
@@ -33,17 +33,25 @@ var (
 type ErrorHandler func(Context, error) api.StatusType
 
 func DefaultErrorHandler(ctx Context, err error) api.StatusType {
-	switch unwrapErr := errs.Unwrap(err); unwrapErr {
-	case nil:
-		break
+	unwrapErr := errs.Unwrap(err)
+	if unwrapErr == nil {
+		return api.Continue
+	}
+
+	switch unwrapErr {
 	case errs.ErrUnauthorized:
 		err = ctx.JSON(http.StatusUnauthorized, responseBody_401, nil, WithResponseCodeDetails(err.Error()))
 	case errs.ErrAccessDenied:
 		err = ctx.JSON(http.StatusForbidden, responseBody_403, nil, WithResponseCodeDetails(err.Error()))
 	default:
+		log := ctx.Log().WithCallDepth(3)
+		if errors.Is(err, errs.ErrPanic) {
+			log = log.WithCallDepth(1)
+		}
+
 		// hide internal error to end user
 		// but printed out the error details to envoy log
-		ctx.Log(ErrorLevel, fmt.Sprintf("unidentified error; %v", err))
+		log.Error(err, "unidentified error", "host", ctx.Request().Host, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		err = ctx.JSON(http.StatusInternalServerError, responseBody_500, map[string]string{"reporter": "gateway"}, WithResponseCodeDetails(err.Error()))
 	}
 

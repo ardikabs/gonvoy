@@ -39,7 +39,7 @@ func (h *manager) Handle(ctx Context) (status api.StatusType) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic occured; %v, %w", r, errs.ErrInternalServer)
+			err = fmt.Errorf("%w; %v", errs.ErrPanic, r)
 		}
 
 		status = ctx.StatusType()

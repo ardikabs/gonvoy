@@ -2,7 +2,7 @@ services:
   proxy:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.example
     ports:
       - 10000:10000
     command:
@@ -15,12 +15,10 @@ services:
       # https://github.com/envoyproxy/envoy/issues/27719
       - GODEBUG=cgocheck=0
     volumes:
-      - ./envoy.yaml:/etc/envoy.yaml
+      - ./example/go-http-plugin/envoy.yaml:/etc/envoy.yaml
   helloworld_service:
     # image: registry.k8s.io/echoserver:1.10
     # if you are using Apple M1, use below image, otherwise above.
     image: kicbase/echo-server:1.0
   podinfo_service:
-    # image: registry.k8s.io/echoserver:1.10
-    # if you are using Apple M1, use below image, otherwise above.
     image: ghcr.io/stefanprodan/podinfo:6.5.0

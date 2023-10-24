@@ -7,6 +7,8 @@ var (
 	ErrBadRequest     = errors.New("Bad Request")
 	ErrUnauthorized   = errors.New("Unauthorized")
 	ErrAccessDenied   = errors.New("RBAC: Access Denied")
+
+	ErrPanic = errors.New("panic occured")
 )
 
 func Unwrap(err error) error {

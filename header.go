@@ -1,8 +1,6 @@
 package envoy
 
 import (
-	"fmt"
-
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -21,7 +19,7 @@ func (h *header) AsMap() map[string]string {
 
 	h.Range(func(key, value string) bool {
 		if v, ok := flatHeader[key]; ok {
-			flatHeader[key] = fmt.Sprintf("%s, %s", v, value)
+			flatHeader[key] = v + ", " + value
 			return true
 		}
 

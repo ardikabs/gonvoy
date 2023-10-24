@@ -8,6 +8,7 @@ import (
 
 	"github.com/ardikabs/go-envoy/pkg/types"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+	"github.com/go-logr/logr"
 )
 
 type Context interface {
@@ -51,7 +52,7 @@ type Context interface {
 
 	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` component.
 	// e.g., Envoy flag `--component-log-level http:{debug,info,warn,error,critical}`
-	Log(lvl LogLevel, msg string)
+	Log() logr.Logger
 
 	// JSON sends a JSON response with status code.
 	JSON(code int, b []byte, headers map[string]string, opts ...ReplyOption) error
@@ -79,6 +80,8 @@ type context struct {
 
 	storage sync.Map
 
+	logger logr.Logger
+
 	committed bool
 }
 
@@ -89,6 +92,7 @@ func NewContext(callback api.FilterCallbacks) (Context, error) {
 
 	return &context{
 		callback: callback,
+		logger:   NewLogger(callback),
 	}, nil
 }
 
@@ -104,8 +108,8 @@ func (c *context) StreamInfo() api.StreamInfo {
 	return c.callback.StreamInfo()
 }
 
-func (c *context) Log(lvl LogLevel, msg string) {
-	c.callback.Log(api.LogType(lvl), msg)
+func (c *context) Log() logr.Logger {
+	return c.logger
 }
 
 func (c *context) JSON(code int, body []byte, headers map[string]string, opts ...ReplyOption) error {
@@ -154,7 +158,7 @@ func (c *context) SetRequest(header api.RequestHeaderMap) {
 		types.WithRequestHeaderRangeSetter(header),
 	)
 	if err != nil {
-		c.Log(WarnLevel, err.Error())
+		c.Log().Error(err, "while initialize Http Request")
 		return
 	}
 
@@ -176,7 +180,7 @@ func (c *context) SetResponse(header api.ResponseHeaderMap) {
 
 	resp, err := types.NewResponse(code, types.WithResponseHeaderRangeSetter(header))
 	if err != nil {
-		c.Log(WarnLevel, err.Error())
+		c.Log().Error(err, "while initialize Http Response")
 		return
 	}
 

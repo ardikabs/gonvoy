@@ -13,7 +13,7 @@ type HandlerOne struct{}
 
 func (h *HandlerOne) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 	return func(c envoy.Context) error {
-		log := c.Log().WithName("handlerOne")
+		log := c.Log().WithName("handlerOne").WithName("outer").WithName("inner")
 
 		c.RequestHeader().Add("x-key-id", "0")
 		c.RequestHeader().Add("x-key-id", "1")

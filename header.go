@@ -10,6 +10,8 @@ type Header interface {
 	AsMap() map[string]string
 }
 
+var _ Header = &header{}
+
 type header struct {
 	api.HeaderMap
 }

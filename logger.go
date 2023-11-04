@@ -20,7 +20,12 @@ func (w *logWriter) Write(p []byte) (n int, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	return w.buf.Write(p)
+	n, err = w.buf.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("failed to write log, %w", err)
+	}
+
+	return n, nil
 }
 
 func (w *logWriter) String() string {

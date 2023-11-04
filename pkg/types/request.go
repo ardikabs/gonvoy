@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -55,7 +56,7 @@ func WithRequestURI(rawURI string) RequestOption {
 	return func(req *http.Request) error {
 		parsedURL, err := url.ParseRequestURI(rawURI)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse URL, %w", err)
 		}
 
 		req.URL = parsedURL

@@ -8,7 +8,7 @@ var (
 	ErrUnauthorized   = errors.New("Unauthorized")
 	ErrAccessDenied   = errors.New("RBAC: Access Denied")
 
-	ErrPanic = errors.New("panic occured")
+	ErrPanic = errors.New("panic occurred")
 )
 
 func Unwrap(err error) error {

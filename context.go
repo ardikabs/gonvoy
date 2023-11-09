@@ -6,15 +6,42 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/ardikabs/go-envoy/pkg/types"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/go-logr/logr"
 )
 
 type Context interface {
-	// RequestHeader provides an interface to access HTTP Request header, including
+	// RequestHeaderWriter provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
-	RequestHeader() Header
+	// RequestHeaderWriter will panic when it used without initialize the request header map first.
+	//
+	// See WithRequestHeaderMap.
+	RequestHeaderWriter() HeaderWriter
+
+	// ResponseHeaderWriter provides an interface to access and modify HTTP Response header, including
+	// add, overwrite, or delete existing header.
+	// ResponseHeaderWriter will panic when it used without initialize the response header map first.
+	//
+	// See WithResponseHeaderMap.
+	ResponseHeaderWriter() HeaderWriter
+
+	// BufferWriter provides an interface for interacting and modifying HTTP Request/Response body.
+	// Additionally, the proper use of BufferWriter is contingent upon the Request/Response Header.
+	// This means that it necessitates the Decode/Encode Headers phase before making use of BufferWriter.
+	//
+	// > Examples:
+	// To initialize, you need to add during Decode/Encode Data phase.
+	//
+	// // During Decode Data
+	// func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	//    f.ctx.SetRequest(WithBufferInstance(buffer))
+	// }
+	//
+	// // During Encode Data
+	// func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	//    f.ctx.SetResponse(WithBufferInstance(buffer))
+	// }
+	BufferWriter() BufferWriter
 
 	// Request returns an http.Request struct, which is a read-only data.
 	// Attempting to modify this value will have no effect.
@@ -22,11 +49,7 @@ type Context interface {
 	Request() *http.Request
 
 	// SetRequest is a low-level API, it set response from RequestHeaderMap interface
-	SetRequest(api.RequestHeaderMap)
-
-	// ResponseHeader provides an interface to access HTTP Response header, including
-	// add, overwrite, or delete existing header.
-	ResponseHeader() Header
+	SetRequest(opts ...ContextOption)
 
 	// Response returns an http.Response struct, which is a read-only data.
 	// It means, update anything to this value will result nothing.
@@ -34,12 +57,7 @@ type Context interface {
 	Response() *http.Response
 
 	// SetResponse is a low-level API, it set response from ResponseHeaderMap interface
-	SetResponse(api.ResponseHeaderMap)
-
-	// StreamInfo offers an interface for retrieving comprehensive details about the incoming HTTP traffic, including
-	// information such as the route name, filter chain name, dynamic metadata, and more.
-	// It provides direct access to low-level Envoy information, so it's important to use it with a clear understanding of your intent.
-	StreamInfo() api.StreamInfo
+	SetResponse(opts ...ContextOption)
 
 	// Store allows you to save a value of any type under a key of any type.
 	// Please be cautious! The Store function overwrites any existing data.
@@ -66,11 +84,22 @@ type Context interface {
 	// Committed indicates whether the current context has already completed its processing
 	// within the plugin and forwarded the result to Envoy.
 	Committed() bool
+
+	// StreamInfo offers an interface for retrieving comprehensive details about the incoming HTTP traffic, including
+	// information such as the route name, filter chain name, dynamic metadata, and more.
+	// It provides direct access to low-level Envoy information, so it's important to use it with a clear understanding of your intent.
+	StreamInfo() api.StreamInfo
+
+	// GetProperty fetch Envoy attribute and return the value as a string.
+	// The list of attributes can be found in https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
+	// If the fetch succeeded, a string will be returned.
+	GetProperty(key string) (string, error)
 }
 
 type context struct {
-	reqHeaderMap  api.RequestHeaderMap
-	respHeaderMap api.ResponseHeaderMap
+	reqHeaderMap   api.RequestHeaderMap
+	respHeaderMap  api.ResponseHeaderMap
+	bufferInstance api.BufferInstance
 
 	callback   api.FilterCallbacks
 	statusType api.StatusType
@@ -94,14 +123,6 @@ func NewContext(callback api.FilterCallbacks) (Context, error) {
 		callback: callback,
 		logger:   NewLogger(callback),
 	}, nil
-}
-
-func (c *context) RequestHeader() Header {
-	return &header{c.reqHeaderMap}
-}
-
-func (c *context) ResponseHeader() Header {
-	return &header{c.respHeaderMap}
 }
 
 func (c *context) StreamInfo() api.StreamInfo {
@@ -148,44 +169,48 @@ func (c *context) String(code int, s string, opts ...ReplyOption) error {
 	return nil
 }
 
-func (c *context) SetRequest(header api.RequestHeaderMap) {
-	c.reset()
-
-	req, err := types.NewRequest(
-		header.Method(),
-		header.Host(),
-		types.WithRequestURI(header.Path()),
-		types.WithRequestHeaderRangeSetter(header),
-	)
-	if err != nil {
-		c.Log().Error(err, "while initialize Http Request")
-		return
+func (c *context) RequestHeaderWriter() HeaderWriter {
+	if c.reqHeaderMap == nil {
+		panic("Request Header is not being initialized yet")
 	}
 
-	c.httpReq = req
-	c.reqHeaderMap = header
+	return &headerWriter{c.reqHeaderMap}
+}
+
+func (c *context) ResponseHeaderWriter() HeaderWriter {
+	if c.respHeaderMap == nil {
+		panic("Response Header is not being initialized yet")
+	}
+
+	return &headerWriter{c.respHeaderMap}
+}
+
+func (c *context) BufferWriter() BufferWriter {
+	if c.bufferInstance == nil {
+		panic("Buffer Writer is not being initialized yet")
+	}
+
+	return &bufferWriter{c.bufferInstance}
+}
+
+func (c *context) SetRequest(opts ...ContextOption) {
+	for _, o := range opts {
+		if err := o(c); err != nil {
+			c.Log().Error(err, "set Http Request")
+		}
+	}
 }
 
 func (c *context) Request() *http.Request {
 	return c.httpReq
 }
 
-func (c *context) SetResponse(header api.ResponseHeaderMap) {
-	c.reset()
-
-	code, ok := header.Status()
-	if !ok {
-		return
+func (c *context) SetResponse(opts ...ContextOption) {
+	for _, o := range opts {
+		if err := o(c); err != nil {
+			c.Log().Error(err, "set Http Response")
+		}
 	}
-
-	resp, err := types.NewResponse(code, types.WithResponseHeaderRangeSetter(header))
-	if err != nil {
-		c.Log().Error(err, "while initialize Http Response")
-		return
-	}
-
-	c.httpResp = resp
-	c.respHeaderMap = header
 }
 
 func (c *context) Response() *http.Response {
@@ -198,6 +223,10 @@ func (c *context) StatusType() api.StatusType {
 
 func (c *context) Committed() bool {
 	return c.committed
+}
+
+func (c *context) GetProperty(key string) (string, error) {
+	return c.callback.GetProperty(key)
 }
 
 func (c *context) reset() {

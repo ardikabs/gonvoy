@@ -4,19 +4,19 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-type HeaderWriter interface {
+type Header interface {
 	api.HeaderMap
 
 	AsMap() map[string]string
 }
 
-var _ HeaderWriter = &headerWriter{}
+var _ Header = &header{}
 
-type headerWriter struct {
+type header struct {
 	api.HeaderMap
 }
 
-func (h *headerWriter) AsMap() map[string]string {
+func (h *header) AsMap() map[string]string {
 	flatHeader := make(map[string]string)
 
 	h.Range(func(key, value string) bool {

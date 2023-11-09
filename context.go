@@ -11,19 +11,19 @@ import (
 )
 
 type Context interface {
-	// RequestHeaderWriter provides an interface to access and modify HTTP Request header, including
+	// RequestHeader provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
-	// RequestHeaderWriter will panic when it used without initialize the request header map first.
+	// RequestHeader will panic when it used without initialize the request header map first.
 	//
 	// See WithRequestHeaderMap.
-	RequestHeaderWriter() HeaderWriter
+	RequestHeader() Header
 
-	// ResponseHeaderWriter provides an interface to access and modify HTTP Response header, including
+	// ResponseHeader provides an interface to access and modify HTTP Response header, including
 	// add, overwrite, or delete existing header.
-	// ResponseHeaderWriter will panic when it used without initialize the response header map first.
+	// ResponseHeader will panic when it used without initialize the response header map first.
 	//
 	// See WithResponseHeaderMap.
-	ResponseHeaderWriter() HeaderWriter
+	ResponseHeader() Header
 
 	// BufferWriter provides an interface for interacting and modifying HTTP Request/Response body.
 	// Additionally, the proper use of BufferWriter is contingent upon the Request/Response Header.
@@ -169,20 +169,20 @@ func (c *context) String(code int, s string, opts ...ReplyOption) error {
 	return nil
 }
 
-func (c *context) RequestHeaderWriter() HeaderWriter {
+func (c *context) RequestHeader() Header {
 	if c.reqHeaderMap == nil {
 		panic("Request Header is not being initialized yet")
 	}
 
-	return &headerWriter{c.reqHeaderMap}
+	return &header{c.reqHeaderMap}
 }
 
-func (c *context) ResponseHeaderWriter() HeaderWriter {
+func (c *context) ResponseHeader() Header {
 	if c.respHeaderMap == nil {
 		panic("Response Header is not being initialized yet")
 	}
 
-	return &headerWriter{c.respHeaderMap}
+	return &header{c.respHeaderMap}
 }
 
 func (c *context) BufferWriter() BufferWriter {
@@ -194,6 +194,8 @@ func (c *context) BufferWriter() BufferWriter {
 }
 
 func (c *context) SetRequest(opts ...ContextOption) {
+	c.reset()
+
 	for _, o := range opts {
 		if err := o(c); err != nil {
 			c.Log().Error(err, "set Http Request")
@@ -202,10 +204,16 @@ func (c *context) SetRequest(opts ...ContextOption) {
 }
 
 func (c *context) Request() *http.Request {
+	if c.httpReq == nil {
+		panic("Http Request is not yet initialized, see SetRequest.")
+	}
+
 	return c.httpReq
 }
 
 func (c *context) SetResponse(opts ...ContextOption) {
+	c.reset()
+
 	for _, o := range opts {
 		if err := o(c); err != nil {
 			c.Log().Error(err, "set Http Response")
@@ -214,6 +222,10 @@ func (c *context) SetResponse(opts ...ContextOption) {
 }
 
 func (c *context) Response() *http.Response {
+	if c.httpResp == nil {
+		panic("Http Response is not yet initialized, see SetResponse.")
+	}
+
 	return c.httpResp
 }
 

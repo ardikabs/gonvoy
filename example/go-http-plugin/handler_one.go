@@ -26,6 +26,10 @@ func (h *HandlerOne) RequestHandler(next envoy.HandlerFunc) envoy.HandlerFunc {
 			return errors.New("intentionally return unidentified error")
 		}
 
+		if c.Request().Header.Get("x-error") == "503" {
+			return c.String(http.StatusServiceUnavailable, "service unavailable")
+		}
+
 		if c.Request().Header.Get("x-error") == "200" {
 			if err := func() error {
 				return c.JSON(http.StatusOK, envoy.CreateSimpleJSONBody("SUCCESS", "SUCCESS"), nil)

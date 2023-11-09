@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	xds "github.com/cncf/xds/go/xds/type/v3"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -14,7 +15,7 @@ type config struct {
 
 type configParser struct{}
 
-func (p *configParser) Parse(any *anypb.Any) (interface{}, error) {
+func (p *configParser) Parse(any *anypb.Any, cfg api.ConfigCallbackHandler) (interface{}, error) {
 	configStruct := &xds.TypedStruct{}
 	if err := any.UnmarshalTo(configStruct); err != nil {
 		return nil, err

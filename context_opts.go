@@ -36,7 +36,7 @@ func WithBufferInstance(buffer api.BufferInstance) ContextOption {
 		}
 
 		if c.httpReq == nil || c.httpResp == nil {
-			return fmt.Errorf("either http request or response must not nil, it should be initialize first. See WithRequestHeaderMap/WithResponseHeaderMap function.")
+			return fmt.Errorf("either http request or response must not nil, it should be initialize first. See WithRequestHeaderMap or WithResponseHeaderMap options.")
 		}
 
 		if c.httpReq != nil {

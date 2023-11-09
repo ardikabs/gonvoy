@@ -4,7 +4,7 @@ WORKDIR /app
 COPY . .
 RUN cd example/go-http-plugin && GOFLAGS=-buildvcs=false go build -o /app/lib/go_http_plugin.so -buildmode=c-shared *.go
 
-FROM envoyproxy/envoy:contrib-v1.27-latest
+FROM envoyproxy/envoy:contrib-v1.28-latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

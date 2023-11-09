@@ -23,7 +23,7 @@ func TestHeaderMapAsMap(t *testing.T) {
 		}
 	})
 
-	h := &headerWriter{reqHeaderMap}
+	h := &header{reqHeaderMap}
 	assert.NotNil(t, h)
 	assert.Equal(t, "bar", h.AsMap()["foo"])
 	assert.Equal(t, "x-bar, x-foobar", h.AsMap()["x-foo"])

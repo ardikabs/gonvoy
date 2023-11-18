@@ -13,6 +13,12 @@
 
 * Logging with [go-logr](https://github.com/go-logr/logr).
 
+## Installation
+
+```bash
+go get github.com/ardikabs/go-envoy
+```
+
 ## Development Guide
 
 ### Prerequisites
@@ -72,3 +78,7 @@ $ make test
 ### Try It
 
 To try this interface in action, heads to [example](./example) directory.
+
+## License
+
+[MIT](./LICENSE)

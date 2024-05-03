@@ -25,9 +25,11 @@ func HandlerDecorator(next HandlerFunc) HandlerFunc {
 }
 
 var (
-	responseBody_401 = CreateSimpleJSONBody("UNAUTHORIZED", "UNAUTHORIZED")
-	responseBody_403 = CreateSimpleJSONBody("FORBIDDEN", "FORBIDDEN")
-	responseBody_500 = CreateSimpleJSONBody("RUNTIME_ERROR", "RUNTIME_ERROR")
+	ResponseUnauthorized        = NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED")
+	ResponseForbidden           = NewMinimalJSONResponse("FORBIDDEN", "FORBIDDEN")
+	ResponseTooManyRequest      = NewMinimalJSONResponse("TOO_MANY_REQUEST", "TOO_MANY_REQUEST")
+	ResponseInternalServerError = NewMinimalJSONResponse("RUNTIME_ERROR", "RUNTIME_ERROR")
+	ResponseServiceUnavailable  = NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
 )
 
 type ErrorHandler func(Context, error) api.StatusType
@@ -40,9 +42,17 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 
 	switch unwrapErr {
 	case errs.ErrUnauthorized:
-		err = ctx.JSON(http.StatusUnauthorized, responseBody_401, nil, WithResponseCodeDetails(err.Error()))
+		err = ctx.JSON(
+			http.StatusUnauthorized,
+			ResponseUnauthorized,
+			nil,
+			WithResponseCodeDetails(err.Error()))
 	case errs.ErrAccessDenied:
-		err = ctx.JSON(http.StatusForbidden, responseBody_403, nil, WithResponseCodeDetails(err.Error()))
+		err = ctx.JSON(
+			http.StatusForbidden,
+			ResponseForbidden,
+			nil,
+			WithResponseCodeDetails(err.Error()))
 	default:
 		log := ctx.Log().WithCallDepth(3)
 		if errors.Is(err, errs.ErrPanic) {
@@ -52,7 +62,11 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 		// hide internal error to end user
 		// but printed out the error details to envoy log
 		log.Error(err, "unidentified error", "host", ctx.Request().Host, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
-		err = ctx.JSON(http.StatusInternalServerError, responseBody_500, map[string]string{"reporter": "gateway"}, WithResponseCodeDetails(err.Error()))
+		err = ctx.JSON(
+			http.StatusInternalServerError,
+			ResponseInternalServerError,
+			NewGatewayHeaders(),
+			WithResponseCodeDetails(err.Error()))
 	}
 
 	if err != nil {

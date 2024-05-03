@@ -213,7 +213,7 @@ func (_c *FilterCallbackHandler_RecoverPanic_Call) RunAndReturn(run func()) *Fil
 }
 
 // SendLocalReply provides a mock function with given fields: responseCode, bodyText, headers, grpcStatus, details
-func (_m *FilterCallbackHandler) SendLocalReply(responseCode int, bodyText string, headers map[string]string, grpcStatus int64, details string) {
+func (_m *FilterCallbackHandler) SendLocalReply(responseCode int, bodyText string, headers map[string][]string, grpcStatus int64, details string) {
 	_m.Called(responseCode, bodyText, headers, grpcStatus, details)
 }
 
@@ -225,16 +225,16 @@ type FilterCallbackHandler_SendLocalReply_Call struct {
 // SendLocalReply is a helper method to define mock.On call
 //   - responseCode int
 //   - bodyText string
-//   - headers map[string]string
+//   - headers map[string][]string
 //   - grpcStatus int64
 //   - details string
 func (_e *FilterCallbackHandler_Expecter) SendLocalReply(responseCode interface{}, bodyText interface{}, headers interface{}, grpcStatus interface{}, details interface{}) *FilterCallbackHandler_SendLocalReply_Call {
 	return &FilterCallbackHandler_SendLocalReply_Call{Call: _e.mock.On("SendLocalReply", responseCode, bodyText, headers, grpcStatus, details)}
 }
 
-func (_c *FilterCallbackHandler_SendLocalReply_Call) Run(run func(responseCode int, bodyText string, headers map[string]string, grpcStatus int64, details string)) *FilterCallbackHandler_SendLocalReply_Call {
+func (_c *FilterCallbackHandler_SendLocalReply_Call) Run(run func(responseCode int, bodyText string, headers map[string][]string, grpcStatus int64, details string)) *FilterCallbackHandler_SendLocalReply_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(int), args[1].(string), args[2].(map[string]string), args[3].(int64), args[4].(string))
+		run(args[0].(int), args[1].(string), args[2].(map[string][]string), args[3].(int64), args[4].(string))
 	})
 	return _c
 }
@@ -244,7 +244,7 @@ func (_c *FilterCallbackHandler_SendLocalReply_Call) Return() *FilterCallbackHan
 	return _c
 }
 
-func (_c *FilterCallbackHandler_SendLocalReply_Call) RunAndReturn(run func(int, string, map[string]string, int64, string)) *FilterCallbackHandler_SendLocalReply_Call {
+func (_c *FilterCallbackHandler_SendLocalReply_Call) RunAndReturn(run func(int, string, map[string][]string, int64, string)) *FilterCallbackHandler_SendLocalReply_Call {
 	_c.Call.Return(run)
 	return _c
 }

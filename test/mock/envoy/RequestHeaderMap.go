@@ -301,47 +301,6 @@ func (_c *RequestHeaderMap_Path_Call) RunAndReturn(run func() string) *RequestHe
 	return _c
 }
 
-// Protocol provides a mock function with given fields:
-func (_m *RequestHeaderMap) Protocol() string {
-	ret := _m.Called()
-
-	var r0 string
-	if rf, ok := ret.Get(0).(func() string); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	return r0
-}
-
-// RequestHeaderMap_Protocol_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Protocol'
-type RequestHeaderMap_Protocol_Call struct {
-	*mock.Call
-}
-
-// Protocol is a helper method to define mock.On call
-func (_e *RequestHeaderMap_Expecter) Protocol() *RequestHeaderMap_Protocol_Call {
-	return &RequestHeaderMap_Protocol_Call{Call: _e.mock.On("Protocol")}
-}
-
-func (_c *RequestHeaderMap_Protocol_Call) Run(run func()) *RequestHeaderMap_Protocol_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *RequestHeaderMap_Protocol_Call) Return(_a0 string) *RequestHeaderMap_Protocol_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *RequestHeaderMap_Protocol_Call) RunAndReturn(run func() string) *RequestHeaderMap_Protocol_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Range provides a mock function with given fields: f
 func (_m *RequestHeaderMap) Range(f func(string, string) bool) {
 	_m.Called(f)

@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 )
 
-func CreateSimpleJSONBody(code, message string, errs ...error) []byte {
+func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	bodyMap := make(map[string]interface{})
 	bodyMap["code"] = code
 	bodyMap["message"] = message
@@ -47,4 +48,45 @@ func CastTo(target interface{}, value interface{}) bool {
 	}
 	t.Set(v)
 	return true
+}
+
+func ReplaceAllEmptySpace(s string) string {
+	replacementMaps := []string{
+		" ", "_",
+		"\t", "_",
+		"\n", "_",
+		"\v", "_",
+		"\r", "_",
+		"\f", "_",
+	}
+
+	replacer := strings.NewReplacer(replacementMaps...)
+
+	return replacer.Replace(s)
+}
+
+// MustGetProperty is an extended of GetProperty, only panic if value is not in acceptable format.
+func MustGetProperty(c Context, name, defaultVal string) string {
+	value, err := c.GetProperty(name, defaultVal)
+	if err != nil {
+		panic(err)
+	}
+
+	return value
+}
+
+// Clone create new object from source object, copying only the exported fields.
+func Clone(in interface{}) interface{} {
+	out := reflect.New(reflect.TypeOf(in).Elem())
+
+	val := reflect.ValueOf(in).Elem()
+	nVal := out.Elem()
+	for i := 0; i < val.NumField(); i++ {
+		nvField := nVal.Field(i)
+		if nvField.CanSet() {
+			nvField.Set(val.Field(i))
+		}
+	}
+
+	return out.Interface()
 }

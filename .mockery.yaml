@@ -8,5 +8,6 @@ packages:
       outpkg: mock_envoy
     interfaces:
       FilterCallbackHandler:
+      ConfigCallbackHandler:
       RequestHeaderMap:
       ResponseHeaderMap:

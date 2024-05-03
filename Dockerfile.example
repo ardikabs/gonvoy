@@ -1,10 +1,10 @@
-FROM golang:1.20-bullseye AS builder
+FROM golang:1.21-bullseye AS builder
 WORKDIR /app
 
 COPY . .
-RUN cd example/go-http-plugin && GOFLAGS=-buildvcs=false go build -o /app/lib/go_http_plugin.so -buildmode=c-shared *.go
+RUN cd example/go-simple-extension && GOFLAGS=-buildvcs=false go build -o /app/lib/go_simple_extension.so -buildmode=c-shared *.go
 
-FROM envoyproxy/envoy:contrib-v1.27-latest
+FROM envoyproxy/envoy:contrib-v1.29-latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -13,5 +13,5 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' | tee /etc/apt/apt.conf.d/keep-cache \
     && apt-get -qq update -y \
     && apt-get -qq install --no-install-recommends -y curl
-COPY --from=builder /app/lib/go_http_plugin.so /lib/go_http_plugin.so
+COPY --from=builder /app/lib/go_simple_extension.so /lib/go_simple_extension.so
 CMD ["/usr/local/bin/envoy", "-c", "/etc/envoy.yaml"]

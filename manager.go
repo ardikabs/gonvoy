@@ -42,11 +42,12 @@ func (h *manager) Handle(ctx Context) (status api.StatusType) {
 			err = fmt.Errorf("%w; %v", errs.ErrPanic, r)
 		}
 
-		status = ctx.StatusType()
-
 		if err != nil {
 			status = h.errorHandler(ctx, err)
+			return
 		}
+
+		status = ctx.StatusType()
 	}()
 
 	if len(h.handlers) == 0 {

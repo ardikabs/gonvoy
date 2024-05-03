@@ -157,7 +157,9 @@ func NewContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 	}
 
 	for _, opt := range opts {
-		opt(c)
+		if err := opt(c); err != nil {
+			return nil, err
+		}
 	}
 
 	return c, nil

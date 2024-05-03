@@ -1,4 +1,4 @@
-GOLANGCI_VERSION = 1.53.3
+GOLANGCI_VERSION = 1.57.2
 SHELL:=/bin/bash
 
 .PHONY: help

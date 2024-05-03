@@ -45,14 +45,14 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 		err = ctx.JSON(
 			http.StatusUnauthorized,
 			ResponseUnauthorized,
-			nil,
-			WithResponseCodeDetails(err.Error()))
+			NewGatewayHeaders(),
+			WithResponseCodeDetails(ResponseCodeDetailPrefix_Unauthorized.Wrap(err.Error())))
 	case errs.ErrAccessDenied:
 		err = ctx.JSON(
 			http.StatusForbidden,
 			ResponseForbidden,
-			nil,
-			WithResponseCodeDetails(err.Error()))
+			NewGatewayHeaders(),
+			WithResponseCodeDetails(ResponseCodeDetailPrefix_AccessDenied.Wrap(err.Error())))
 	default:
 		log := ctx.Log().WithCallDepth(3)
 		if errors.Is(err, errs.ErrPanic) {
@@ -66,7 +66,7 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 			http.StatusInternalServerError,
 			ResponseInternalServerError,
 			NewGatewayHeaders(),
-			WithResponseCodeDetails(err.Error()))
+			WithResponseCodeDetails(ResponseCodeDetailPrefix_Error.Wrap(err.Error())))
 	}
 
 	if err != nil {

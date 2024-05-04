@@ -11,6 +11,14 @@ import (
 
 var NoOpFilter = &api.PassThroughStreamFilter{}
 
+func RunHttpFilter(filter HttpFilter) {
+	RunHttpFilterWithConfig(filter, nil)
+}
+
+func RunHttpFilterWithConfig(filter HttpFilter, filterConfig interface{}) {
+	envoyhttp.RegisterHttpFilterConfigFactoryAndParser(filter.Name(), httpFilterFactory(filter), newConfigParser(filterConfig))
+}
+
 type HttpFilter interface {
 	Name() string
 
@@ -28,11 +36,7 @@ type HttpFilterHandler interface {
 	OnResponseBody(c Context, body []byte) error
 }
 
-func RunHttpFilter(filter HttpFilter, filterConfig interface{}) {
-	envoyhttp.RegisterHttpFilterConfigFactoryAndParser(filter.Name(), httpFilterFactory(filter), newConfigParser(filterConfig))
-}
-
-func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
+func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 	return func(cfg interface{}) api.StreamFilterFactory {
 		config, ok := cfg.(Configuration)
 		if !ok {
@@ -43,20 +47,20 @@ func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
 			ctx, err := NewContext(callbacks, WithFilterConfiguration(config))
 			if err != nil {
 				callbacks.Log(api.Critical, fmt.Sprintf("httpFilterFactory: failed during filter context initialization; %v", err))
-				callbacks.Log(api.Info, fmt.Sprintf("HttpFilter %s is ignoreed", filter.Name()))
+				callbacks.Log(api.Info, fmt.Sprintf("httpFilterFactory: filter '%s' is ignored", httpFilter.Name()))
 				return NoOpFilter
 			}
 
-			hf, err := util.NewCopyFromStructOrPointer(filter)
+			newHttpFilter, err := util.NewFrom(httpFilter)
 			if err != nil {
-				callbacks.Log(api.Critical, fmt.Sprintf("httpFilterFactory: failed during filter instance initialization; HttpFilter %v", err))
-				callbacks.Log(api.Info, fmt.Sprintf("HttpFilter %s is ignoreed", filter.Name()))
+				callbacks.Log(api.Critical, fmt.Sprintf("httpFilterFactory: failed during filter instance initialization; %v", err))
+				callbacks.Log(api.Info, fmt.Sprintf("httpFilterFactory: filter '%s' is ignored", httpFilter.Name()))
 				return NoOpFilter
 			}
 
 			return &filterInstance{
 				ctx:        ctx,
-				httpFilter: hf,
+				httpFilter: newHttpFilter.(HttpFilter),
 			}
 		}
 	}

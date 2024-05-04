@@ -3,6 +3,7 @@ package envoy
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"runtime"
@@ -123,12 +124,8 @@ type context struct {
 	httpReq  *http.Request
 	httpResp *http.Response
 
-	respCodeDetails string
-
-	storage sync.Map
-
-	logger logr.Logger
-
+	storage   sync.Map
+	logger    logr.Logger
 	committed bool
 }
 
@@ -136,6 +133,16 @@ type ContextOption func(c *context) error
 
 func WithFilterConfiguration(cfg Configuration) ContextOption {
 	return func(c *context) error {
+		type validator interface {
+			Validate() error
+		}
+
+		if validate, ok := cfg.GetFilterConfig().(validator); ok {
+			if err := validate.Validate(); err != nil {
+				return fmt.Errorf("invalid filter config; %w", err)
+			}
+		}
+
 		cc := cfg.GetConfigCallbacks()
 		if cc == nil {
 			return errors.New("config callbacks can not be nil")
@@ -279,10 +286,6 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	if err != nil {
 		c.Log().Error(err, "while initialize Http Response")
 		return
-	}
-
-	if cd, err := c.GetProperty("response.code_details", "n_a"); err == nil {
-		c.respCodeDetails = cd
 	}
 
 	c.httpResp = resp

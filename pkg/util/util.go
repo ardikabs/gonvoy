@@ -35,7 +35,9 @@ func ReplaceAllEmptySpace(s string) string {
 	return replacer.Replace(s)
 }
 
-func NewCopyFromStructOrPointer[T any](in T) (out T, err error) {
+// NewFrom dynamically creates a new variable from the specified data type.
+// However, the returned Value's Type is always a PointerTo{dataType}.
+func NewFrom(in interface{}) (out interface{}, err error) {
 	f := reflect.TypeOf(in)
 	var v reflect.Value
 	switch f.Kind() {
@@ -44,8 +46,8 @@ func NewCopyFromStructOrPointer[T any](in T) (out T, err error) {
 	case reflect.Struct:
 		v = reflect.New(f)
 	default:
-		return out, fmt.Errorf("data type must be either pointer or literal struct. Got %s instead", f.Name())
+		return out, fmt.Errorf("data type must be either pointer to struct or literal struct. Got %s instead", f.Name())
 	}
 
-	return v.Interface().(T), nil
+	return v.Interface(), nil
 }

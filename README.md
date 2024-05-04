@@ -23,13 +23,13 @@ go get github.com/ardikabs/go-envoy
 
 ### Prerequisites
 
-* Go 1.20 or later. Follow [Golang installation guideline](https://golang.org/doc/install).
+* Go 1.21 or later. Follow [Golang installation guideline](https://golang.org/doc/install).
 
 ### Setup
 
 * Install Git.
 
-* Install Go 1.20.
+* Install Go 1.21.
 
 * Clone the project.
 

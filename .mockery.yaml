@@ -7,6 +7,8 @@ packages:
       dir: test/mock/envoy
       outpkg: mock_envoy
     interfaces:
+      CounterMetric:
+      GaugeMetric:
       FilterCallbackHandler:
       ConfigCallbackHandler:
       RequestHeaderMap:

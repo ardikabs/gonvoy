@@ -53,7 +53,7 @@ func TestConfigParser(t *testing.T) {
 	assert.NotNil(t, parentConfigAny)
 
 	parentCfg, err := cp.Parse(parentConfigAny, mockCC)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	pConfig, ok := parentCfg.(Configuration)
 	assert.True(t, ok)
@@ -82,7 +82,6 @@ func TestConfigParser(t *testing.T) {
 	require.Nil(t, err)
 
 	mergedCfg := cp.Merge(parentCfg, childCfg)
-
 	mConfig, ok := mergedCfg.(Configuration)
 	assert.True(t, ok)
 

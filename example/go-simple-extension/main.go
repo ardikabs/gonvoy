@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	envoy.RunHttpFilter(&httpfilter.Filter{}, httpfilter.Config{})
+	envoy.RunHttpFilter(&httpfilter.Filter{}, &httpfilter.Config{})
 }
 
 func main() {}

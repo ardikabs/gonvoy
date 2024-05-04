@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ardikabs/go-envoy/pkg/util"
 	xds "github.com/cncf/xds/go/xds/type/v3"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -103,31 +104,19 @@ func (c *config) Load(key any, receiver interface{}) (bool, error) {
 		return false, nil
 	}
 
-	if !CastTo(receiver, v) {
+	if !util.CastTo(receiver, v) {
 		return false, errors.New("config: receiver and value has an incompatible type")
 	}
 
 	return true, nil
 }
 
-func (c *config) DeepCopyInto(out *config) {
-	*out = *c
-}
-
-func (c *config) DeepCopy() *config {
-	out := new(config)
-	c.DeepCopyInto(out)
-	return out
-}
-
 type configParser struct {
-	config interface{}
+	filterConfig interface{}
 }
 
-func newConfigParser(config interface{}) *configParser {
-	return &configParser{
-		config: config,
-	}
+func newConfigParser(filterConfig interface{}) *configParser {
+	return &configParser{filterConfig}
 }
 
 func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (interface{}, error) {
@@ -142,16 +131,12 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
 
-	var filterCfg reflect.Value
-	cfgType := reflect.TypeOf(p.config)
-	if cfgType.Kind() == reflect.Ptr {
-		filterCfg = reflect.New(cfgType.Elem())
-	} else if cfgType.Kind() == reflect.Struct {
-		filterCfg = reflect.New(cfgType)
+	filterCfg, err := util.NewCopyFromStructOrPointer(p.filterConfig)
+	if err != nil {
+		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
 
-	filterCfgIface := filterCfg.Interface()
-	if err := json.Unmarshal(b, &filterCfgIface); err != nil {
+	if err := json.Unmarshal(b, &filterCfg); err != nil {
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
 
@@ -159,14 +144,14 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 		Validate() error
 	}
 
-	if validate, ok := filterCfgIface.(validator); ok {
+	if validate, ok := filterCfg.(validator); ok {
 		validateErr := validate.Validate()
 		if validateErr != nil {
 			return nil, fmt.Errorf("configparser: parse failed; %w", validateErr)
 		}
 	}
 
-	cfg := newConfig(filterCfgIface, cc)
+	cfg := newConfig(filterCfg, cc)
 	return cfg, nil
 }
 
@@ -174,15 +159,14 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 	parentCfg := parent.(*config)
 	childCfg := child.(*config)
 
-	copyParentCfg := parentCfg.DeepCopy()
-
+	copyParentCfg := *parentCfg
 	mergedFilterCfg, err := p.mergeStruct(copyParentCfg.filterCfg, childCfg.filterCfg)
 	if err != nil {
 		panic(err)
 	}
 
 	copyParentCfg.filterCfg = mergedFilterCfg
-	return copyParentCfg
+	return &copyParentCfg
 }
 
 func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, error) {
@@ -225,5 +209,8 @@ func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, erro
 		parentValue.Field(i).Set(v)
 	}
 
-	return parent, nil
+	copyParent := reflect.New(parentValue.Type())
+	copyParentValue := copyParent.Elem()
+	copyParentValue.Set(parentValue)
+	return copyParent.Interface(), nil
 }

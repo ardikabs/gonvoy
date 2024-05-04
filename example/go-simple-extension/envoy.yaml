@@ -77,6 +77,7 @@ static_resources:
                         "@type": type.googleapis.com/xds.type.v3.TypedStruct
                         value:
                           request_headers:
+                            parent_only: parent-bar
                             foo: bar
                   - name: envoy.filters.http.router
                     typed_config:

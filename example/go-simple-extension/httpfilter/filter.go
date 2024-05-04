@@ -6,9 +6,8 @@ import (
 	"github.com/ardikabs/go-envoy"
 )
 
-type Config struct {
-	ParentOnly     string            `json:"parent_only,omitempty"`
-	RequestHeaders map[string]string `json:"request_headers,omitempty" envoy:"mergeable,preserve"`
+func init() {
+	envoy.RunHttpFilterWithConfig(&Filter{}, &Config{})
 }
 
 type Filter struct {
@@ -25,9 +24,8 @@ func (f *Filter) OnStart(c envoy.Context) {}
 
 func (f *Filter) Handlers(c envoy.Context) []envoy.HttpFilterHandler {
 	fConfig := c.Configuration().GetFilterConfig()
-	config, ok := fConfig.(*Config)
-	if ok {
-		f.Config = config
+	if cfg, ok := fConfig.(*Config); ok {
+		f.Config = cfg
 	}
 
 	return []envoy.HttpFilterHandler{

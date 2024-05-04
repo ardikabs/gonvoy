@@ -1,13 +1,7 @@
 package main
 
 import (
-	"go-simple-extension/httpfilter"
-
-	"github.com/ardikabs/go-envoy"
+	_ "go-simple-extension/httpfilter"
 )
-
-func init() {
-	envoy.RunHttpFilter(&httpfilter.Filter{}, &httpfilter.Config{})
-}
 
 func main() {}

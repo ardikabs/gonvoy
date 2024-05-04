@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ardikabs/go-envoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	envoyhttp "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
 )
@@ -27,11 +28,11 @@ type HttpFilterHandler interface {
 	OnResponseBody(c Context, body []byte) error
 }
 
-func RunHttpFilter(filter HttpFilter, cfg interface{}) {
-	envoyhttp.RegisterHttpFilterConfigFactoryAndParser(filter.Name(), filterInstanceFactory(filter), newConfigParser(cfg))
+func RunHttpFilter(filter HttpFilter, filterConfig interface{}) {
+	envoyhttp.RegisterHttpFilterConfigFactoryAndParser(filter.Name(), httpFilterFactory(filter), newConfigParser(filterConfig))
 }
 
-func filterInstanceFactory(filter HttpFilter) api.StreamFilterConfigFactory {
+func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
 	return func(cfg interface{}) api.StreamFilterFactory {
 		config, ok := cfg.(Configuration)
 		if !ok {
@@ -41,12 +42,21 @@ func filterInstanceFactory(filter HttpFilter) api.StreamFilterConfigFactory {
 		return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
 			ctx, err := NewContext(callbacks, WithFilterConfiguration(config))
 			if err != nil {
+				callbacks.Log(api.Critical, fmt.Sprintf("httpFilterFactory: failed during filter context initialization; %v", err))
+				callbacks.Log(api.Info, fmt.Sprintf("HttpFilter %s is ignoreed", filter.Name()))
+				return NoOpFilter
+			}
+
+			hf, err := util.NewCopyFromStructOrPointer(filter)
+			if err != nil {
+				callbacks.Log(api.Critical, fmt.Sprintf("httpFilterFactory: failed during filter instance initialization; HttpFilter %v", err))
+				callbacks.Log(api.Info, fmt.Sprintf("HttpFilter %s is ignoreed", filter.Name()))
 				return NoOpFilter
 			}
 
 			return &filterInstance{
 				ctx:        ctx,
-				httpFilter: filter,
+				httpFilter: hf,
 			}
 		}
 	}

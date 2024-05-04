@@ -1,8 +1,10 @@
 package envoy
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/ardikabs/go-envoy/pkg/errs"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -74,4 +76,27 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 	}
 
 	return api.LocalReply
+}
+
+// NewMinimalJSONResponse creates a minimal JSON body as a form of bytes.
+func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
+	bodyMap := make(map[string]interface{})
+	bodyMap["code"] = code
+	bodyMap["message"] = message
+	bodyMap["errors"] = nil
+	bodyMap["data"] = make(map[string]interface{}, 0)
+	bodyMap["serverTime"] = time.Now().UnixMilli()
+
+	listErrs := make([]string, len(errs))
+	for i, err := range errs {
+		listErrs[i] = err.Error()
+	}
+	bodyMap["errors"] = listErrs
+
+	bodyByte, err := json.Marshal(bodyMap)
+	if err != nil {
+		bodyByte = []byte("{}")
+	}
+
+	return bodyByte
 }

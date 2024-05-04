@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ardikabs/go-envoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -56,5 +57,5 @@ func (prefix ResponseCodeDetailPrefix) Wrap(message string) string {
 		return message
 	}
 
-	return fmt.Sprintf("%s{%s}", prefix, ReplaceAllEmptySpace(message))
+	return fmt.Sprintf("%s{%s}", prefix, util.ReplaceAllEmptySpace(message))
 }

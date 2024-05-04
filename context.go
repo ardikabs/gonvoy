@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/ardikabs/go-envoy/pkg/types"
+	"github.com/ardikabs/go-envoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/go-logr/logr"
 )
@@ -349,7 +350,7 @@ func (c *context) Load(key any, receiver interface{}) (bool, error) {
 		return false, nil
 	}
 
-	if !CastTo(receiver, v) {
+	if !util.CastTo(receiver, v) {
 		return false, errors.New("context: receiver and value has an incompatible type")
 	}
 

@@ -105,7 +105,8 @@ type Context interface {
 	// Currently, it only supports value that has a string format, work in progress for List/Map format.
 	GetProperty(name, defaultVal string) (string, error)
 
-	// Configuration returns the filter configuration
+	// Configuration provides access to the filter configuration,
+	// while also enabling users to persist and share data throughout Envoy's lifespan.
 	Configuration() Configuration
 }
 
@@ -293,6 +294,12 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {
+	if c.reqBufferInstance != nil {
+		return
+	}
+
+	c.reqBufferInstance = buffer
+
 	if buffer.Len() == 0 {
 		return
 	}
@@ -302,6 +309,12 @@ func (c *context) SetRequestBody(buffer api.BufferInstance) {
 }
 
 func (c *context) SetResponseBody(buffer api.BufferInstance) {
+	if c.respBufferInstance != nil {
+		return
+	}
+
+	c.respBufferInstance = buffer
+
 	if buffer.Len() == 0 {
 		return
 	}

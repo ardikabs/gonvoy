@@ -13,13 +13,13 @@ type Configuration interface {
 	GetConfigCallbacks() api.ConfigCallbacks
 
 	// Store allows you to save a value of any type under a key of any type,
-	// It designed for sharing data throughout the lifetime of Envoy.
+	// It designed for sharing data throughout Envoy's lifespan.
 	//
 	// Please be cautious! The Store function overwrites any existing data.
 	Store(key any, value any)
 
 	// Load retrieves a value associated with a specific key and assigns it to the receiver.
-	// It designed for sharing data throughout the lifetime of Envoy.
+	// It designed for sharing data throughout Envoy's lifespan..
 	//
 	// It returns true if a compatible value is successfully loaded,
 	// and false if no value is found or an error occurs during the process.

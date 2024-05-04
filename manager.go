@@ -8,34 +8,60 @@ import (
 )
 
 type HandlerManager interface {
-	Use(handler Handler)
-	Handle(ctx Context) api.StatusType
+	SetErrorHandler(ErrorHandler)
+	Use(HttpFilterHandler) HandlerManager
+
+	handle(Context, ActionPhase) api.StatusType
 }
 
-type manager struct {
-	errorHandler ErrorHandler
-	handlers     []Handler
-}
+type ActionPhase uint
 
-func NewManager() HandlerManager {
-	return NewManagerWithErrorHandler(DefaultErrorHandler)
-}
+const (
+	OnRequestHeaderPhase ActionPhase = iota + 1
+	OnResponseHeaderPhase
+	OnRequestBodyPhase
+	OnResponseBodyPhase
+)
 
-func NewManagerWithErrorHandler(errHandler ErrorHandler) HandlerManager {
-	return &manager{
-		errorHandler: errHandler,
+func newHandlerManager() *handlerManager {
+	return &handlerManager{
+		errorHandler: DefaultErrorHandler,
 	}
 }
 
-func (h *manager) Use(handler Handler) {
+type handlerManager struct {
+	errorHandler ErrorHandler
+	first        HandlerChain
+	last         HandlerChain
+}
+
+func (h *handlerManager) SetErrorHandler(handler ErrorHandler) {
 	if handler == nil {
 		return
 	}
 
-	h.handlers = append(h.handlers, handler)
+	h.errorHandler = handler
 }
 
-func (h *manager) Handle(ctx Context) (status api.StatusType) {
+func (h *handlerManager) Use(hfHandler HttpFilterHandler) HandlerManager {
+	if hfHandler == nil || hfHandler.Disable() {
+		return h
+	}
+
+	handler := NewHandlerChain(hfHandler)
+
+	if h.first == nil {
+		h.first = handler
+		h.last = handler
+		return h
+	}
+
+	h.last.SetNext(handler)
+	h.last = handler
+	return h
+}
+
+func (h *handlerManager) handle(c Context, phase ActionPhase) (status api.StatusType) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
@@ -43,22 +69,26 @@ func (h *manager) Handle(ctx Context) (status api.StatusType) {
 		}
 
 		if err != nil {
-			status = h.errorHandler(ctx, err)
-			return
+			h.errorHandler(c, err)
 		}
 
-		status = ctx.StatusType()
+		status = c.StatusType()
 	}()
 
-	if len(h.handlers) == 0 {
-		return
+	if h.first == nil {
+		h.first = NewHandlerChain(PassthroughHttpFilterHandler{})
 	}
 
-	stack := func(c Context) error { return nil }
-	for i := len(h.handlers) - 1; i >= 0; i-- {
-		stack = HandlerDecorator(h.handlers[i](stack))
+	switch phase {
+	case OnRequestHeaderPhase:
+		err = h.first.HandleOnRequestHeader(c)
+	case OnResponseHeaderPhase:
+		err = h.first.HandleOnResponseHeader(c)
+	case OnRequestBodyPhase:
+		err = h.first.HandleOnRequestBody(c)
+	case OnResponseBodyPhase:
+		err = h.first.HandleOnResponseBody(c)
 	}
 
-	err = stack(ctx)
-	return
+	return status
 }

@@ -23,7 +23,7 @@ type HttpFilter interface {
 	Name() string
 
 	OnStart(c Context)
-	Handlers(c Context) []HttpFilterHandler
+	RegisterHttpFilterHandler(c Context, mgr HandlerManager)
 	OnComplete(c Context)
 }
 
@@ -77,6 +77,8 @@ type filterInstance struct {
 
 // I'm still uncertain why this method is never called.
 func (f *filterInstance) OnLogDownstreamStart() {
+	fmt.Println("onlogdownstreamstart just now")
+
 	f.httpFilter.OnStart(f.ctx)
 }
 
@@ -87,55 +89,24 @@ func (f *filterInstance) OnLog() {
 func (f *filterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) (status api.StatusType) {
 	f.ctx.SetRequestHeader(header)
 
-	mgr := NewManager()
-	for _, handler := range f.httpFilter.Handlers(f.ctx) {
-		handler := handler
-		mgr.Use(func(next HandlerFunc) HandlerFunc {
-			if handler.Disable() {
-				return nil
-			}
-
-			return func(c Context) error {
-				if err := handler.OnRequestHeader(c, c.Request().Header); err != nil {
-					return err
-				}
-				return next(c)
-			}
-		})
-
-	}
-
-	return mgr.Handle(f.ctx)
-}
-
-func (f *filterInstance) DecodeData(api.BufferInstance, bool) api.StatusType {
-	return api.Continue
+	manager := newHandlerManager()
+	f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
+	return manager.handle(f.ctx, OnRequestHeaderPhase)
 }
 
 func (f *filterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) (status api.StatusType) {
 	f.ctx.SetResponseHeader(header)
 
-	mgr := NewManager()
-	for _, handler := range f.httpFilter.Handlers(f.ctx) {
-		handler := handler
-		mgr.Use(func(next HandlerFunc) HandlerFunc {
-			if handler.Disable() {
-				return nil
-			}
-
-			return func(c Context) error {
-				if err := handler.OnResponseHeader(c, c.Response().Header); err != nil {
-					return err
-				}
-
-				return next(c)
-			}
-		})
-	}
-	return mgr.Handle(f.ctx)
+	manager := newHandlerManager()
+	f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
+	return manager.handle(f.ctx, OnResponseHeaderPhase)
 }
 
-func (f *filterInstance) EncodeData(api.BufferInstance, bool) api.StatusType {
+func (f *filterInstance) DecodeData(buffer api.BufferInstance, endStream bool) (status api.StatusType) {
+	return api.Continue
+}
+
+func (f *filterInstance) EncodeData(buffer api.BufferInstance, endStream bool) (status api.StatusType) {
 	return api.Continue
 }
 

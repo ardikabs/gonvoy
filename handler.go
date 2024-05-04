@@ -1,30 +1,12 @@
 package envoy
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/ardikabs/go-envoy/pkg/errs"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
-
-type HandlerFunc func(ctx Context) error
-
-type Handler func(next HandlerFunc) HandlerFunc
-
-func HandlerDecorator(next HandlerFunc) HandlerFunc {
-	return func(c Context) error {
-		if c.Committed() {
-			// if committed, it means current chaining needs to be halted
-			// and return status to the Envoy immediately
-			return nil
-		}
-
-		return next(c)
-	}
-}
 
 var (
 	ResponseUnauthorized        = NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED")
@@ -78,25 +60,90 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 	return api.LocalReply
 }
 
-// NewMinimalJSONResponse creates a minimal JSON body as a form of bytes.
-func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
-	bodyMap := make(map[string]interface{})
-	bodyMap["code"] = code
-	bodyMap["message"] = message
-	bodyMap["errors"] = nil
-	bodyMap["data"] = make(map[string]interface{}, 0)
-	bodyMap["serverTime"] = time.Now().UnixMilli()
+type HandlerChain interface {
+	HandleOnRequestHeader(Context) error
+	HandleOnResponseHeader(Context) error
+	HandleOnRequestBody(Context) error
+	HandleOnResponseBody(Context) error
 
-	listErrs := make([]string, len(errs))
-	for i, err := range errs {
-		listErrs[i] = err.Error()
+	SetNext(HandlerChain)
+}
+
+type defaultHandlerChain struct {
+	handler HttpFilterHandler
+	next    HandlerChain
+}
+
+func NewHandlerChain(hf HttpFilterHandler) *defaultHandlerChain {
+	return &defaultHandlerChain{
+		handler: hf,
 	}
-	bodyMap["errors"] = listErrs
+}
 
-	bodyByte, err := json.Marshal(bodyMap)
-	if err != nil {
-		bodyByte = []byte("{}")
+func (b *defaultHandlerChain) HandleOnRequestHeader(c Context) error {
+	if err := b.handler.OnRequestHeader(c, c.Request().Header); err != nil {
+		return err
 	}
 
-	return bodyByte
+	if c.Committed() {
+		return nil
+	}
+
+	if b.next != nil {
+		return b.next.HandleOnRequestHeader(c)
+	}
+
+	return nil
+}
+
+func (b *defaultHandlerChain) HandleOnResponseHeader(c Context) error {
+	if err := b.handler.OnResponseHeader(c, c.Request().Header); err != nil {
+		return err
+	}
+
+	if c.Committed() {
+		return nil
+	}
+
+	if b.next != nil {
+		return b.next.HandleOnResponseHeader(c)
+	}
+
+	return nil
+}
+
+func (b *defaultHandlerChain) HandleOnRequestBody(c Context) error {
+	if err := b.handler.OnRequestBody(c, c.RequestBodyWriter().Bytes()); err != nil {
+		return err
+	}
+
+	if c.Committed() {
+		return nil
+	}
+
+	if b.next != nil {
+		return b.next.HandleOnRequestBody(c)
+	}
+
+	return nil
+}
+
+func (b *defaultHandlerChain) HandleOnResponseBody(c Context) error {
+	if err := b.handler.OnResponseBody(c, c.ResponseBodyWriter().Bytes()); err != nil {
+		return err
+	}
+
+	if c.Committed() {
+		return nil
+	}
+
+	if b.next != nil {
+		return b.next.HandleOnResponseBody(c)
+	}
+
+	return nil
+}
+
+func (b *defaultHandlerChain) SetNext(hc HandlerChain) {
+	b.next = hc
 }

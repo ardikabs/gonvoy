@@ -22,12 +22,14 @@ type bufferWriter struct {
 
 func (bw *bufferWriter) Write(p []byte) (n int, err error) {
 	err = bw.instance.Set(p)
-	return bw.instance.Len(), err
+	n = bw.instance.Len()
+	return
 }
 
 func (bw *bufferWriter) WriteString(s string) (n int, err error) {
 	err = bw.instance.SetString(s)
-	return bw.instance.Len(), err
+	n = bw.instance.Len()
+	return
 }
 
 func (bw *bufferWriter) String() string {

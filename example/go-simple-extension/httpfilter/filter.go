@@ -22,17 +22,15 @@ func (f *Filter) Name() string {
 
 func (f *Filter) OnStart(c envoy.Context) {}
 
-func (f *Filter) Handlers(c envoy.Context) []envoy.HttpFilterHandler {
+func (f *Filter) RegisterHttpFilterHandler(c envoy.Context, mgr envoy.HandlerManager) {
 	fConfig := c.Configuration().GetFilterConfig()
 	if cfg, ok := fConfig.(*Config); ok {
 		f.Config = cfg
 	}
 
-	return []envoy.HttpFilterHandler{
-		&handler.HandlerOne{},
-		&handler.HandlerTwo{},
-		&handler.HandlerThree{RequestHeaders: f.Config.RequestHeaders},
-	}
+	mgr.Use(&handler.HandlerOne{})
+	mgr.Use(&handler.HandlerTwo{})
+	mgr.Use(&handler.HandlerThree{RequestHeaders: f.Config.RequestHeaders})
 }
 
 func (f *Filter) OnComplete(c envoy.Context) {

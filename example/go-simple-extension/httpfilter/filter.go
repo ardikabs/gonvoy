@@ -32,9 +32,9 @@ func (f *Filter) OnStart(c gonvoy.Context) {
 }
 
 func (f *Filter) RegisterHttpFilterHandler(c gonvoy.Context, mgr gonvoy.HttpFilterHandlerManager) {
-	mgr.Use(&handler.HandlerOne{})
-	mgr.Use(&handler.HandlerTwo{})
-	mgr.Use(&handler.HandlerThree{RequestHeaders: f.Config.RequestHeaders})
+	mgr.Register(&handler.HandlerOne{})
+	mgr.Register(&handler.HandlerTwo{})
+	mgr.Register(&handler.HandlerThree{RequestHeaders: f.Config.RequestHeaders})
 }
 
 func (f *Filter) OnComplete(c gonvoy.Context) {

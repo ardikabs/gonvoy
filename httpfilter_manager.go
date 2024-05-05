@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/ardikabs/gonvoy/pkg/errs"
+	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
 type HttpFilterHandlerManager interface {
 	SetErrorHandler(ErrorHandler)
-	Use(HttpFilterHandler) HttpFilterHandlerManager
+	Register(HttpFilterHandler) HttpFilterHandlerManager
 
 	handle(Context, HttpFilterActionPhase) api.StatusType
 }
@@ -43,8 +44,8 @@ func (h *handlerManager) SetErrorHandler(handler ErrorHandler) {
 	h.errorHandler = handler
 }
 
-func (h *handlerManager) Use(handler HttpFilterHandler) HttpFilterHandlerManager {
-	if handler == nil || handler.Disable() {
+func (h *handlerManager) Register(handler HttpFilterHandler) HttpFilterHandlerManager {
+	if util.IsNil(handler) || handler.Disable() {
 		return h
 	}
 

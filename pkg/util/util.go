@@ -51,3 +51,17 @@ func NewFrom(in interface{}) (out interface{}, err error) {
 
 	return v.Interface(), nil
 }
+
+func IsNil(i interface{}) bool {
+	v := reflect.ValueOf(i)
+	if !v.IsValid() {
+		return true
+	}
+
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Func, reflect.Interface:
+		return v.IsNil()
+	default:
+		return false
+	}
+}

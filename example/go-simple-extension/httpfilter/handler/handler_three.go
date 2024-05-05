@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/ardikabs/go-envoy"
+	"github.com/ardikabs/go-envoy/pkg/errs"
 )
 
 type HandlerThree struct {
@@ -42,4 +45,38 @@ func (h *HandlerThree) OnResponseHeader(c envoy.Context, header http.Header) err
 
 	}
 	return nil
+}
+
+func (h *HandlerThree) OnRequestBody(c envoy.Context, body []byte) error {
+	reqBody := make(map[string]interface{})
+
+	if err := json.Unmarshal(body, &reqBody); err != nil {
+		return errs.ErrBadRequest
+	}
+
+	reqBody["newData"] = "newValue"
+	reqBody["handlerName"] = "HandlerThree"
+	reqBody["phase"] = "HTTPRequest"
+
+	enc := json.NewEncoder(c.RequestBody())
+	return enc.Encode(reqBody)
+}
+
+func (h *HandlerThree) OnResponseBody(c envoy.Context, body []byte) error {
+	if ct := c.Response().Header.Get(envoy.HeaderContentType); !strings.Contains(ct, "application/json") {
+		return nil
+	}
+
+	respBody := make(map[string]interface{})
+
+	if err := json.Unmarshal(body, &respBody); err != nil {
+		return errs.ErrBadRequest
+	}
+
+	respBody["newData"] = "newValue"
+	respBody["handlerName"] = "HandlerThree"
+	respBody["phase"] = "HTTPResponse"
+
+	enc := json.NewEncoder(c.ResponseBody())
+	return enc.Encode(respBody)
 }

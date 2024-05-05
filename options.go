@@ -38,6 +38,12 @@ func WithGrpcStatus(status int64) ReplyOption {
 	}
 }
 
+func WithStatusType(status api.StatusType) ReplyOption {
+	return func(o *ReplyOptions) {
+		o.statusType = status
+	}
+}
+
 var (
 	ResponseCodeDetailPrefix_Info         = ResponseCodeDetailPrefix("goext_info")
 	ResponseCodeDetailPrefix_Unauthorized = ResponseCodeDetailPrefix("goext_unauthorized")

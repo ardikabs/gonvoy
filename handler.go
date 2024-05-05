@@ -113,7 +113,7 @@ func (b *defaultHandlerChain) HandleOnResponseHeader(c Context) error {
 }
 
 func (b *defaultHandlerChain) HandleOnRequestBody(c Context) error {
-	if err := b.handler.OnRequestBody(c, c.RequestBodyWriter().Bytes()); err != nil {
+	if err := b.handler.OnRequestBody(c, c.RequestBody().Bytes()); err != nil {
 		return err
 	}
 
@@ -129,7 +129,7 @@ func (b *defaultHandlerChain) HandleOnRequestBody(c Context) error {
 }
 
 func (b *defaultHandlerChain) HandleOnResponseBody(c Context) error {
-	if err := b.handler.OnResponseBody(c, c.ResponseBodyWriter().Bytes()); err != nil {
+	if err := b.handler.OnResponseBody(c, c.ResponseBody().Bytes()); err != nil {
 		return err
 	}
 

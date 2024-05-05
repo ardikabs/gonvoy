@@ -6,6 +6,11 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
+const (
+	HeaderContentLength = "content-length"
+	HeaderContentType   = "content-type"
+)
+
 type Header interface {
 	api.HeaderMap
 

@@ -77,8 +77,6 @@ type filterInstance struct {
 
 // I'm still uncertain why this method is never called.
 func (f *filterInstance) OnLogDownstreamStart() {
-	fmt.Println("onlogdownstreamstart just now")
-
 	f.httpFilter.OnStart(f.ctx)
 }
 
@@ -91,7 +89,13 @@ func (f *filterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bo
 
 	manager := newHandlerManager()
 	f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
-	return manager.handle(f.ctx, OnRequestHeaderPhase)
+	status = manager.handle(f.ctx, OnRequestHeaderPhase)
+
+	if f.ctx.CanModifyRequestBody() {
+		return api.StopAndBuffer
+	}
+
+	return
 }
 
 func (f *filterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) (status api.StatusType) {
@@ -99,15 +103,41 @@ func (f *filterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream b
 
 	manager := newHandlerManager()
 	f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
-	return manager.handle(f.ctx, OnResponseHeaderPhase)
+	status = manager.handle(f.ctx, OnResponseHeaderPhase)
+
+	if f.ctx.CanModifyResponseBody() {
+		return api.StopAndBuffer
+	}
+
+	return
 }
 
-func (f *filterInstance) DecodeData(buffer api.BufferInstance, endStream bool) (status api.StatusType) {
-	return api.Continue
+func (f *filterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	if buffer.Len() > 0 {
+		f.ctx.SetRequestBody(buffer)
+	}
+
+	if endStream {
+		manager := newHandlerManager()
+		f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
+		return manager.handle(f.ctx, OnRequestBodyPhase)
+	}
+
+	return api.StopAndBuffer
 }
 
-func (f *filterInstance) EncodeData(buffer api.BufferInstance, endStream bool) (status api.StatusType) {
-	return api.Continue
+func (f *filterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	if buffer.Len() > 0 {
+		f.ctx.SetResponseBody(buffer)
+	}
+
+	if endStream {
+		manager := newHandlerManager()
+		f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
+		return manager.handle(f.ctx, OnResponseBodyPhase)
+	}
+
+	return api.StopAndBuffer
 }
 
 func (f *filterInstance) OnDestroy(reason api.DestroyReason) {

@@ -11,19 +11,7 @@ import (
 type Configuration interface {
 	GetFilterConfig() interface{}
 	GetConfigCallbacks() api.ConfigCallbacks
-
-	// Store allows you to save a value of any type under a key of any type,
-	// It designed for sharing data throughout the lifetime of Envoy.
-	//
-	// Please be cautious! The Store function overwrites any existing data.
-	Store(key any, value any)
-
-	// Load retrieves a value associated with a specific key and assigns it to the receiver.
-	// It designed for sharing data throughout the lifetime of Envoy.
-	//
-	// It returns true if a compatible value is successfully loaded,
-	// and false if no value is found or an error occurs during the process.
-	Load(key any, receiver interface{}) (ok bool, err error)
+	Cache() Cache
 
 	metricCounter(name string) api.CounterMetric
 	metricGauge(name string) api.GaugeMetric
@@ -31,24 +19,23 @@ type Configuration interface {
 }
 
 type config struct {
-	filterCfg interface{}
-	callbacks api.ConfigCallbacks
+	filterCfg  interface{}
+	callbacks  api.ConfigCallbacks
+	localCache Cache
 
 	gaugeMetric     map[string]api.GaugeMetric
 	counterMetric   map[string]api.CounterMetric
 	histogramMetric map[string]api.HistogramMetric
-
-	storage *sync.Map
 }
 
 func newConfig(filterCfg interface{}, cc api.ConfigCallbacks) *config {
 	return &config{
 		filterCfg:       filterCfg,
 		callbacks:       cc,
+		localCache:      NewCache(),
 		gaugeMetric:     make(map[string]api.GaugeMetric),
 		counterMetric:   make(map[string]api.CounterMetric),
 		histogramMetric: make(map[string]api.HistogramMetric),
-		storage:         new(sync.Map),
 	}
 }
 
@@ -58,6 +45,10 @@ func (c *config) GetFilterConfig() interface{} {
 
 func (c *config) GetConfigCallbacks() api.ConfigCallbacks {
 	return c.callbacks
+}
+
+func (c *config) Cache() Cache {
+	return c.localCache
 }
 
 func (c *config) metricCounter(name string) api.CounterMetric {
@@ -82,22 +73,45 @@ func (c *config) metricHistogram(name string) api.HistogramMetric {
 	panic("NOT IMPLEMENTED")
 }
 
-func (c *config) Store(key any, value any) {
-	c.storage.Store(key, value)
+type Cache interface {
+	// Store allows you to save a value of any type under a key of any type,
+	// It designed for sharing data throughout Envoy's lifespan.
+	//
+	// Please be cautious! The Store function overwrites any existing data.
+	Store(key, value any)
+
+	// Load retrieves a value associated with a specific key and assigns it to the receiver.
+	// It designed for sharing data throughout Envoy's lifespan..
+	//
+	// It returns true if a compatible value is successfully loaded,
+	// and false if no value is found or an error occurs during the process.
+	Load(key any, receiver interface{}) (ok bool, err error)
 }
 
-func (c *config) Load(key any, receiver interface{}) (bool, error) {
+type localcache struct {
+	dataMap sync.Map
+}
+
+func NewCache() *localcache {
+	return &localcache{}
+}
+
+func (c *localcache) Store(key, value any) {
+	c.dataMap.Store(key, value)
+}
+
+func (c *localcache) Load(key any, receiver interface{}) (bool, error) {
 	if receiver == nil {
-		return false, errors.New("config: receiver should not be nil")
+		return false, errors.New("receiver should not be nil")
 	}
 
-	v, ok := c.storage.Load(key)
+	v, ok := c.dataMap.Load(key)
 	if !ok {
 		return false, nil
 	}
 
 	if !util.CastTo(receiver, v) {
-		return false, errors.New("config: receiver and value has an incompatible type")
+		return false, errors.New("receiver and value has an incompatible type")
 	}
 
 	return true, nil

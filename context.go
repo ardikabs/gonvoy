@@ -28,13 +28,13 @@ type Context interface {
 	//
 	ResponseHeader() Header
 
-	// RequestBodyWriter provides an interface for interacting and modifying HTTP Request body.
+	// RequestBodyBuffer provides an interface to access and manipulate an HTTP Request body.
 	//
-	RequestBodyWriter() BufferWriter
+	RequestBody() Body
 
-	// ResponseBodyWriter provides an interface for interacting and modifying HTTP Response body.
+	// ResponseBody provides an interface access and manipulate an HTTP Response body.
 	//
-	ResponseBodyWriter() BufferWriter
+	ResponseBody() Body
 
 	// Request returns an http.Request struct, which is a read-only data.
 	// Attempting to modify this value will have no effect.
@@ -62,15 +62,15 @@ type Context interface {
 	// Store allows you to save a value of any type under a key of any type.
 	// It is designed for sharing data within a Context.
 	// If you wish to share data throughout the lifetime of Envoy,
-	// please refer to the Configuration interface.
+	// please refer to the Configuration.Cache.
 	//
 	// Please be cautious! The Store function overwrites any existing data.
-	Store(key any, value any)
+	Store(key, value any)
 
 	// Load retrieves a value associated with a specific key and assigns it to the receiver.
 	// It is designed for sharing data within a Context.
 	// If you wish to share data throughout the lifetime of Envoy,
-	// please refer to the Configuration interface.
+	// please refer to the Configuration.Cache.
 	//
 	// It returns true if a compatible value is successfully loaded,
 	// and false if no value is found or an error occurs during the process.
@@ -105,8 +105,12 @@ type Context interface {
 	// Currently, it only supports value that has a string format, work in progress for List/Map format.
 	GetProperty(name, defaultVal string) (string, error)
 
-	// Configuration returns the filter configuration
+	// Configuration provides access to the filter configuration,
+	// while also enabling users to persist and share data throughout Envoy's lifespan.
 	Configuration() Configuration
+
+	CanModifyRequestBody() bool
+	CanModifyResponseBody() bool
 }
 
 type context struct {
@@ -129,32 +133,7 @@ type context struct {
 	committed bool
 }
 
-type ContextOption func(c *context) error
-
-func WithFilterConfiguration(cfg Configuration) ContextOption {
-	return func(c *context) error {
-		type validator interface {
-			Validate() error
-		}
-
-		if validate, ok := cfg.GetFilterConfig().(validator); ok {
-			if err := validate.Validate(); err != nil {
-				return fmt.Errorf("invalid filter config; %w", err)
-			}
-		}
-
-		cc := cfg.GetConfigCallbacks()
-		if cc == nil {
-			return errors.New("config callbacks can not be nil")
-		}
-
-		c.config = cfg
-		c.metrics = NewMetrics(cfg)
-		return nil
-	}
-}
-
-func NewContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) {
+func NewContext(cb api.FilterCallbacks, cfg Configuration) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
@@ -164,12 +143,23 @@ func NewContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 		logger:   NewLogger(cb),
 	}
 
-	for _, opt := range opts {
-		if err := opt(c); err != nil {
-			return nil, err
+	type validator interface {
+		Validate() error
+	}
+
+	if validate, ok := cfg.GetFilterConfig().(validator); ok {
+		if err := validate.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid filter config; %w", err)
 		}
 	}
 
+	cc := cfg.GetConfigCallbacks()
+	if cc == nil {
+		return nil, errors.New("config callbacks can not be nil")
+	}
+
+	c.config = cfg
+	c.metrics = NewMetrics(cfg)
 	return c, nil
 }
 
@@ -227,7 +217,7 @@ func (c *context) String(code int, s string, headers map[string][]string, opts .
 
 func (c *context) RequestHeader() Header {
 	if c.reqHeaderMap == nil {
-		panic("The Request Header has not been initialized yet")
+		panic("Request Header has not been initialized yet")
 	}
 
 	return &header{c.reqHeaderMap}
@@ -235,26 +225,32 @@ func (c *context) RequestHeader() Header {
 
 func (c *context) ResponseHeader() Header {
 	if c.respHeaderMap == nil {
-		panic("The Response Header has not been initialized yet")
+		panic("Response Header has not been initialized yet")
 	}
 
 	return &header{c.respHeaderMap}
 }
 
-func (c *context) RequestBodyWriter() BufferWriter {
+func (c *context) RequestBody() Body {
 	if c.reqBufferInstance == nil {
-		panic("The Request Buffer Writer has not been initialized yet.")
+		panic("Request Body has not been initialized yet.")
 	}
 
-	return &bufferWriter{c.reqBufferInstance}
+	return &bodyWriter{
+		header: c.reqHeaderMap,
+		buffer: c.reqBufferInstance,
+	}
 }
 
-func (c *context) ResponseBodyWriter() BufferWriter {
+func (c *context) ResponseBody() Body {
 	if c.respBufferInstance == nil {
-		panic("The Response Buffer Writer has not been initialized yet.")
+		panic("Response Body has not been initialized yet.")
 	}
 
-	return &bufferWriter{c.respBufferInstance}
+	return &bodyWriter{
+		header: c.respHeaderMap,
+		buffer: c.respBufferInstance,
+	}
 }
 
 func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
@@ -277,6 +273,7 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	c.reset()
+
 	code, ok := header.Status()
 	if !ok {
 		return
@@ -293,6 +290,12 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {
+	c.reset()
+
+	if c.reqBufferInstance == nil {
+		c.reqBufferInstance = buffer
+	}
+
 	if buffer.Len() == 0 {
 		return
 	}
@@ -302,6 +305,12 @@ func (c *context) SetRequestBody(buffer api.BufferInstance) {
 }
 
 func (c *context) SetResponseBody(buffer api.BufferInstance) {
+	c.reset()
+
+	if c.respBufferInstance == nil {
+		c.respBufferInstance = buffer
+	}
+
 	if buffer.Len() == 0 {
 		return
 	}
@@ -337,6 +346,26 @@ func (c *context) Committed() bool {
 func (c *context) reset() {
 	c.statusType = api.Continue
 	c.committed = false
+}
+
+func (c *context) CanModifyRequestBody() bool {
+	contentLength, ok := c.reqHeaderMap.Get(HeaderContentLength)
+	if !ok {
+		return false
+	}
+
+	isEmpty := contentLength == "" || contentLength == "0"
+	return !isEmpty
+}
+
+func (c *context) CanModifyResponseBody() bool {
+	contentLength, ok := c.respHeaderMap.Get(HeaderContentLength)
+	if !ok {
+		return false
+	}
+
+	isEmpty := contentLength == "" || contentLength == "0"
+	return !isEmpty
 }
 
 func (c *context) Store(key any, value any) {

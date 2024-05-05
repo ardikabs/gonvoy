@@ -9,9 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func fakeConfig(t *testing.T) Configuration {
+	cc := mock_envoy.NewConfigCallbackHandler(t)
+	return &config{callbacks: cc}
+}
+
 func TestContext_StoreAndLoad(t *testing.T) {
 	fc := mock_envoy.NewFilterCallbackHandler(t)
-	ctx, err := NewContext(fc)
+	cfg := fakeConfig(t)
+	ctx, err := NewContext(fc, cfg)
 	require.NoError(t, err)
 
 	source := bytes.NewReader([]byte("testing"))

@@ -1,4 +1,4 @@
-module github.com/ardikabs/go-envoy
+module github.com/ardikabs/gonvoy
 
 go 1.21.3
 

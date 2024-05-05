@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-var prefix = "GOENVOY_"
+var prefix = "GONVOY_"
 
 var (
 	AllowRequestHeaderPhase = setFeature("ALLOW_REQUEST_HEADER_PHASE", true)

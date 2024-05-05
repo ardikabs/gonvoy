@@ -2,7 +2,7 @@ module go-simple-extension
 
 go 1.21.3
 
-require github.com/ardikabs/go-envoy v0.0.0-20231009053952-ace845d7b847
+require github.com/ardikabs/gonvoy v0.0.0-20231009053952-ace845d7b847
 
 require (
 	cel.dev/expr v0.15.0 // indirect
@@ -19,4 +19,4 @@ require (
 	google.golang.org/protobuf v1.34.0 // indirect
 )
 
-replace github.com/ardikabs/go-envoy => ../../
+replace github.com/ardikabs/gonvoy => ../../

@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ardikabs/go-envoy"
-	"github.com/ardikabs/go-envoy/pkg/errs"
+	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/errs"
 )
 
 type HandlerOne struct {
-	envoy.PassthroughHttpFilterHandler
+	gonvoy.PassthroughHttpFilterHandler
 }
 
-func (h *HandlerOne) OnRequestHeader(c envoy.Context, header http.Header) error {
+func (h *HandlerOne) OnRequestHeader(c gonvoy.Context, header http.Header) error {
 	log := c.Log().WithName("handlerOne").WithName("outer").WithName("inner")
 
 	c.RequestHeader().Add("x-key-id", "0")
@@ -33,7 +33,7 @@ func (h *HandlerOne) OnRequestHeader(c envoy.Context, header http.Header) error 
 
 	if c.Request().Header.Get("x-error") == "200" {
 		if err := func() error {
-			return c.JSON(http.StatusOK, envoy.NewMinimalJSONResponse("SUCCESS", "SUCCESS"), nil)
+			return c.JSON(http.StatusOK, gonvoy.NewMinimalJSONResponse("SUCCESS", "SUCCESS"), nil)
 		}(); err != nil {
 			return err
 		}
@@ -47,7 +47,7 @@ func (h *HandlerOne) OnRequestHeader(c envoy.Context, header http.Header) error 
 	return nil
 }
 
-func (h *HandlerOne) OnResponseHeader(c envoy.Context, header http.Header) error {
+func (h *HandlerOne) OnResponseHeader(c gonvoy.Context, header http.Header) error {
 	c.ResponseHeader().Set("via", "gateway.ardikabs.com")
 	return nil
 }

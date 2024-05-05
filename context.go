@@ -1,4 +1,4 @@
-package envoy
+package gonvoy
 
 import (
 	"bytes"
@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/ardikabs/go-envoy/pkg/types"
-	"github.com/ardikabs/go-envoy/pkg/util"
+	"github.com/ardikabs/gonvoy/pkg/types"
+	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/go-logr/logr"
 )
@@ -109,7 +109,10 @@ type Context interface {
 	// while also enabling users to persist and share data throughout Envoy's lifespan.
 	Configuration() Configuration
 
+	// CanModifyRequestBody indicates whether an HTTP Request is eligible to modify the body/payload.
 	CanModifyRequestBody() bool
+
+	// CanModifyResponseBody indicates whether an HTTP Response is eligible to modify the body/payload.
 	CanModifyResponseBody() bool
 }
 

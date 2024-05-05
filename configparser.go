@@ -1,4 +1,4 @@
-package envoy
+package gonvoy
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ardikabs/go-envoy/pkg/util"
+	"github.com/ardikabs/gonvoy/pkg/util"
 	xds "github.com/cncf/xds/go/xds/type/v3"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"

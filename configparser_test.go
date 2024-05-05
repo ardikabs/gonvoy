@@ -1,9 +1,9 @@
-package envoy
+package gonvoy
 
 import (
 	"testing"
 
-	mock_envoy "github.com/ardikabs/go-envoy/test/mock/envoy"
+	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
 	xds "github.com/cncf/xds/go/xds/type/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -1,15 +1,16 @@
-package envoy
+package gonvoy
 
 import (
 	"fmt"
 	"net/http"
 
-	"github.com/ardikabs/go-envoy/pkg/util"
+	gate "github.com/ardikabs/gonvoy/pkg/featuregate"
+	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	envoyhttp "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
 )
 
-var NoOpFilter = &api.PassThroughStreamFilter{}
+var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 
 func RunHttpFilter(filter HttpFilter) {
 	RunHttpFilterWithConfig(filter, nil)
@@ -21,19 +22,9 @@ func RunHttpFilterWithConfig(filter HttpFilter, filterConfig interface{}) {
 
 type HttpFilter interface {
 	Name() string
-
 	OnStart(c Context)
-	RegisterHttpFilterHandler(c Context, mgr HandlerManager)
+	RegisterHttpFilterHandler(c Context, mgr HttpFilterHandlerManager)
 	OnComplete(c Context)
-}
-
-type HttpFilterHandler interface {
-	Disable() bool
-
-	OnRequestHeader(c Context, header http.Header) error
-	OnRequestBody(c Context, body []byte) error
-	OnResponseHeader(c Context, header http.Header) error
-	OnResponseBody(c Context, body []byte) error
 }
 
 func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
@@ -47,19 +38,19 @@ func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 			ctx, err := NewContext(callbacks, config)
 			if err != nil {
 				callbacks.Log(api.Error, fmt.Sprintf("httpFilterFactory: failed during filter context initialization; %v, filter '%s' is ignored", err, httpFilter.Name()))
-				return NoOpFilter
+				return NoOpHttpFilter
 			}
 
 			newHttpFilter, err := util.NewFrom(httpFilter)
 			if err != nil {
 				callbacks.Log(api.Error, fmt.Sprintf("httpFilterFactory: failed during filter instance initialization; %v, filter '%s' is ignored", err, httpFilter.Name()))
-				return NoOpFilter
+				return NoOpHttpFilter
 			}
 
 			hf := newHttpFilter.(HttpFilter)
 			hf.OnStart(ctx)
 
-			return &filterInstance{
+			return &httpFilterInstance{
 				ctx:        ctx,
 				httpFilter: hf,
 			}
@@ -67,20 +58,24 @@ func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 	}
 }
 
-var _ api.StreamFilter = &filterInstance{}
+var _ api.StreamFilter = &httpFilterInstance{}
 
-type filterInstance struct {
+type httpFilterInstance struct {
 	api.PassThroughStreamFilter
 
 	ctx        Context
 	httpFilter HttpFilter
 }
 
-func (f *filterInstance) OnLog() {
+func (f *httpFilterInstance) OnLog() {
 	f.httpFilter.OnComplete(f.ctx)
 }
 
-func (f *filterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) (status api.StatusType) {
+func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) (status api.StatusType) {
+	if !gate.AllowRequestBodyPhase() {
+		return api.Continue
+	}
+
 	f.ctx.SetRequestHeader(header)
 
 	manager := newHandlerManager()
@@ -94,7 +89,11 @@ func (f *filterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bo
 	return
 }
 
-func (f *filterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) (status api.StatusType) {
+func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) (status api.StatusType) {
+	if !gate.AllowResponseBodyPhase() {
+		return api.Continue
+	}
+
 	f.ctx.SetResponseHeader(header)
 
 	manager := newHandlerManager()
@@ -108,7 +107,11 @@ func (f *filterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream b
 	return
 }
 
-func (f *filterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	if !gate.AllowRequestBodyPhase() {
+		return api.Continue
+	}
+
 	if buffer.Len() > 0 {
 		f.ctx.SetRequestBody(buffer)
 	}
@@ -122,7 +125,11 @@ func (f *filterInstance) DecodeData(buffer api.BufferInstance, endStream bool) a
 	return api.StopAndBuffer
 }
 
-func (f *filterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	if !gate.AllowResponseBodyPhase() {
+		return api.Continue
+	}
+
 	if buffer.Len() > 0 {
 		f.ctx.SetResponseBody(buffer)
 	}
@@ -136,7 +143,7 @@ func (f *filterInstance) EncodeData(buffer api.BufferInstance, endStream bool) a
 	return api.StopAndBuffer
 }
 
-func (f *filterInstance) OnDestroy(reason api.DestroyReason) {
+func (f *httpFilterInstance) OnDestroy(reason api.DestroyReason) {
 	f.ctx = nil
 	f.httpFilter = nil
 }

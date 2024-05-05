@@ -1,10 +1,10 @@
-package envoy
+package gonvoy
 
 import (
 	"errors"
 	"sync"
 
-	"github.com/ardikabs/go-envoy/pkg/util"
+	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 

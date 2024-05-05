@@ -5,16 +5,16 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ardikabs/go-envoy"
-	"github.com/ardikabs/go-envoy/pkg/errs"
+	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/errs"
 )
 
 type HandlerThree struct {
-	envoy.PassthroughHttpFilterHandler
+	gonvoy.PassthroughHttpFilterHandler
 	RequestHeaders map[string]string
 }
 
-func (h *HandlerThree) OnRequestHeader(c envoy.Context, header http.Header) error {
+func (h *HandlerThree) OnRequestHeader(c gonvoy.Context, header http.Header) error {
 	log := c.Log().WithName("handlerThree")
 
 	for k, v := range h.RequestHeaders {
@@ -25,29 +25,29 @@ func (h *HandlerThree) OnRequestHeader(c envoy.Context, header http.Header) erro
 	return nil
 }
 
-func (h *HandlerThree) OnResponseHeader(c envoy.Context, header http.Header) error {
+func (h *HandlerThree) OnResponseHeader(c gonvoy.Context, header http.Header) error {
 	switch sc := c.Response().StatusCode; sc {
 	case http.StatusUnauthorized:
 		return c.JSON(sc,
-			envoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
-			envoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			envoy.WithResponseCodeDetails(envoy.MustGetProperty(c, "response.code_details", envoy.DefaultResponseCodeDetails)))
+			gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
+			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
+			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
 	case http.StatusTooManyRequests:
 		return c.JSON(sc,
-			envoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
-			envoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			envoy.WithResponseCodeDetails(envoy.MustGetProperty(c, "response.code_details", envoy.DefaultResponseCodeDetails)))
+			gonvoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
+			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
+			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
 	case http.StatusServiceUnavailable:
 		return c.JSON(sc,
-			envoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
-			envoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			envoy.WithResponseCodeDetails(envoy.MustGetProperty(c, "response.code_details", envoy.DefaultResponseCodeDetails)))
+			gonvoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
+			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
+			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
 
 	}
 	return nil
 }
 
-func (h *HandlerThree) OnRequestBody(c envoy.Context, body []byte) error {
+func (h *HandlerThree) OnRequestBody(c gonvoy.Context, body []byte) error {
 	reqBody := make(map[string]interface{})
 
 	if err := json.Unmarshal(body, &reqBody); err != nil {
@@ -62,8 +62,8 @@ func (h *HandlerThree) OnRequestBody(c envoy.Context, body []byte) error {
 	return enc.Encode(reqBody)
 }
 
-func (h *HandlerThree) OnResponseBody(c envoy.Context, body []byte) error {
-	if ct := c.Response().Header.Get(envoy.HeaderContentType); !strings.Contains(ct, "application/json") {
+func (h *HandlerThree) OnResponseBody(c gonvoy.Context, body []byte) error {
+	if ct := c.Response().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, "application/json") {
 		return nil
 	}
 

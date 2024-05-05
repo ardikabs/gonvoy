@@ -1,9 +1,9 @@
 # Simplified Go interface for HTTP Golang Filter on Envoy Proxy
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/ardikabs/go-envoy.svg)](https://pkg.go.dev/github.com/ardikabs/go-envoy)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ardikabs/go-envoy)](https://goreportcard.com/report/github.com/ardikabs/go-envoy)
-[![Test](https://github.com/ardikabs/go-envoy/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/ardikabs/go-envoy/actions/workflows/test.yaml)
-[![Codecov](https://codecov.io/gh/ardikabs/go-envoy/branch/main/graph/badge.svg)](https://codecov.io/gh/ardikabs/go-envoy)
+[![Go Reference](https://pkg.go.dev/badge/github.com/ardikabs/gonvoy.svg)](https://pkg.go.dev/github.com/ardikabs/gonvoy)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ardikabs/gonvoy)](https://goreportcard.com/report/github.com/ardikabs/gonvoy)
+[![Test](https://github.com/ardikabs/gonvoy/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/ardikabs/gonvoy/actions/workflows/test.yaml)
+[![Codecov](https://codecov.io/gh/ardikabs/gonvoy/branch/main/graph/badge.svg)](https://codecov.io/gh/ardikabs/gonvoy)
 
 > A simplified interface for building plugin on Envoy Proxy with [HTTP Golang Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/golang_filter).
 
@@ -13,10 +13,19 @@
 
 * Logging with [go-logr](https://github.com/go-logr/logr).
 
+
+### Compatibility Matrix
+
+| Envoy Proxy | Gonvoy |
+|-----------------|-----------------|
+| v1.27 | >= v0.1.0, < v0.2.0|
+| v1.29 | ~> v0.2.0 |
+
+
 ## Installation
 
 ```bash
-go get github.com/ardikabs/go-envoy
+go get github.com/ardikabs/gonvoy
 ```
 
 ## Development Guide
@@ -34,7 +43,7 @@ go get github.com/ardikabs/go-envoy
 * Clone the project.
 
     ```bash
-    $ git clone -b plugin git@github.com:ardkabs/go-envoy.git
+    $ git clone -b plugin git@github.com:ardkabs/gonvoy.git
     ```
 
 * Create a meaningful branch

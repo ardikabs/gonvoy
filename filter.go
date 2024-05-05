@@ -40,27 +40,28 @@ func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 	return func(cfg interface{}) api.StreamFilterFactory {
 		config, ok := cfg.(Configuration)
 		if !ok {
-			panic(fmt.Sprintf("filterfactory: unexpected config type, %T", cfg))
+			panic(fmt.Sprintf("httpFilterFactory: unexpected config type, %T", cfg))
 		}
 
 		return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
-			ctx, err := NewContext(callbacks, WithFilterConfiguration(config))
+			ctx, err := NewContext(callbacks, config)
 			if err != nil {
-				callbacks.Log(api.Critical, fmt.Sprintf("httpFilterFactory: failed during filter context initialization; %v", err))
-				callbacks.Log(api.Info, fmt.Sprintf("httpFilterFactory: filter '%s' is ignored", httpFilter.Name()))
+				callbacks.Log(api.Error, fmt.Sprintf("httpFilterFactory: failed during filter context initialization; %v, filter '%s' is ignored", err, httpFilter.Name()))
 				return NoOpFilter
 			}
 
 			newHttpFilter, err := util.NewFrom(httpFilter)
 			if err != nil {
-				callbacks.Log(api.Critical, fmt.Sprintf("httpFilterFactory: failed during filter instance initialization; %v", err))
-				callbacks.Log(api.Info, fmt.Sprintf("httpFilterFactory: filter '%s' is ignored", httpFilter.Name()))
+				callbacks.Log(api.Error, fmt.Sprintf("httpFilterFactory: failed during filter instance initialization; %v, filter '%s' is ignored", err, httpFilter.Name()))
 				return NoOpFilter
 			}
 
+			hf := newHttpFilter.(HttpFilter)
+			hf.OnStart(ctx)
+
 			return &filterInstance{
 				ctx:        ctx,
-				httpFilter: newHttpFilter.(HttpFilter),
+				httpFilter: hf,
 			}
 		}
 	}
@@ -73,11 +74,6 @@ type filterInstance struct {
 
 	ctx        Context
 	httpFilter HttpFilter
-}
-
-// I'm still uncertain why this method is never called.
-func (f *filterInstance) OnLogDownstreamStart() {
-	f.httpFilter.OnStart(f.ctx)
 }
 
 func (f *filterInstance) OnLog() {

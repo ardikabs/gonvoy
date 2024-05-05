@@ -133,32 +133,7 @@ type context struct {
 	committed bool
 }
 
-type ContextOption func(c *context) error
-
-func WithFilterConfiguration(cfg Configuration) ContextOption {
-	return func(c *context) error {
-		type validator interface {
-			Validate() error
-		}
-
-		if validate, ok := cfg.GetFilterConfig().(validator); ok {
-			if err := validate.Validate(); err != nil {
-				return fmt.Errorf("invalid filter config; %w", err)
-			}
-		}
-
-		cc := cfg.GetConfigCallbacks()
-		if cc == nil {
-			return errors.New("config callbacks can not be nil")
-		}
-
-		c.config = cfg
-		c.metrics = NewMetrics(cfg)
-		return nil
-	}
-}
-
-func NewContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) {
+func NewContext(cb api.FilterCallbacks, cfg Configuration) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
@@ -168,12 +143,23 @@ func NewContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 		logger:   NewLogger(cb),
 	}
 
-	for _, opt := range opts {
-		if err := opt(c); err != nil {
-			return nil, err
+	type validator interface {
+		Validate() error
+	}
+
+	if validate, ok := cfg.GetFilterConfig().(validator); ok {
+		if err := validate.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid filter config; %w", err)
 		}
 	}
 
+	cc := cfg.GetConfigCallbacks()
+	if cc == nil {
+		return nil, errors.New("config callbacks can not be nil")
+	}
+
+	c.config = cfg
+	c.metrics = NewMetrics(cfg)
 	return c, nil
 }
 

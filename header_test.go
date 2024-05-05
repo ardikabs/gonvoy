@@ -83,8 +83,10 @@ func TestNewGatewayHeaders(t *testing.T) {
 		reqHeaderMap.EXPECT().Host().Return("foo.bar.com")
 		reqHeaderMap.EXPECT().Path().Return("/foo/bar")
 
-		mockCallback := mock_envoy.NewFilterCallbackHandler(t)
-		ctx, err := NewContext(mockCallback)
+		fc := mock_envoy.NewFilterCallbackHandler(t)
+		cfg := fakeConfig(t)
+
+		ctx, err := NewContext(fc, cfg)
 		require.NoError(t, err)
 		require.NotNil(t, ctx)
 

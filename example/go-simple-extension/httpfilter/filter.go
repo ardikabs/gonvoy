@@ -20,14 +20,18 @@ func (f *Filter) Name() string {
 	return "httpfilter"
 }
 
-func (f *Filter) OnStart(c envoy.Context) {}
-
-func (f *Filter) RegisterHttpFilterHandler(c envoy.Context, mgr envoy.HandlerManager) {
+func (f *Filter) OnStart(c envoy.Context) {
 	fConfig := c.Configuration().GetFilterConfig()
-	if cfg, ok := fConfig.(*Config); ok {
-		f.Config = cfg
+	cfg, ok := fConfig.(*Config)
+	if !ok {
+		// assign default config
+		f.Config = &Config{}
 	}
 
+	f.Config = cfg
+}
+
+func (f *Filter) RegisterHttpFilterHandler(c envoy.Context, mgr envoy.HandlerManager) {
 	mgr.Use(&handler.HandlerOne{})
 	mgr.Use(&handler.HandlerTwo{})
 	mgr.Use(&handler.HandlerThree{RequestHeaders: f.Config.RequestHeaders})

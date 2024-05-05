@@ -1,10 +1,10 @@
-package envoy
+package gonvoy
 
 import (
 	"net/http"
 	"testing"
 
-	mock_envoy "github.com/ardikabs/go-envoy/test/mock/envoy"
+	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

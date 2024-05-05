@@ -1,11 +1,11 @@
-package envoy
+package gonvoy
 
 import (
 	"errors"
 	"strings"
 	"testing"
 
-	mock_envoy "github.com/ardikabs/go-envoy/test/mock/envoy"
+	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/stretchr/testify/mock"
 )

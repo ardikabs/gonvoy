@@ -1,10 +1,10 @@
-package envoy
+package gonvoy
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/ardikabs/go-envoy/pkg/util"
+	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -45,12 +45,12 @@ func WithStatusType(status api.StatusType) ReplyOption {
 }
 
 var (
-	ResponseCodeDetailPrefix_Info         = ResponseCodeDetailPrefix("goext_info")
-	ResponseCodeDetailPrefix_Unauthorized = ResponseCodeDetailPrefix("goext_unauthorized")
-	ResponseCodeDetailPrefix_AccessDenied = ResponseCodeDetailPrefix("goext_access_denied")
-	ResponseCodeDetailPrefix_Error        = ResponseCodeDetailPrefix("goext_error")
+	DefaultResponseCodeDetailInfo         = ResponseCodeDetailPrefix("goext_info")
+	DefaultResponseCodeDetailUnauthorized = ResponseCodeDetailPrefix("goext_unauthorized")
+	DefaultResponseCodeDetailAccessDenied = ResponseCodeDetailPrefix("goext_access_denied")
+	DefaultResponseCodeDetailError        = ResponseCodeDetailPrefix("goext_error")
 
-	DefaultResponseCodeDetails = ResponseCodeDetailPrefix_Info.Wrap("via_Go_extension")
+	DefaultResponseCodeDetails = DefaultResponseCodeDetailInfo.Wrap("via_Go_extension")
 )
 
 type ResponseCodeDetailPrefix string

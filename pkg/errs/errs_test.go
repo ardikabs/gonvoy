@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ardikabs/go-envoy/pkg/errs"
+	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/stretchr/testify/assert"
 )
 

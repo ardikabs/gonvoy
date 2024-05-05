@@ -1,23 +1,23 @@
-package envoy
+package gonvoy
 
 import (
 	"fmt"
 
-	"github.com/ardikabs/go-envoy/pkg/errs"
+	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-type HandlerManager interface {
+type HttpFilterHandlerManager interface {
 	SetErrorHandler(ErrorHandler)
-	Use(HttpFilterHandler) HandlerManager
+	Use(HttpFilterHandler) HttpFilterHandlerManager
 
-	handle(Context, ActionPhase) api.StatusType
+	handle(Context, HttpFilterActionPhase) api.StatusType
 }
 
-type ActionPhase uint
+type HttpFilterActionPhase uint
 
 const (
-	OnRequestHeaderPhase ActionPhase = iota + 1
+	OnRequestHeaderPhase HttpFilterActionPhase = iota + 1
 	OnResponseHeaderPhase
 	OnRequestBodyPhase
 	OnResponseBodyPhase
@@ -25,14 +25,14 @@ const (
 
 func newHandlerManager() *handlerManager {
 	return &handlerManager{
-		errorHandler: DefaultErrorHandler,
+		errorHandler: DefaultErrorHttpFilterHandler,
 	}
 }
 
 type handlerManager struct {
 	errorHandler ErrorHandler
-	first        HandlerChain
-	last         HandlerChain
+	first        httpFilterProcessor
+	last         httpFilterProcessor
 }
 
 func (h *handlerManager) SetErrorHandler(handler ErrorHandler) {
@@ -43,25 +43,24 @@ func (h *handlerManager) SetErrorHandler(handler ErrorHandler) {
 	h.errorHandler = handler
 }
 
-func (h *handlerManager) Use(hfHandler HttpFilterHandler) HandlerManager {
-	if hfHandler == nil || hfHandler.Disable() {
+func (h *handlerManager) Use(handler HttpFilterHandler) HttpFilterHandlerManager {
+	if handler == nil || handler.Disable() {
 		return h
 	}
 
-	handler := NewHandlerChain(hfHandler)
-
+	processor := NewHttpFilterProcessor(handler)
 	if h.first == nil {
-		h.first = handler
-		h.last = handler
+		h.first = processor
+		h.last = processor
 		return h
 	}
 
-	h.last.SetNext(handler)
-	h.last = handler
+	h.last.SetNext(processor)
+	h.last = processor
 	return h
 }
 
-func (h *handlerManager) handle(c Context, phase ActionPhase) (status api.StatusType) {
+func (h *handlerManager) handle(c Context, phase HttpFilterActionPhase) (status api.StatusType) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
@@ -76,7 +75,7 @@ func (h *handlerManager) handle(c Context, phase ActionPhase) (status api.Status
 	}()
 
 	if h.first == nil {
-		h.first = NewHandlerChain(PassthroughHttpFilterHandler{})
+		h.first = NewHttpFilterProcessor(PassthroughHttpFilterHandler{})
 	}
 
 	switch phase {

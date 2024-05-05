@@ -73,3 +73,24 @@ func TestNewFrom(t *testing.T) {
 	assert.Zero(t, destPtr.(*dummyStruct).B)
 	assert.Zero(t, destPtr.(*dummyStruct).c)
 }
+
+func TestIsNil(t *testing.T) {
+	var (
+		a []int
+		b *string
+		c interface{}
+		d int
+		e string
+		f struct{}
+	)
+
+	assert.True(t, util.IsNil(a))
+	assert.True(t, util.IsNil(b))
+
+	c = a
+	assert.True(t, util.IsNil(c))
+
+	assert.False(t, util.IsNil(d))
+	assert.False(t, util.IsNil(e))
+	assert.False(t, util.IsNil(f))
+}

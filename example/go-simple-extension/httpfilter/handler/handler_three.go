@@ -62,8 +62,18 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context, body []byte) error {
 	reqBody["handlerName"] = "HandlerThree"
 	reqBody["phase"] = "HTTPRequest"
 
-	enc := json.NewEncoder(c.RequestBody())
-	return enc.Encode(reqBody)
+	if c.IsRequestBodyWriteable() {
+		enc := json.NewEncoder(c.RequestBody())
+		return enc.Encode(reqBody)
+	}
+
+	b, err := json.MarshalIndent(reqBody, "", "    ")
+	if err != nil {
+		return errs.ErrBadRequest
+	}
+
+	c.Log().Info("check request body", "payload", string(b))
+	return nil
 }
 
 func (h *HandlerThree) OnResponseBody(c gonvoy.Context, body []byte) error {

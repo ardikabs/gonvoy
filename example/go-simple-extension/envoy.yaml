@@ -110,6 +110,10 @@ static_resources:
                           route:
                             cluster: helloworld_service_cluster
                         - match:
+                            prefix: "/gks-unm-go-be/api/v1/users/profile/country-list"
+                          route:
+                            cluster: external_service
+                        - match:
                             prefix: "/"
                           route:
                             cluster: podinfo_service_cluster
@@ -151,6 +155,18 @@ static_resources:
                     socket_address:
                       address: podinfo_service
                       port_value: 9898
+    - name: external_service
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: external_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 192.168.0.108.nip.io
+                      port_value: 8080
     - name: raw.githubusercontent.com||443
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN

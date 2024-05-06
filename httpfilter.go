@@ -87,10 +87,8 @@ func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStrea
 	f.ctx.SetRequestHeader(header)
 	status := f.ctx.ServeHttpFilter(OnRequestHeaderPhase)
 
-	// when the request body can be modified, but the current phase is already committed,
-	// then we should honor that the current phase expect to return immediately to the Envoy
-	// therefore this must be skipped
-	if !f.ctx.Committed() && f.ctx.CanModifyRequestBody() {
+	if f.ctx.IsRequestBodyWriteable() {
+		f.ctx.RequestHeader().Del(HeaderXContentOperation)
 		return api.StopAndBuffer
 	}
 
@@ -105,10 +103,8 @@ func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStre
 	f.ctx.SetResponseHeader(header)
 	status := f.ctx.ServeHttpFilter(OnResponseHeaderPhase)
 
-	// when the response body can be modified, but the current phase is already committed,
-	// then we should honor that the current phase expect to return immediately to the Envoy
-	// therefore this must be skipped
-	if !f.ctx.Committed() && f.ctx.CanModifyResponseBody() {
+	if f.ctx.IsResponseBodyWriteable() {
+		f.ctx.ResponseHeader().Del(HeaderXContentOperation)
 		return api.StopAndBuffer
 	}
 
@@ -116,7 +112,8 @@ func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStre
 }
 
 func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if !gate.AllowRequestBodyPhase() || f.ctx.Committed() {
+	isBodyAccessible := f.ctx.IsRequestBodyReadable() || f.ctx.IsRequestBodyWriteable()
+	if !gate.AllowRequestBodyPhase() || !isBodyAccessible {
 		return api.Continue
 	}
 
@@ -132,7 +129,8 @@ func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream boo
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if !gate.AllowResponseBodyPhase() || f.ctx.Committed() {
+	isBodyAccessible := f.ctx.IsResponseBodyReadable() || f.ctx.IsResponseBodyWriteable()
+	if !gate.AllowResponseBodyPhase() || !isBodyAccessible {
 		return api.Continue
 	}
 

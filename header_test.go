@@ -79,6 +79,7 @@ func TestNewGatewayHeaders(t *testing.T) {
 				}
 			}
 		})
+		reqHeaderMap.EXPECT().Get(mock.Anything).Return(mock.Anything, false)
 		reqHeaderMap.EXPECT().Method().Return(http.MethodGet)
 		reqHeaderMap.EXPECT().Host().Return("foo.bar.com")
 		reqHeaderMap.EXPECT().Path().Return("/foo/bar")

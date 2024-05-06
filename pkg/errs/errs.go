@@ -9,8 +9,9 @@ var (
 	ErrUnauthorized      = errors.New("Unauthorized")
 	ErrAccessDenied      = errors.New("RBAC: Access Denied")
 
-	ErrPanic = errors.New("panic occurred")
-	ErrNil   = errors.New("value is nil")
+	ErrOperationNotPermitted = errors.New("operation not permitted")
+	ErrPanic                 = errors.New("panic occurred")
+	ErrNil                   = errors.New("value is nil")
 )
 
 func Unwrap(err error) error {

@@ -3,10 +3,11 @@ package errs
 import "errors"
 
 var (
-	ErrInternalServer = errors.New("Internal Server Error")
-	ErrBadRequest     = errors.New("Bad Request")
-	ErrUnauthorized   = errors.New("Unauthorized")
-	ErrAccessDenied   = errors.New("RBAC: Access Denied")
+	ErrInternalServer    = errors.New("Internal Server Error")
+	ErrInvalidDataFormat = errors.New("Invalid Data Format")
+	ErrBadRequest        = errors.New("Bad Request")
+	ErrUnauthorized      = errors.New("Unauthorized")
+	ErrAccessDenied      = errors.New("RBAC: Access Denied")
 
 	ErrPanic = errors.New("panic occurred")
 	ErrNil   = errors.New("value is nil")

@@ -48,13 +48,14 @@ type Context interface {
 	// Request returns an http.Request struct, which is a read-only data.
 	// Attempting to modify this value will have no effect.
 	// To make modifications to the request header, please use the RequestHeader() method instead.
+	// To make modifications to the request body, please use the RequestBody() method instead.
 	//
 	Request() *http.Request
 
 	// Response returns an http.Response struct, which is a read-only data.
 	// It means, update anything to this value will result nothing.
 	// To make modifications to the response header, please use the ResponseHeader() method instead.
-	// To make modifications to the response body, please use the BufferWriter() method instead.
+	// To make modifications to the response body, please use the ResponseBody() method instead.
 	//
 	Response() *http.Response
 

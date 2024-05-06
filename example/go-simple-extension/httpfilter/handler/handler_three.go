@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -48,8 +49,11 @@ func (h *HandlerThree) OnResponseHeader(c gonvoy.Context, header http.Header) er
 }
 
 func (h *HandlerThree) OnRequestBody(c gonvoy.Context, body []byte) error {
-	reqBody := make(map[string]interface{})
+	if ct := c.Request().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, "application/json") {
+		return nil
+	}
 
+	reqBody := make(map[string]interface{})
 	if err := json.Unmarshal(body, &reqBody); err != nil {
 		return errs.ErrBadRequest
 	}
@@ -68,9 +72,10 @@ func (h *HandlerThree) OnResponseBody(c gonvoy.Context, body []byte) error {
 	}
 
 	respBody := make(map[string]interface{})
-
 	if err := json.Unmarshal(body, &respBody); err != nil {
-		return errs.ErrBadRequest
+		c.Log().Error(err, fmt.Sprintf("expecting data type %T, got %v", respBody, string(body)))
+		c.Log().Info("skipping response body manipulation ...")
+		return nil
 	}
 
 	respBody["newData"] = "newValue"

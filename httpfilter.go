@@ -80,15 +80,17 @@ func (f *httpFilterInstance) OnLog() {
 }
 
 func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	if !gate.AllowRequestBodyPhase() {
+	if !gate.AllowRequestHeaderPhase() {
 		return api.Continue
 	}
 
 	f.ctx.SetRequestHeader(header)
-
 	status := f.ctx.ServeHttpFilter(OnRequestHeaderPhase)
 
-	if f.ctx.CanModifyRequestBody() {
+	// when the request body can be modified, but the current phase is already committed,
+	// then we should honor that the current phase expect to return immediately to the Envoy
+	// therefore this must be skipped
+	if !f.ctx.Committed() && f.ctx.CanModifyRequestBody() {
 		return api.StopAndBuffer
 	}
 
@@ -96,15 +98,17 @@ func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStrea
 }
 
 func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	if !gate.AllowResponseBodyPhase() {
+	if !gate.AllowResponseHeaderPhase() {
 		return api.Continue
 	}
 
 	f.ctx.SetResponseHeader(header)
-
 	status := f.ctx.ServeHttpFilter(OnResponseHeaderPhase)
 
-	if f.ctx.CanModifyResponseBody() {
+	// when the response body can be modified, but the current phase is already committed,
+	// then we should honor that the current phase expect to return immediately to the Envoy
+	// therefore this must be skipped
+	if !f.ctx.Committed() && f.ctx.CanModifyResponseBody() {
 		return api.StopAndBuffer
 	}
 
@@ -112,7 +116,7 @@ func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStre
 }
 
 func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if !gate.AllowRequestBodyPhase() {
+	if !gate.AllowRequestBodyPhase() || f.ctx.Committed() {
 		return api.Continue
 	}
 
@@ -128,7 +132,7 @@ func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream boo
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if !gate.AllowResponseBodyPhase() {
+	if !gate.AllowResponseBodyPhase() || f.ctx.Committed() {
 		return api.Continue
 	}
 

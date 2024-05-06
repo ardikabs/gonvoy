@@ -58,7 +58,6 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 
 	parentCfg := *origParentCfg
 	childCfg := child.(*config)
-
 	mergedFilterCfg, err := p.mergeStruct(parentCfg.filterCfg, childCfg.filterCfg)
 	if err != nil {
 		panic(err)
@@ -69,31 +68,32 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 }
 
 func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, error) {
-	parentValue := reflect.ValueOf(parent)
-	childValue := reflect.ValueOf(child)
+	origParentPtr := reflect.ValueOf(parent)
+	origParentValue := origParentPtr.Elem()
 
-	var structTags reflect.Type
+	parentType := origParentPtr.Type().Elem()
+
+	parentPtr := reflect.New(parentType) // *FilterConfigDataType
+	childPtr := reflect.ValueOf(child)   // *FilterConfigDataType
+
+	if parentPtr.Kind() != reflect.Pointer || childPtr.Kind() != reflect.Pointer {
+		return nil, fmt.Errorf("configparser: merge failed; both parent(%s) and child(%s) configs MUST be pointers", parentPtr.Type(), childPtr.Type())
+	}
+
+	parentValue := parentPtr.Elem() // FilterConfigDataType
+	childValue := childPtr.Elem()   // FilterConfigDataType
+
+	parentValue.Set(origParentValue)
 
 	switch {
 	case parentValue.Type() != childValue.Type():
-		return nil, fmt.Errorf("configparser: merge failed; parent(%s) and child(%s) config has different data type", parentValue.Type(), childValue.Type())
-
-	case parentValue.Kind() == reflect.Struct:
-		structTags = parentValue.Type()
-
-	case parentValue.Kind() == reflect.Ptr:
-		structTags = parentValue.Type().Elem()
-
-		parentValue = parentValue.Elem()
-		childValue = childValue.Elem()
-	}
-
-	if parentValue.Kind() != reflect.Struct || childValue.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("configparser: merge failed; parent(%s) and child(%s) config MUST be a struct", parentValue.Kind(), childValue.Kind())
+		return nil, fmt.Errorf("configparser: merge failed; parent(%s) and child(%s) configs have different data types", parentValue.Type(), childValue.Type())
+	case parentValue.Kind() != reflect.Struct || childValue.Kind() != reflect.Struct:
+		return nil, fmt.Errorf("configparser: merge failed; both parent(%s) and child(%s) configs MUST be references to a struct", parentValue.Kind(), childValue.Kind())
 	}
 
 	for i := 0; i < childValue.NumField(); i++ {
-		tags, ok := structTags.Field(i).Tag.Lookup("envoy")
+		tags, ok := parentType.Field(i).Tag.Lookup("envoy")
 		if !ok {
 			continue
 		}
@@ -112,8 +112,5 @@ func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, erro
 		parentValue.Field(i).Set(v)
 	}
 
-	copyParent := reflect.New(parentValue.Type())
-	copyParentValue := copyParent.Elem()
-	copyParentValue.Set(parentValue)
-	return copyParent.Interface(), nil
+	return parentPtr.Interface(), nil
 }

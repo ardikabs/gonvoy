@@ -3,6 +3,9 @@ package gonvoy
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/ardikabs/gonvoy/pkg/util"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
 // MustGetProperty is an extended of GetProperty, only panic if value is not in acceptable format.
@@ -36,4 +39,31 @@ func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	}
 
 	return bodyByte
+}
+
+func checkContentOperationAccess(header api.HeaderMap) (read, write bool) {
+	operation, ok := header.Get(HeaderXContentOperation)
+	if !ok {
+		return
+	}
+
+	if util.In(operation, ContentOperationReadOnly, ContentOperationRO) {
+		read = true
+		return
+	}
+
+	if !util.In(operation, ContentOperationReadWrite, ContentOperationRW) {
+		return
+	}
+
+	read = true
+
+	contentLength, ok := header.Get(HeaderContentLength)
+	if !ok {
+		return
+	}
+
+	isEmpty := contentLength == "" || contentLength == "0"
+	write = !isEmpty
+	return
 }

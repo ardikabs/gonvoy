@@ -136,13 +136,21 @@ type Context interface {
 	//
 	Configuration() Configuration
 
-	// CanModifyRequestBody indicates whether an HTTP Request is eligible to modify the body/payload.
+	// IsRequestBodyReadable indicates whether an HTTP Request body is readable or not.
 	//
-	CanModifyRequestBody() bool
+	IsRequestBodyReadable() bool
 
-	// CanModifyResponseBody indicates whether an HTTP Response is eligible to modify the body/payload.
+	// IsRequestBodyWriteable indicates whether an HTTP Request body is writeable or not.
 	//
-	CanModifyResponseBody() bool
+	IsRequestBodyWriteable() bool
+
+	// IsResponseBodyReadable indicates whether an HTTP Response body is readable or not.
+	//
+	IsResponseBodyReadable() bool
+
+	// IsResponseBodyWriteable indicates whether an HTTP Response body is writeable or not.
+	//
+	IsResponseBodyWriteable() bool
 
 	//
 	// --- Intended for Internal use ---
@@ -161,6 +169,11 @@ type context struct {
 	respHeaderMap      api.ResponseHeaderMap
 	reqBufferInstance  api.BufferInstance
 	respBufferInstance api.BufferInstance
+
+	isRequestBodyReadable   bool
+	isRequestBodyWriteable  bool
+	isResponseBodyWriteable bool
+	isResponseBodyReadable  bool
 
 	callback   api.FilterCallbacks
 	statusType api.StatusType
@@ -295,8 +308,9 @@ func (c *context) RequestBody() Body {
 	}
 
 	return &bodyWriter{
-		header: c.reqHeaderMap,
-		buffer: c.reqBufferInstance,
+		writeable: c.IsRequestBodyWriteable(),
+		header:    c.reqHeaderMap,
+		buffer:    c.reqBufferInstance,
 	}
 }
 
@@ -306,8 +320,9 @@ func (c *context) ResponseBody() Body {
 	}
 
 	return &bodyWriter{
-		header: c.respHeaderMap,
-		buffer: c.respBufferInstance,
+		writeable: c.IsResponseBodyWriteable(),
+		header:    c.respHeaderMap,
+		buffer:    c.respBufferInstance,
 	}
 }
 
@@ -327,6 +342,8 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 
 	c.httpReq = req
 	c.reqHeaderMap = header
+
+	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkContentOperationAccess(header)
 }
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
@@ -345,6 +362,8 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 
 	c.httpResp = resp
 	c.respHeaderMap = header
+
+	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkContentOperationAccess(header)
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {
@@ -406,24 +425,32 @@ func (c *context) reset() {
 	c.committed = false
 }
 
-func (c *context) CanModifyRequestBody() bool {
-	contentLength, ok := c.reqHeaderMap.Get(HeaderContentLength)
-	if !ok {
-		return false
-	}
-
-	isEmpty := contentLength == "" || contentLength == "0"
-	return !isEmpty
+func (c *context) IsRequestBodyReadable() bool {
+	return c.isRequestBodyReadable
 }
 
-func (c *context) CanModifyResponseBody() bool {
-	contentLength, ok := c.respHeaderMap.Get(HeaderContentLength)
-	if !ok {
+func (c *context) IsRequestBodyWriteable() bool {
+	// If the request body can be modified, but the current phase has already been committed,
+	// then Request Body is no longer modifiable
+	if c.committed {
 		return false
 	}
 
-	isEmpty := contentLength == "" || contentLength == "0"
-	return !isEmpty
+	return c.isRequestBodyWriteable
+}
+
+func (c *context) IsResponseBodyReadable() bool {
+	return c.isResponseBodyReadable
+}
+
+func (c *context) IsResponseBodyWriteable() bool {
+	// If the response body can be modified, but the current phase has already been committed,
+	// then Response Body is no longer modifiable
+	if c.committed {
+		return false
+	}
+
+	return c.isResponseBodyWriteable
 }
 
 func (c *context) Store(key any, value any) {

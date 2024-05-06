@@ -7,8 +7,14 @@ import (
 )
 
 const (
-	HeaderContentLength = "content-length"
-	HeaderContentType   = "content-type"
+	HeaderContentLength = "Content-Length"
+	HeaderContentType   = "Content-Type"
+
+	HeaderXContentOperation   = "X-Content-Operation"
+	ContentOperationReadOnly  = "ReadOnly"
+	ContentOperationRO        = "RO" // initial ReadOnly
+	ContentOperationReadWrite = "ReadWrite"
+	ContentOperationRW        = "RW" // initial ReadWrite
 )
 
 type Header interface {

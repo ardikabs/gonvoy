@@ -17,7 +17,7 @@ func fakeConfig(t *testing.T) Configuration {
 func TestContext_StoreAndLoad(t *testing.T) {
 	fc := mock_envoy.NewFilterCallbackHandler(t)
 	cfg := fakeConfig(t)
-	ctx, err := NewContext(fc, cfg)
+	ctx, err := newContext(fc, cfg)
 	require.NoError(t, err)
 
 	source := bytes.NewReader([]byte("testing"))

@@ -10,33 +10,27 @@ import (
 
 type HttpFilterHandlerManager interface {
 	SetErrorHandler(ErrorHandler)
-	Register(HttpFilterHandler) HttpFilterHandlerManager
+	RegisterHandler(HttpFilterHandler)
 
-	handle(Context, HttpFilterActionPhase) api.StatusType
+	serve(Context, HttpFilterPhase) api.StatusType
 }
 
-type HttpFilterActionPhase uint
+type HttpFilterPhase uint
 
 const (
-	OnRequestHeaderPhase HttpFilterActionPhase = iota + 1
+	OnRequestHeaderPhase HttpFilterPhase = iota + 1
 	OnResponseHeaderPhase
 	OnRequestBodyPhase
 	OnResponseBodyPhase
 )
 
-func newHandlerManager() *handlerManager {
-	return &handlerManager{
-		errorHandler: DefaultErrorHttpFilterHandler,
-	}
-}
-
-type handlerManager struct {
+type DefaultHttpFilterHandlerManager struct {
 	errorHandler ErrorHandler
 	first        httpFilterProcessor
 	last         httpFilterProcessor
 }
 
-func (h *handlerManager) SetErrorHandler(handler ErrorHandler) {
+func (h *DefaultHttpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) {
 	if handler == nil {
 		return
 	}
@@ -44,24 +38,23 @@ func (h *handlerManager) SetErrorHandler(handler ErrorHandler) {
 	h.errorHandler = handler
 }
 
-func (h *handlerManager) Register(handler HttpFilterHandler) HttpFilterHandlerManager {
+func (h *DefaultHttpFilterHandlerManager) RegisterHandler(handler HttpFilterHandler) {
 	if util.IsNil(handler) || handler.Disable() {
-		return h
+		return
 	}
 
 	processor := NewHttpFilterProcessor(handler)
 	if h.first == nil {
 		h.first = processor
 		h.last = processor
-		return h
+		return
 	}
 
 	h.last.SetNext(processor)
 	h.last = processor
-	return h
 }
 
-func (h *handlerManager) handle(c Context, phase HttpFilterActionPhase) (status api.StatusType) {
+func (h *DefaultHttpFilterHandlerManager) serve(c Context, phase HttpFilterPhase) (status api.StatusType) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {

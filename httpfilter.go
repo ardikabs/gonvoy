@@ -22,37 +22,43 @@ func RunHttpFilterWithConfig(filter HttpFilter, filterConfig interface{}) {
 
 type HttpFilter interface {
 	Name() string
-	OnStart(c Context)
-	RegisterHttpFilterHandler(c Context, mgr HttpFilterHandlerManager)
-	OnComplete(c Context)
+	OnStart(c Context) error
+	OnComplete(c Context) error
 }
 
 func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
+	if util.IsNil(httpFilter) {
+		panic("httpFilterFactory: httpFilter shouldn't be a nil")
+	}
+
 	return func(cfg interface{}) api.StreamFilterFactory {
 		config, ok := cfg.(Configuration)
 		if !ok {
-			panic(fmt.Sprintf("httpFilterFactory: unexpected config type, %T", cfg))
+			panic(fmt.Sprintf("httpFilterFactory: unexpected config type '%T', expecting '%T'", cfg, config))
 		}
 
 		return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
-			ctx, err := NewContext(callbacks, config)
+			ctx, err := newContext(callbacks, config)
 			if err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilterFactory: failed during filter context initialization; %v, filter '%s' is ignored", err, httpFilter.Name()))
+				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): context initialization failed; %v; filter ignored...", httpFilter.Name(), err))
 				return NoOpHttpFilter
 			}
 
-			newHttpFilter, err := util.NewFrom(httpFilter)
+			newHttpFilterIface, err := util.NewFrom(httpFilter)
 			if err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilterFactory: failed during filter instance initialization; %v, filter '%s' is ignored", err, httpFilter.Name()))
+				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): instance initialization failed; %v; filter ignored...", httpFilter.Name(), err))
 				return NoOpHttpFilter
 			}
 
-			hf := newHttpFilter.(HttpFilter)
-			hf.OnStart(ctx)
+			newHttpFilter := newHttpFilterIface.(HttpFilter)
+			if err := newHttpFilter.OnStart(ctx); err != nil {
+				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): caught an error during OnStart; %v; filter ignored...", httpFilter.Name(), err))
+				return NoOpHttpFilter
+			}
 
 			return &httpFilterInstance{
 				ctx:        ctx,
-				httpFilter: hf,
+				httpFilter: newHttpFilter,
 			}
 		}
 	}
@@ -68,43 +74,41 @@ type httpFilterInstance struct {
 }
 
 func (f *httpFilterInstance) OnLog() {
-	f.httpFilter.OnComplete(f.ctx)
+	if err := f.httpFilter.OnComplete(f.ctx); err != nil {
+		f.ctx.Log().Error(err, "httpFilter(%s): caught an error during OnComplete; %v", f.httpFilter.Name(), err)
+	}
 }
 
-func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) (status api.StatusType) {
+func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	if !gate.AllowRequestBodyPhase() {
 		return api.Continue
 	}
 
 	f.ctx.SetRequestHeader(header)
 
-	manager := newHandlerManager()
-	f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
-	status = manager.handle(f.ctx, OnRequestHeaderPhase)
+	status := f.ctx.serveFilter(OnRequestHeaderPhase)
 
 	if f.ctx.CanModifyRequestBody() {
 		return api.StopAndBuffer
 	}
 
-	return
+	return status
 }
 
-func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) (status api.StatusType) {
+func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
 	if !gate.AllowResponseBodyPhase() {
 		return api.Continue
 	}
 
 	f.ctx.SetResponseHeader(header)
 
-	manager := newHandlerManager()
-	f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
-	status = manager.handle(f.ctx, OnResponseHeaderPhase)
+	status := f.ctx.serveFilter(OnResponseHeaderPhase)
 
 	if f.ctx.CanModifyResponseBody() {
 		return api.StopAndBuffer
 	}
 
-	return
+	return status
 }
 
 func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
@@ -117,9 +121,7 @@ func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream boo
 	}
 
 	if endStream {
-		manager := newHandlerManager()
-		f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
-		return manager.handle(f.ctx, OnRequestBodyPhase)
+		return f.ctx.serveFilter(OnRequestBodyPhase)
 	}
 
 	return api.StopAndBuffer
@@ -135,9 +137,7 @@ func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream boo
 	}
 
 	if endStream {
-		manager := newHandlerManager()
-		f.httpFilter.RegisterHttpFilterHandler(f.ctx, manager)
-		return manager.handle(f.ctx, OnResponseBodyPhase)
+		return f.ctx.serveFilter(OnResponseBodyPhase)
 	}
 
 	return api.StopAndBuffer

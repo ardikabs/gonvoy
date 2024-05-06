@@ -86,7 +86,7 @@ func TestNewGatewayHeaders(t *testing.T) {
 		fc := mock_envoy.NewFilterCallbackHandler(t)
 		cfg := fakeConfig(t)
 
-		ctx, err := NewContext(fc, cfg)
+		ctx, err := newContext(fc, cfg)
 		require.NoError(t, err)
 		require.NotNil(t, ctx)
 

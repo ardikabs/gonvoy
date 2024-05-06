@@ -16,6 +16,15 @@ import (
 )
 
 type Context interface {
+	// SetErrorHandler sets a custom error handler for an Http Filter
+	//
+	SetErrorHandler(ErrorHandler)
+
+	// RegisterHandler adds an Http Filter Handler to the chain,
+	// which should be run during filter startup (HttpFilter.OnStart).
+	//
+	RegisterHandler(HttpFilterHandler)
+
 	// RequestHeader provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
 	// RequestHeader will panic when it used without initializing the request header map first.
@@ -39,24 +48,30 @@ type Context interface {
 	// Request returns an http.Request struct, which is a read-only data.
 	// Attempting to modify this value will have no effect.
 	// To make modifications to the request header, please use the RequestHeader() method instead.
+	//
 	Request() *http.Request
 
 	// Response returns an http.Response struct, which is a read-only data.
 	// It means, update anything to this value will result nothing.
 	// To make modifications to the response header, please use the ResponseHeader() method instead.
 	// To make modifications to the response body, please use the BufferWriter() method instead.
+	//
 	Response() *http.Response
 
 	// SetRequestHeader is a low-level API, it set request header from RequestHeaderMap interface during DecodeHeaders phase
+	//
 	SetRequestHeader(api.RequestHeaderMap)
 
 	// SetResponseHeader is a low-level API, it set response header from ResponseHeaderMap interface during EncodeHeaders phase
+	//
 	SetResponseHeader(api.ResponseHeaderMap)
 
 	// SetRequestBody is a low-level API, it set request body from BufferInstance interface during DecodeData phase
+	//
 	SetRequestBody(api.BufferInstance)
 
 	// SetResponseBody is a low-level API, it set response body from BufferInstance interface during EncodeData phase
+	//
 	SetResponseBody(api.BufferInstance)
 
 	// Store allows you to save a value of any type under a key of any type.
@@ -78,42 +93,64 @@ type Context interface {
 
 	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` component.
 	// e.g., Envoy flag `--component-log-level http:{debug,info,warn,error,critical}`
+	//
 	Log() logr.Logger
 
-	// JSON sends a JSON response with status code.
+	// JSON sends a JSON response with a status code.
+	//
+	// This action halts the handler chaining and immediately returns back to Envoy.
 	JSON(code int, b []byte, headers map[string][]string, opts ...ReplyOption) error
 
-	// String sends a plain text response with status code.
+	// String sends a plain text response with a status code.
+	//
+	// This action halts the handler chaining and immediately returns back to Envoy.
 	String(code int, s string, headers map[string][]string, opts ...ReplyOption) error
 
 	// StatusType is a low-level API used to specify the type of status to be communicated to Envoy.
+	//
 	StatusType() api.StatusType
 
 	// Committed indicates whether the current context has already completed its processing
 	// within the plugin and forwarded the result to Envoy.
+	//
 	Committed() bool
 
 	// StreamInfo offers an interface for retrieving comprehensive details about the incoming HTTP traffic, including
 	// information such as the route name, filter chain name, dynamic metadata, and more.
 	// It provides direct access to low-level Envoy information, so it's important to use it with a clear understanding of your intent.
+	//
 	StreamInfo() api.StreamInfo
 
 	// Metrics sets gauge stats that could to record both increase and decrease metric. E.g., current active requests.
+	//
 	Metrics() Metrics
 
 	// GetProperty is a helper function to fetch Envoy attributes based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
 	// Currently, it only supports value that has a string format, work in progress for List/Map format.
+	//
 	GetProperty(name, defaultVal string) (string, error)
 
 	// Configuration provides access to the filter configuration,
 	// while also enabling users to persist and share data throughout Envoy's lifespan.
+	//
 	Configuration() Configuration
 
 	// CanModifyRequestBody indicates whether an HTTP Request is eligible to modify the body/payload.
+	//
 	CanModifyRequestBody() bool
 
 	// CanModifyResponseBody indicates whether an HTTP Response is eligible to modify the body/payload.
+	//
 	CanModifyResponseBody() bool
+
+	//
+	// --- Internal ---
+	//
+
+	// serveFilter serves the Http Filter for the specified phase.
+	// This method is designed for internal use as it is directly invoked within each filter instance's phase.
+	//
+	serveFilter(HttpFilterPhase) api.StatusType
 }
 
 type context struct {
@@ -134,9 +171,11 @@ type context struct {
 	storage   sync.Map
 	logger    logr.Logger
 	committed bool
+
+	httpFilterManager HttpFilterHandlerManager
 }
 
-func NewContext(cb api.FilterCallbacks, cfg Configuration) (Context, error) {
+func newContext(cb api.FilterCallbacks, cfg Configuration) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
@@ -144,6 +183,9 @@ func NewContext(cb api.FilterCallbacks, cfg Configuration) (Context, error) {
 	c := &context{
 		callback: cb,
 		logger:   NewLogger(cb),
+		httpFilterManager: &DefaultHttpFilterHandlerManager{
+			errorHandler: DefaultHttpFilterErrorHandler,
+		},
 	}
 
 	type validator interface {
@@ -164,6 +206,18 @@ func NewContext(cb api.FilterCallbacks, cfg Configuration) (Context, error) {
 	c.config = cfg
 	c.metrics = NewMetrics(cfg)
 	return c, nil
+}
+
+func (c *context) SetErrorHandler(e ErrorHandler) {
+	c.httpFilterManager.SetErrorHandler(e)
+}
+
+func (c *context) RegisterHandler(handler HttpFilterHandler) {
+	c.httpFilterManager.RegisterHandler(handler)
+}
+
+func (c *context) serveFilter(phase HttpFilterPhase) api.StatusType {
+	return c.httpFilterManager.serve(c, phase)
 }
 
 func (c *context) Configuration() Configuration {

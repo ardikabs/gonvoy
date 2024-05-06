@@ -1,26 +1,29 @@
-# Simplified Go interface for HTTP Golang Filter on Envoy Proxy
+# Gonvoy
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ardikabs/gonvoy.svg)](https://pkg.go.dev/github.com/ardikabs/gonvoy)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ardikabs/gonvoy)](https://goreportcard.com/report/github.com/ardikabs/gonvoy)
 [![Test](https://github.com/ardikabs/gonvoy/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/ardikabs/gonvoy/actions/workflows/test.yaml)
 [![Codecov](https://codecov.io/gh/ardikabs/gonvoy/branch/main/graph/badge.svg)](https://codecov.io/gh/ardikabs/gonvoy)
 
-> A simplified interface for building plugin on Envoy Proxy with [HTTP Golang Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/golang_filter).
+A Go framework to write an HTTP Filter extension on Envoy Proxy. It leverages the Envoy [HTTP Golang Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/golang_filter) as its foundation.
 
 ## Features
+
+* Full Go experience for building Envoy HTTP Filter extension.
 
 * Porting `net/http` interface experience to extend Envoy Proxy behavior with [HTTP Golang Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/golang_filter).
 
 * Logging with [go-logr](https://github.com/go-logr/logr).
 
+* [Stats](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/observability/statistics#arch-overview-statistics) support allows users to generate their own custom metrics.
 
 ### Compatibility Matrix
 
-| Envoy Proxy | Gonvoy |
+| Gonvoy | Envoy Proxy |
 |-----------------|-----------------|
-| v1.27 | >= v0.1.0, < v0.2.0|
-| v1.29 | ~> v0.2.0 |
-
+| >= v0.1.0, < v0.2.0|v1.27 |
+| ~> v0.2.0 | v1.29 |
+| [latest](https://github.com/ardikabs/gonvoy) | v1.29 |
 
 ## Installation
 

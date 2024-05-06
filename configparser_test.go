@@ -11,11 +11,10 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-type some struct {
-	SomeX someX
+type foo struct {
+	A string `json:"a"`
+	B int    `json:"b"`
 }
-
-type someX struct{}
 
 type any interface{}
 
@@ -23,7 +22,7 @@ type dummyConfig struct {
 	A string `json:"a"`
 	B int    `json:"b" envoy:"mergeable"`
 	C string `json:"c" envoy:"mergeable"`
-	S *some
+	S *foo   `json:"s" envoy:"mergeable"`
 
 	Arrays []string `json:"arrays" envoy:"mergeable,preserve"`
 
@@ -57,6 +56,10 @@ func TestConfigParser(t *testing.T) {
 		"c": "child value",
 		"any": map[string]interface{}{
 			"valueFrom": "child",
+		},
+		"s": map[string]interface{}{
+			"a": "foo",
+			"b": 100,
 		},
 	})
 	require.Nil(t, err)
@@ -116,7 +119,7 @@ func TestConfigParser_mergeStruct(t *testing.T) {
 		A:      "THIS VALUE IN UNCHANGEABLE",
 		B:      500,
 		C:      "DEFAULT GIVEN FROM PARENT",
-		S:      &some{},
+		S:      &foo{},
 		Arrays: []string{"1", "2", "3"},
 		Any:    "string",
 		any:    "string",
@@ -125,21 +128,45 @@ func TestConfigParser_mergeStruct(t *testing.T) {
 		A:   "UNMERGEABLE; it will be ignored",
 		B:   1000,
 		C:   "MERGEABLE; value from child",
+		S:   &foo{},
 		Any: "nonstring",
+		any: "i make it wrong",
 	}
 
 	configParser := &configParser{}
 
 	merged, err := configParser.mergeStruct(parent, child)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	mergedConfig, ok := merged.(*dummyConfig)
 	assert.True(t, ok)
-	assert.Equal(t, parent.A, mergedConfig.A)
-	assert.Equal(t, child.B, mergedConfig.B)
-	assert.Equal(t, child.C, mergedConfig.C)
-	assert.Equal(t, parent.S, mergedConfig.S)
-	assert.Equal(t, parent.Arrays, mergedConfig.Arrays)
-	assert.Equal(t, child.Any, mergedConfig.Any)
-	assert.IsType(t, "string", mergedConfig.any)
+	assert.NotEqualValues(t, parent, mergedConfig)
+	assert.NotSame(t, parent.S, mergedConfig.S)
+
+	assert.EqualValues(t, parent.A, mergedConfig.A)
+	assert.EqualValues(t, child.B, mergedConfig.B)
+	assert.EqualValues(t, child.C, mergedConfig.C)
+	assert.EqualValues(t, parent.Arrays, mergedConfig.Arrays)
+	assert.EqualValues(t, child.Any, mergedConfig.Any)
+
+	child2 := &dummyConfig{
+		A:   "UNMERGEABLE; it will be ignored",
+		B:   2000,
+		C:   "MERGEABLE; value from child2",
+		S:   &foo{},
+		Any: "nonstring",
+		any: "i make it wrong",
+	}
+
+	merged2, err := configParser.mergeStruct(parent, child2)
+	assert.NoError(t, err)
+
+	mergedConfig2, ok := merged2.(*dummyConfig)
+	assert.True(t, ok)
+	assert.True(t, ok)
+	assert.NotEqualValues(t, mergedConfig, mergedConfig2)
+	assert.NotEqualValues(t, parent, mergedConfig2)
+
+	assert.NotSame(t, parent.S, mergedConfig2.S)
+	assert.NotSame(t, mergedConfig.S, mergedConfig2.S)
 }

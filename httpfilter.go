@@ -86,7 +86,7 @@ func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStrea
 
 	f.ctx.SetRequestHeader(header)
 
-	status := f.ctx.serveFilter(OnRequestHeaderPhase)
+	status := f.ctx.ServeHttpFilter(OnRequestHeaderPhase)
 
 	if f.ctx.CanModifyRequestBody() {
 		return api.StopAndBuffer
@@ -102,7 +102,7 @@ func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStre
 
 	f.ctx.SetResponseHeader(header)
 
-	status := f.ctx.serveFilter(OnResponseHeaderPhase)
+	status := f.ctx.ServeHttpFilter(OnResponseHeaderPhase)
 
 	if f.ctx.CanModifyResponseBody() {
 		return api.StopAndBuffer
@@ -121,7 +121,7 @@ func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream boo
 	}
 
 	if endStream {
-		return f.ctx.serveFilter(OnRequestBodyPhase)
+		return f.ctx.ServeHttpFilter(OnRequestBodyPhase)
 	}
 
 	return api.StopAndBuffer
@@ -137,7 +137,7 @@ func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream boo
 	}
 
 	if endStream {
-		return f.ctx.serveFilter(OnResponseBodyPhase)
+		return f.ctx.ServeHttpFilter(OnResponseBodyPhase)
 	}
 
 	return api.StopAndBuffer

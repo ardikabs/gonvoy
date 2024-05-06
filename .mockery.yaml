@@ -7,9 +7,22 @@ packages:
       dir: test/mock/envoy
       outpkg: mock_envoy
     interfaces:
-      CounterMetric:
-      GaugeMetric:
       FilterCallbackHandler:
       ConfigCallbackHandler:
       RequestHeaderMap:
       ResponseHeaderMap:
+      CounterMetric:
+      GaugeMetric:
+
+  github.com/ardikabs/gonvoy:
+    config:
+      dir: test/mock/gonvoy
+      outpkg: mock_gonvoy
+    interfaces:
+      Context:
+      Configuration:
+      Cache:
+      HttpFilter:
+      HttpFilterHandler:
+      HttpFilterHandlerManager:
+      Metrics:

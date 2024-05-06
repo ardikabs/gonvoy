@@ -11,8 +11,7 @@ import (
 type HttpFilterHandlerManager interface {
 	SetErrorHandler(ErrorHandler)
 	RegisterHandler(HttpFilterHandler)
-
-	serve(Context, HttpFilterPhase) api.StatusType
+	Serve(Context, HttpFilterPhase) api.StatusType
 }
 
 type HttpFilterPhase uint
@@ -54,7 +53,7 @@ func (h *DefaultHttpFilterHandlerManager) RegisterHandler(handler HttpFilterHand
 	h.last = processor
 }
 
-func (h *DefaultHttpFilterHandlerManager) serve(c Context, phase HttpFilterPhase) (status api.StatusType) {
+func (h *DefaultHttpFilterHandlerManager) Serve(c Context, phase HttpFilterPhase) (status api.StatusType) {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {

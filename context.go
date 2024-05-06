@@ -144,13 +144,13 @@ type Context interface {
 	CanModifyResponseBody() bool
 
 	//
-	// --- Internal ---
+	// --- Intended for Internal use ---
 	//
 
-	// serveFilter serves the Http Filter for the specified phase.
+	// ServeHttpFilter serves the Http Filter for the specified phase.
 	// This method is designed for internal use as it is directly invoked within each filter instance's phase.
 	//
-	serveFilter(HttpFilterPhase) api.StatusType
+	ServeHttpFilter(HttpFilterPhase) api.StatusType
 }
 
 type context struct {
@@ -216,8 +216,8 @@ func (c *context) RegisterHandler(handler HttpFilterHandler) {
 	c.httpFilterManager.RegisterHandler(handler)
 }
 
-func (c *context) serveFilter(phase HttpFilterPhase) api.StatusType {
-	return c.httpFilterManager.serve(c, phase)
+func (c *context) ServeHttpFilter(phase HttpFilterPhase) api.StatusType {
+	return c.httpFilterManager.Serve(c, phase)
 }
 
 func (c *context) Configuration() Configuration {

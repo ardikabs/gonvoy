@@ -13,17 +13,42 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-type configParser struct {
-	filterConfig interface{}
+type ConfigOptions struct {
+	BaseConfig interface{}
+
+	// AlwaysReplaceRootConfig specifies that on merge, it will replace with the child filter configuration, regardless
+	// with/out `mergeable` tag.
+	AlwaysReplaceRootConfig bool
+
+	// IgnoreMergeError specifies during a merge error, instead of panicking, it will fallback to the root configuration.
+	IgnoreMergeError bool
+
+	// EnabledHttpFilterPhases lists the HttpFilterPhase options enabled for the filter.
+	// If both EnabledHttpFilterPhases and DisabledHttpFilterPhases are present,
+	// only EnabledHttpFilterPhases is used, as they are mutually exclusive.
+	EnabledHttpFilterPhases []HttpFilterPhase
+
+	// DisabledHttpFilterPhases lists the HttpFilterPhase options disabled for the filter.
+	// If both EnabledHttpFilterPhases and DisabledHttpFilterPhases are present,
+	// only EnabledHttpFilterPhases is used, as they are mutually exclusive.
+	DisabledHttpFilterPhases []HttpFilterPhase
 }
 
-func newConfigParser(filterConfig interface{}) *configParser {
-	return &configParser{filterConfig}
+type configParser struct {
+	options ConfigOptions
+
+	globalConfig *globalConfig
+}
+
+func newConfigParser(options ConfigOptions) *configParser {
+	return &configParser{
+		options: options,
+	}
 }
 
 func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (interface{}, error) {
-	if p.filterConfig == nil {
-		return newConfig(nil, cc), nil
+	if util.IsNil(p.options.BaseConfig) {
+		return newGlobalConfig(cc, p.options), nil
 	}
 
 	configStruct := &xds.TypedStruct{}
@@ -37,7 +62,7 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
 
-	filterCfg, err := util.NewFrom(p.filterConfig)
+	filterCfg, err := util.NewFrom(p.options.BaseConfig)
 	if err != nil {
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
@@ -46,25 +71,36 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
 
-	cfg := newConfig(filterCfg, cc)
-	return cfg, nil
+	if p.globalConfig == nil {
+		p.globalConfig = newGlobalConfig(cc, p.options)
+		p.globalConfig.filterCfg = filterCfg
+		return p.globalConfig, nil
+	}
+
+	copyGlobalConfig := *p.globalConfig
+	copyGlobalConfig.filterCfg = filterCfg
+	return &copyGlobalConfig, nil
 }
 
 func (p *configParser) Merge(parent, child interface{}) interface{} {
-	origParentCfg := parent.(*config)
-	if origParentCfg.filterCfg == nil {
+	origParentGlobalConfig := parent.(*globalConfig)
+	origChildGlobalConfig := child.(*globalConfig)
+
+	if util.IsNil(origParentGlobalConfig.filterCfg) {
 		return parent
 	}
 
-	parentCfg := *origParentCfg
-	childCfg := child.(*config)
-	mergedFilterCfg, err := p.mergeStruct(parentCfg.filterCfg, childCfg.filterCfg)
+	mergedGlobalConfig := *origParentGlobalConfig
+	mergedFilterCfg, err := p.mergeStruct(mergedGlobalConfig.filterCfg, origChildGlobalConfig.filterCfg)
 	if err != nil {
-		panic(err)
+		if p.options.IgnoreMergeError {
+			panic(err)
+		}
+
 	}
 
-	parentCfg.filterCfg = mergedFilterCfg
-	return &parentCfg
+	mergedGlobalConfig.filterCfg = mergedFilterCfg
+	return &mergedGlobalConfig
 }
 
 func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, error) {
@@ -83,14 +119,18 @@ func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, erro
 	parentValue := parentPtr.Elem() // FilterConfigDataType
 	childValue := childPtr.Elem()   // FilterConfigDataType
 
-	parentValue.Set(origParentValue)
-
 	switch {
 	case parentValue.Type() != childValue.Type():
 		return nil, fmt.Errorf("configparser: merge failed; parent(%s) and child(%s) configs have different data types", parentValue.Type(), childValue.Type())
 	case parentValue.Kind() != reflect.Struct || childValue.Kind() != reflect.Struct:
 		return nil, fmt.Errorf("configparser: merge failed; both parent(%s) and child(%s) configs MUST be references to a struct", parentValue.Kind(), childValue.Kind())
 	}
+
+	if p.options.AlwaysReplaceRootConfig {
+		parentValue.Set(childPtr.Elem())
+	}
+
+	parentValue.Set(origParentValue)
 
 	for i := 0; i < childValue.NumField(); i++ {
 		tags, ok := parentType.Field(i).Tag.Lookup("envoy")

@@ -70,7 +70,7 @@ func TestConfigParser(t *testing.T) {
 	assert.NotNil(t, childConfigAny)
 
 	t.Run("no config", func(t *testing.T) {
-		cp := newConfigParser(nil)
+		cp := newConfigParser(ConfigOptions{})
 		parentCfg, err := cp.Parse(nil, mockCC)
 		require.NoError(t, err)
 
@@ -80,7 +80,9 @@ func TestConfigParser(t *testing.T) {
 	})
 
 	t.Run("normal config | Parent only", func(t *testing.T) {
-		cp := newConfigParser(&dummyConfig{})
+		cp := newConfigParser(ConfigOptions{
+			BaseConfig: new(dummyConfig),
+		})
 
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
@@ -95,7 +97,10 @@ func TestConfigParser(t *testing.T) {
 	})
 
 	t.Run("normal config | Parent and Child", func(t *testing.T) {
-		cp := newConfigParser(&dummyConfig{})
+		cp := newConfigParser(ConfigOptions{
+			BaseConfig: new(dummyConfig),
+		})
+
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
 		childCfg, err := cp.Parse(childConfigAny, mockCC)
@@ -111,6 +116,14 @@ func TestConfigParser(t *testing.T) {
 		assert.Equal(t, 500, pMergedCfg.B)
 		assert.Equal(t, "child value", pMergedCfg.C)
 		assert.Equal(t, []string{"parent", "value"}, pMergedCfg.Arrays)
+
+		assert.Same(t, parentCfg.(Configuration).Cache(), mConfig.Cache())
+		assert.Same(t, parentCfg.(Configuration).Cache(), childCfg.(Configuration).Cache())
+		assert.Same(t, childCfg.(Configuration).Cache(), mConfig.Cache())
+		assert.NotSame(t, parentCfg.(Configuration).GetFilterConfig(), mConfig.GetFilterConfig())
+		assert.NotSame(t, parentCfg.(Configuration).GetFilterConfig(), childCfg.(Configuration).GetFilterConfig())
+		assert.NotSame(t, childCfg.(Configuration).GetFilterConfig(), mConfig.GetFilterConfig())
+
 	})
 }
 

@@ -8,68 +8,89 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-type Configuration interface {
-	GetFilterConfig() interface{}
-	GetConfigCallbacks() api.ConfigCallbacks
-	Cache() Cache
+var DefaultHttpFilterPhases = []HttpFilterPhase{OnRequestHeaderPhase,
+	OnRequestBodyPhase,
+	OnResponseHeaderPhase,
+	OnResponseBodyPhase}
 
-	metricCounter(name string) api.CounterMetric
-	metricGauge(name string) api.GaugeMetric
-	metricHistogram(name string) api.HistogramMetric
+type Configuration interface {
+	// GetFilterConfig returns the filter configuration associated with the route.
+	// It defaults to the parent filter configuration if no route filter configuration was found.
+	// Otherwise, once typed_per_filter_config present in the route then it will return the child filter configuration.
+	// Whether these filter configurations can be merged depends on the filter configuration struct tags.
+	//
+	GetFilterConfig() interface{}
+
+	// Cache provides the global cache, that persists throughout Envoy's lifespan.
+	// Use this cache when variable initialization is expensive or requires a statefulness.
+	//
+	Cache() Cache
 }
 
-type config struct {
-	filterCfg  interface{}
+type globalConfig struct {
+	filterCfg interface{}
+
 	callbacks  api.ConfigCallbacks
 	localCache Cache
 
-	gaugeMetric     map[string]api.GaugeMetric
-	counterMetric   map[string]api.CounterMetric
-	histogramMetric map[string]api.HistogramMetric
+	gaugeMap     map[string]api.GaugeMetric
+	counterMap   map[string]api.CounterMetric
+	histogramMap map[string]api.HistogramMetric
+
+	enabledHttpFilterPhases  []HttpFilterPhase
+	disabledHttpFilterPhases []HttpFilterPhase
 }
 
-func newConfig(filterCfg interface{}, cc api.ConfigCallbacks) *config {
-	return &config{
-		filterCfg:       filterCfg,
-		callbacks:       cc,
-		localCache:      NewCache(),
-		gaugeMetric:     make(map[string]api.GaugeMetric),
-		counterMetric:   make(map[string]api.CounterMetric),
-		histogramMetric: make(map[string]api.HistogramMetric),
+func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfig {
+	gc := &globalConfig{
+		callbacks:                cc,
+		localCache:               NewCache(),
+		gaugeMap:                 make(map[string]api.GaugeMetric),
+		counterMap:               make(map[string]api.CounterMetric),
+		histogramMap:             make(map[string]api.HistogramMetric),
+		enabledHttpFilterPhases:  options.EnabledHttpFilterPhases,
+		disabledHttpFilterPhases: options.DisabledHttpFilterPhases,
 	}
+
+	if len(gc.enabledHttpFilterPhases) == 0 {
+		gc.enabledHttpFilterPhases = DefaultHttpFilterPhases
+	}
+
+	return gc
+
 }
 
-func (c *config) GetFilterConfig() interface{} {
+func (c *globalConfig) GetFilterConfig() interface{} {
 	return c.filterCfg
 }
 
-func (c *config) GetConfigCallbacks() api.ConfigCallbacks {
+func (c *globalConfig) GetConfigCallbacks() api.ConfigCallbacks {
 	return c.callbacks
 }
 
-func (c *config) Cache() Cache {
+func (c *globalConfig) Cache() Cache {
 	return c.localCache
 }
 
-func (c *config) metricCounter(name string) api.CounterMetric {
-	counter, ok := c.counterMetric[name]
+func (c *globalConfig) metricCounter(name string) api.CounterMetric {
+	counter, ok := c.counterMap[name]
 	if !ok {
 		counter = c.callbacks.DefineCounterMetric(name)
-		c.counterMetric[name] = counter
+		c.counterMap[name] = counter
 	}
 	return counter
 }
 
-func (c *config) metricGauge(name string) api.GaugeMetric {
-	gauge, ok := c.gaugeMetric[name]
+func (c *globalConfig) metricGauge(name string) api.GaugeMetric {
+	gauge, ok := c.gaugeMap[name]
 	if !ok {
 		gauge = c.callbacks.DefineGaugeMetric(name)
-		c.gaugeMetric[name] = gauge
+		c.gaugeMap[name] = gauge
 	}
 	return gauge
 }
 
-func (c *config) metricHistogram(name string) api.HistogramMetric {
+func (c *globalConfig) metricHistogram(name string) api.HistogramMetric {
 	panic("NOT IMPLEMENTED")
 }
 

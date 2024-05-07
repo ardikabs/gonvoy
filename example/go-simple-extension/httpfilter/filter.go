@@ -8,18 +8,20 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilterWithConfig(&Filter{}, &Config{})
+	gonvoy.RunHttpFilter(Filter{}, gonvoy.ConfigOptions{
+		BaseConfig: new(Config),
+	})
 }
 
 type Filter struct{}
 
 var _ gonvoy.HttpFilter = &Filter{}
 
-func (f *Filter) Name() string {
+func (f Filter) Name() string {
 	return "httpfilter"
 }
 
-func (f *Filter) OnStart(c gonvoy.Context) error {
+func (f Filter) OnStart(c gonvoy.Context) error {
 	fcfg := c.Configuration().GetFilterConfig()
 	cfg, ok := fcfg.(*Config)
 	if !ok {
@@ -32,8 +34,8 @@ func (f *Filter) OnStart(c gonvoy.Context) error {
 	return nil
 }
 
-func (f *Filter) OnComplete(c gonvoy.Context) error {
-	c.Metrics().Counter("go_simple_extension",
+func (f Filter) OnComplete(c gonvoy.Context) error {
+	c.Metrics().Counter("gse_httpfilter_requests_total",
 		"host", gonvoy.MustGetProperty(c, "request.host", "-"),
 		"method", gonvoy.MustGetProperty(c, "request.method", "-"),
 		"status_code", gonvoy.MustGetProperty(c, "response.code", "-"),

@@ -56,10 +56,6 @@ func (c *globalConfig) GetFilterConfig() interface{} {
 	return c.filterCfg
 }
 
-func (c *globalConfig) GetConfigCallbacks() api.ConfigCallbacks {
-	return c.callbacks
-}
-
 func (c *globalConfig) Cache() Cache {
 	return c.localCache
 }

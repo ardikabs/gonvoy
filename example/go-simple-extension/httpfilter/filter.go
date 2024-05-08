@@ -11,7 +11,7 @@ func init() {
 	gonvoy.RunHttpFilter(Filter{}, gonvoy.ConfigOptions{
 		BaseConfig: new(Config),
 		// DisabledHttpFilterPhases: []gonvoy.HttpFilterPhase{gonvoy.OnRequestBodyPhase, gonvoy.OnResponseBodyPhase},
-		MetricPrefix: "gSe_",
+		MetricPrefix: "gse_",
 	})
 }
 

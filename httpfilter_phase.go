@@ -116,7 +116,6 @@ type responseBodyPhaseController struct {
 	phase     HttpFilterPhase
 	buffer    api.BufferInstance
 	endStream bool
-	processor httpFilterProcessor
 }
 
 func (p *responseBodyPhaseController) Handle(c Context, proc httpFilterProcessor) (HttpFilterAction, error) {

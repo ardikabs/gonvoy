@@ -148,7 +148,7 @@ func TestConfigParser(t *testing.T) {
 
 		assert.Same(t, parentCfg.(Configuration).Cache(), mConfig.Cache())
 		assert.Same(t, parentCfg.(Configuration).Cache(), childCfg.(Configuration).Cache())
-		assert.Same(t, childCfg.(Configuration).Cache(), mConfig.(Configuration).Cache())
+		assert.Same(t, childCfg.(Configuration).Cache(), mConfig.Cache())
 		assert.NotSame(t, parentCfg.(Configuration).GetFilterConfig(), mConfig.GetFilterConfig())
 		assert.NotSame(t, parentCfg.(Configuration).GetFilterConfig(), childCfg.(Configuration).GetFilterConfig())
 		assert.NotSame(t, parentCfg, childCfg)

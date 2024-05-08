@@ -174,6 +174,7 @@ type context struct {
 	reqBufferInstance  api.BufferInstance
 	respBufferInstance api.BufferInstance
 
+	isStrictBodyAccess      bool
 	isRequestBodyReadable   bool
 	isRequestBodyWriteable  bool
 	isResponseBodyWriteable bool
@@ -223,6 +224,13 @@ func WithConfiguration(cfg Configuration) ContextOption {
 		}
 
 		c.config = cfg
+		return nil
+	}
+}
+
+func WithStrictBodyAccess(strict bool) ContextOption {
+	return func(c *context) error {
+		c.isStrictBodyAccess = strict
 		return nil
 	}
 }
@@ -374,7 +382,11 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 	c.httpReq = req
 	c.reqHeaderMap = header
 
-	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkContentOperationAccess(header)
+	if c.isStrictBodyAccess {
+		return
+	}
+
+	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccess(c.isStrictBodyAccess, header)
 }
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
@@ -394,7 +406,7 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	c.httpResp = resp
 	c.respHeaderMap = header
 
-	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkContentOperationAccess(header)
+	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccess(c.isStrictBodyAccess, header)
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {

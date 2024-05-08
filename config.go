@@ -34,6 +34,7 @@ type globalConfig struct {
 	counterMap   map[string]api.CounterMetric
 	histogramMap map[string]api.HistogramMetric
 
+	strictBodyAccess         bool
 	disabledHttpFilterPhases []HttpFilterPhase
 }
 
@@ -44,6 +45,7 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 		gaugeMap:                 make(map[string]api.GaugeMetric),
 		counterMap:               make(map[string]api.CounterMetric),
 		histogramMap:             make(map[string]api.HistogramMetric),
+		strictBodyAccess:         !options.DisableStrictBodyAccess,
 		disabledHttpFilterPhases: options.DisabledHttpFilterPhases,
 		metricPrefix:             options.MetricPrefix,
 	}

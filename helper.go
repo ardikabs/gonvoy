@@ -41,29 +41,38 @@ func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	return bodyByte
 }
 
-func checkContentOperationAccess(header api.HeaderMap) (read, write bool) {
+func checkBodyAccess(strict bool, header api.HeaderMap) (read, write bool) {
+	access := isBodyAccessible(header)
+
+	if !strict {
+		read = access
+	}
+
 	operation, ok := header.Get(HeaderXContentOperation)
 	if !ok {
 		return
 	}
 
 	if util.In(operation, ContentOperationReadOnly, ContentOperationRO) {
-		read = true
+		read = access
 		return
 	}
 
-	if !util.In(operation, ContentOperationReadWrite, ContentOperationRW) {
+	if util.In(operation, ContentOperationReadWrite, ContentOperationRW) {
+		read = access
+		write = access
 		return
 	}
 
-	read = true
+	return
+}
 
+func isBodyAccessible(header api.HeaderMap) bool {
 	contentLength, ok := header.Get(HeaderContentLength)
 	if !ok {
-		return
+		return false
 	}
 
 	isEmpty := contentLength == "" || contentLength == "0"
-	write = !isEmpty
-	return
+	return !isEmpty
 }

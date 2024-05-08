@@ -25,6 +25,12 @@ type ConfigOptions struct {
 	// DisabledHttpFilterPhases lists the HttpFilterPhase options disabled for the filter.
 	DisabledHttpFilterPhases []HttpFilterPhase
 
+	// DisableStrictBodyAccess specifies whether HTTP body access follows strict rules.
+	// As its name goes, the default behavior is strict, which mean that HTTP body access and/or manipulation is only possible
+	// with the presence of the `X-Content-Operation` header, with accepted values being `ReadOnly` and `ReadWrite`.
+	// However, when it is disabled, HTTP body access is allowed, but manipulation still requires the presence of `X-Content-Operation` with the `ReadWrite` value.
+	DisableStrictBodyAccess bool
+
 	// MetricPrefix specifies the prefix used for metrics.
 	MetricPrefix string
 }

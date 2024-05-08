@@ -136,30 +136,34 @@ type Context interface {
 	//
 	Configuration() Configuration
 
-	// IsRequestBodyReadable indicates whether an HTTP Request body is readable or not.
-	//
-	IsRequestBodyReadable() bool
-
-	// IsRequestBodyWriteable indicates whether an HTTP Request body is writeable or not.
-	//
-	IsRequestBodyWriteable() bool
-
-	// IsResponseBodyReadable indicates whether an HTTP Response body is readable or not.
-	//
-	IsResponseBodyReadable() bool
-
-	// IsResponseBodyWriteable indicates whether an HTTP Response body is writeable or not.
-	//
-	IsResponseBodyWriteable() bool
-
 	//
 	// --- Intended for Internal use ---
 	//
 
+	// IsRequestBodyReadable specifies whether an HTTP Request body is readable or not.
+	//
+	IsRequestBodyReadable() bool
+
+	// IsRequestBodyWriteable specifies whether an HTTP Request body is writeable or not.
+	//
+	IsRequestBodyWriteable() bool
+
+	// IsResponseBodyReadable specifies whether an HTTP Response body is readable or not.
+	//
+	IsResponseBodyReadable() bool
+
+	// IsResponseBodyWriteable specifies whether an HTTP Response body is writeable or not.
+	//
+	IsResponseBodyWriteable() bool
+
+	// IsHttpFilterPhaseDisabled specifies whether given http filter phase is enabled or not
+	//
+	IsHttpFilterPhaseDisabled(HttpFilterPhase) bool
+
 	// ServeHttpFilter serves the Http Filter for the specified phase.
 	// This method is designed for internal use as it is directly invoked within each filter instance's phase.
 	//
-	ServeHttpFilter(HttpFilterPhase) api.StatusType
+	ServeHttpFilter(ctrl HttpFilterPhaseController) api.StatusType
 }
 
 type context struct {
@@ -170,6 +174,7 @@ type context struct {
 	reqBufferInstance  api.BufferInstance
 	respBufferInstance api.BufferInstance
 
+	isStrictBodyAccess      bool
 	isRequestBodyReadable   bool
 	isRequestBodyWriteable  bool
 	isResponseBodyWriteable bool
@@ -182,14 +187,55 @@ type context struct {
 	httpReq  *http.Request
 	httpResp *http.Response
 
-	storage   sync.Map
+	stash     sync.Map
 	logger    logr.Logger
 	committed bool
 
-	httpFilterManager HttpFilterHandlerManager
+	httpFilterManager       HttpFilterHandlerManager
+	disabledHttpFilterPhase []HttpFilterPhase
 }
 
-func newContext(cb api.FilterCallbacks, cfg Configuration) (Context, error) {
+type ContextOption func(c *context) error
+
+func WithHttpFilterPhaseRules(lists []HttpFilterPhase) ContextOption {
+	return func(c *context) error {
+		c.disabledHttpFilterPhase = lists
+		return nil
+	}
+}
+
+func WithMetricHandler(m Metrics) ContextOption {
+	return func(c *context) error {
+		c.metrics = m
+		return nil
+	}
+}
+
+func WithConfiguration(cfg Configuration) ContextOption {
+	return func(c *context) error {
+		type validator interface {
+			Validate() error
+		}
+
+		if validate, ok := cfg.GetFilterConfig().(validator); ok {
+			if err := validate.Validate(); err != nil {
+				return fmt.Errorf("invalid filter config; %w", err)
+			}
+		}
+
+		c.config = cfg
+		return nil
+	}
+}
+
+func WithStrictBodyAccess(strict bool) ContextOption {
+	return func(c *context) error {
+		c.isStrictBodyAccess = strict
+		return nil
+	}
+}
+
+func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
@@ -202,24 +248,17 @@ func newContext(cb api.FilterCallbacks, cfg Configuration) (Context, error) {
 		},
 	}
 
-	type validator interface {
-		Validate() error
-	}
-
-	if validate, ok := cfg.GetFilterConfig().(validator); ok {
-		if err := validate.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid filter config; %w", err)
+	for _, opt := range opts {
+		if err := opt(c); err != nil {
+			return nil, err
 		}
 	}
 
-	cc := cfg.GetConfigCallbacks()
-	if cc == nil {
-		return nil, errors.New("config callbacks can not be nil")
-	}
-
-	c.config = cfg
-	c.metrics = NewMetrics(cfg)
 	return c, nil
+}
+
+func (c *context) IsHttpFilterPhaseDisabled(p HttpFilterPhase) bool {
+	return util.In(p, c.disabledHttpFilterPhase...)
 }
 
 func (c *context) SetErrorHandler(e ErrorHandler) {
@@ -230,8 +269,8 @@ func (c *context) RegisterHandler(handler HttpFilterHandler) {
 	c.httpFilterManager.RegisterHandler(handler)
 }
 
-func (c *context) ServeHttpFilter(phase HttpFilterPhase) api.StatusType {
-	return c.httpFilterManager.Serve(c, phase)
+func (c *context) ServeHttpFilter(ctrl HttpFilterPhaseController) api.StatusType {
+	return c.httpFilterManager.Serve(c, ctrl)
 }
 
 func (c *context) Configuration() Configuration {
@@ -343,7 +382,11 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 	c.httpReq = req
 	c.reqHeaderMap = header
 
-	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkContentOperationAccess(header)
+	if c.isStrictBodyAccess {
+		return
+	}
+
+	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccess(c.isStrictBodyAccess, header)
 }
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
@@ -363,7 +406,7 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	c.httpResp = resp
 	c.respHeaderMap = header
 
-	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkContentOperationAccess(header)
+	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccess(c.isStrictBodyAccess, header)
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {
@@ -406,7 +449,7 @@ func (c *context) Request() *http.Request {
 
 func (c *context) Response() *http.Response {
 	if c.httpResp == nil {
-		panic("Http Response is not yet initialized, see SetResponse.")
+		panic("Http Response is not yet initialized, see SetResponseHeader.")
 	}
 
 	return c.httpResp
@@ -454,7 +497,7 @@ func (c *context) IsResponseBodyWriteable() bool {
 }
 
 func (c *context) Store(key any, value any) {
-	c.storage.Store(key, value)
+	c.stash.Store(key, value)
 }
 
 func (c *context) Load(key any, receiver interface{}) (bool, error) {
@@ -462,7 +505,7 @@ func (c *context) Load(key any, receiver interface{}) (bool, error) {
 		return false, errors.New("context: receiver should not be nil")
 	}
 
-	v, ok := c.storage.Load(key)
+	v, ok := c.stash.Load(key)
 	if !ok {
 		return false, nil
 	}

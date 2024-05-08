@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	gate "github.com/ardikabs/gonvoy/pkg/featuregate"
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	envoyhttp "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
@@ -12,12 +11,12 @@ import (
 
 var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 
-func RunHttpFilter(filter HttpFilter) {
-	RunHttpFilterWithConfig(filter, nil)
-}
-
-func RunHttpFilterWithConfig(filter HttpFilter, filterConfig interface{}) {
-	envoyhttp.RegisterHttpFilterConfigFactoryAndParser(filter.Name(), httpFilterFactory(filter), newConfigParser(filterConfig))
+func RunHttpFilter(filter HttpFilter, options ConfigOptions) {
+	envoyhttp.RegisterHttpFilterConfigFactoryAndParser(
+		filter.Name(),
+		httpFilterFactory(filter),
+		newConfigParser(options),
+	)
 }
 
 type HttpFilter interface {
@@ -32,13 +31,18 @@ func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 	}
 
 	return func(cfg interface{}) api.StreamFilterFactory {
-		config, ok := cfg.(Configuration)
+		config, ok := cfg.(*globalConfig)
 		if !ok {
 			panic(fmt.Sprintf("httpFilterFactory: unexpected config type '%T', expecting '%T'", cfg, config))
 		}
 
 		return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
-			ctx, err := newContext(callbacks, config)
+			metrics := newMetrics(config.metricCounter, config.metricGauge, config.metricHistogram)
+			ctx, err := newContext(callbacks,
+				WithConfiguration(config),
+				WithMetricHandler(metrics),
+				WithHttpFilterPhaseRules(config.disabledHttpFilterPhases),
+			)
 			if err != nil {
 				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): context initialization failed; %v; filter ignored...", httpFilter.Name(), err))
 				return NoOpHttpFilter
@@ -80,69 +84,23 @@ func (f *httpFilterInstance) OnLog() {
 }
 
 func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	if !gate.AllowRequestHeaderPhase() {
-		return api.Continue
-	}
-
-	f.ctx.SetRequestHeader(header)
-	status := f.ctx.ServeHttpFilter(OnRequestHeaderPhase)
-
-	if f.ctx.IsRequestBodyWriteable() {
-		f.ctx.RequestHeader().Del(HeaderXContentOperation)
-		return api.StopAndBuffer
-	}
-
-	return status
+	ctrl := NewRequestHeaderPhaseCtrl(header)
+	return f.ctx.ServeHttpFilter(ctrl)
 }
 
 func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	if !gate.AllowResponseHeaderPhase() {
-		return api.Continue
-	}
-
-	f.ctx.SetResponseHeader(header)
-	status := f.ctx.ServeHttpFilter(OnResponseHeaderPhase)
-
-	if f.ctx.IsResponseBodyWriteable() {
-		f.ctx.ResponseHeader().Del(HeaderXContentOperation)
-		return api.StopAndBuffer
-	}
-
-	return status
+	ctrl := NewResponseHeaderPhaseCtrl(header)
+	return f.ctx.ServeHttpFilter(ctrl)
 }
 
 func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	isBodyAccessible := f.ctx.IsRequestBodyReadable() || f.ctx.IsRequestBodyWriteable()
-	if !gate.AllowRequestBodyPhase() || !isBodyAccessible {
-		return api.Continue
-	}
-
-	if buffer.Len() > 0 {
-		f.ctx.SetRequestBody(buffer)
-	}
-
-	if endStream {
-		return f.ctx.ServeHttpFilter(OnRequestBodyPhase)
-	}
-
-	return api.StopAndBuffer
+	ctrl := NewRequestBodyPhaseCtrl(buffer, endStream)
+	return f.ctx.ServeHttpFilter(ctrl)
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	isBodyAccessible := f.ctx.IsResponseBodyReadable() || f.ctx.IsResponseBodyWriteable()
-	if !gate.AllowResponseBodyPhase() || !isBodyAccessible {
-		return api.Continue
-	}
-
-	if buffer.Len() > 0 {
-		f.ctx.SetResponseBody(buffer)
-	}
-
-	if endStream {
-		return f.ctx.ServeHttpFilter(OnResponseBodyPhase)
-	}
-
-	return api.StopAndBuffer
+	ctrl := NewResponseBodyPhaseCtrl(buffer, endStream)
+	return f.ctx.ServeHttpFilter(ctrl)
 }
 
 func (f *httpFilterInstance) OnDestroy(reason api.DestroyReason) {

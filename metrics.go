@@ -16,24 +16,36 @@ type Metrics interface {
 	Histogram(name string, labelKeyValues ...string) api.HistogramMetric
 }
 
+func newMetrics(counterFunc counterFunc, gaugeFunc gaugeFunc, histogramFunc histogramFunc) *metrics {
+	return &metrics{
+		counter:   counterFunc,
+		gauge:     gaugeFunc,
+		histogram: histogramFunc,
+	}
+}
+
 var _ Metrics = &metrics{}
 
-type metrics struct {
-	config Configuration
-}
+type (
+	counterFunc   func(name string) api.CounterMetric
+	gaugeFunc     func(name string) api.GaugeMetric
+	histogramFunc func(name string) api.HistogramMetric
 
-func NewMetrics(config Configuration) Metrics {
-	return &metrics{config}
-}
+	metrics struct {
+		counter   counterFunc
+		gauge     gaugeFunc
+		histogram histogramFunc
+	}
+)
 
 func (m *metrics) Gauge(name string, labelKeyValues ...string) api.GaugeMetric {
 	fqn := fmt.Sprintf("%s_%s", name, formatMetricLabels(labelKeyValues...))
-	return m.config.metricGauge(fqn)
+	return m.gauge(fqn)
 }
 
 func (m *metrics) Counter(name string, labelKeyValues ...string) api.CounterMetric {
 	fqn := fmt.Sprintf("%s_%s", name, formatMetricLabels(labelKeyValues...))
-	return m.config.metricCounter(fqn)
+	return m.counter(fqn)
 }
 
 func (m *metrics) Histogram(name string, labelKeyValues ...string) api.HistogramMetric {

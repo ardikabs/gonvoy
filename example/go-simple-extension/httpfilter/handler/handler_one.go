@@ -56,6 +56,7 @@ func panicNilMapOuter() {
 	panicNilMapInner()
 }
 
+// nolint:nilness
 func panicNilMapInner() {
 	var a map[string]string
 	a["blbl"] = "sdasd"

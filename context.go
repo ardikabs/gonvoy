@@ -156,10 +156,6 @@ type Context interface {
 	//
 	IsResponseBodyWriteable() bool
 
-	// IsHttpFilterPhaseEnabled specifies whether given http filter phase is enabled or not
-	//
-	IsHttpFilterPhaseEnabled(HttpFilterPhase) bool
-
 	// IsHttpFilterPhaseDisabled specifies whether given http filter phase is enabled or not
 	//
 	IsHttpFilterPhaseDisabled(HttpFilterPhase) bool
@@ -167,7 +163,7 @@ type Context interface {
 	// ServeHttpFilter serves the Http Filter for the specified phase.
 	// This method is designed for internal use as it is directly invoked within each filter instance's phase.
 	//
-	ServeHttpFilter(HttpFilterPhase) api.StatusType
+	ServeHttpFilter(ctrl HttpFilterPhaseController) api.StatusType
 }
 
 type context struct {
@@ -195,16 +191,14 @@ type context struct {
 	committed bool
 
 	httpFilterManager       HttpFilterHandlerManager
-	enabledHttpFilterPhase  []HttpFilterPhase
 	disabledHttpFilterPhase []HttpFilterPhase
 }
 
 type ContextOption func(c *context) error
 
-func WithHttpFilterPhaseRules(enabled, disabled []HttpFilterPhase) ContextOption {
+func WithHttpFilterPhaseRules(lists []HttpFilterPhase) ContextOption {
 	return func(c *context) error {
-		c.enabledHttpFilterPhase = enabled
-		c.disabledHttpFilterPhase = disabled
+		c.disabledHttpFilterPhase = lists
 		return nil
 	}
 }
@@ -255,10 +249,6 @@ func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 	return c, nil
 }
 
-func (c *context) IsHttpFilterPhaseEnabled(p HttpFilterPhase) bool {
-	return util.In(p, c.enabledHttpFilterPhase...)
-}
-
 func (c *context) IsHttpFilterPhaseDisabled(p HttpFilterPhase) bool {
 	return util.In(p, c.disabledHttpFilterPhase...)
 }
@@ -271,8 +261,8 @@ func (c *context) RegisterHandler(handler HttpFilterHandler) {
 	c.httpFilterManager.RegisterHandler(handler)
 }
 
-func (c *context) ServeHttpFilter(phase HttpFilterPhase) api.StatusType {
-	return c.httpFilterManager.Serve(c, phase)
+func (c *context) ServeHttpFilter(ctrl HttpFilterPhaseController) api.StatusType {
+	return c.httpFilterManager.Serve(c, ctrl)
 }
 
 func (c *context) Configuration() Configuration {
@@ -447,7 +437,7 @@ func (c *context) Request() *http.Request {
 
 func (c *context) Response() *http.Response {
 	if c.httpResp == nil {
-		panic("Http Response is not yet initialized, see SetResponse.")
+		panic("Http Response is not yet initialized, see SetResponseHeader.")
 	}
 
 	return c.httpResp

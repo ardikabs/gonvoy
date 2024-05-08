@@ -10,6 +10,8 @@ import (
 func init() {
 	gonvoy.RunHttpFilter(Filter{}, gonvoy.ConfigOptions{
 		BaseConfig: new(Config),
+		// DisabledHttpFilterPhases: []gonvoy.HttpFilterPhase{gonvoy.OnRequestBodyPhase, gonvoy.OnResponseBodyPhase},
+		MetricPrefix: "gSe_",
 	})
 }
 
@@ -35,7 +37,7 @@ func (f Filter) OnStart(c gonvoy.Context) error {
 }
 
 func (f Filter) OnComplete(c gonvoy.Context) error {
-	c.Metrics().Counter("gse_httpfilter_requests_total",
+	c.Metrics().Counter("httpfilter_requests_total",
 		"host", gonvoy.MustGetProperty(c, "request.host", "-"),
 		"method", gonvoy.MustGetProperty(c, "request.method", "-"),
 		"status_code", gonvoy.MustGetProperty(c, "response.code", "-"),

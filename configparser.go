@@ -16,28 +16,23 @@ import (
 type ConfigOptions struct {
 	BaseConfig interface{}
 
-	// AlwaysReplaceRootConfig specifies that on merge, it will replace with the child filter configuration, regardless
-	// with/out `mergeable` tag.
-	AlwaysReplaceRootConfig bool
+	// AlwaysUseChildConfig intend to disable merge behavior, ensuring that it always references the child filter configuration.
+	AlwaysUseChildConfig bool
 
 	// IgnoreMergeError specifies during a merge error, instead of panicking, it will fallback to the root configuration.
 	IgnoreMergeError bool
 
-	// EnabledHttpFilterPhases lists the HttpFilterPhase options enabled for the filter.
-	// If both EnabledHttpFilterPhases and DisabledHttpFilterPhases are present,
-	// only EnabledHttpFilterPhases is used, as they are mutually exclusive.
-	EnabledHttpFilterPhases []HttpFilterPhase
-
 	// DisabledHttpFilterPhases lists the HttpFilterPhase options disabled for the filter.
-	// If both EnabledHttpFilterPhases and DisabledHttpFilterPhases are present,
-	// only EnabledHttpFilterPhases is used, as they are mutually exclusive.
 	DisabledHttpFilterPhases []HttpFilterPhase
+
+	// MetricPrefix specifies the prefix used for metrics.
+	MetricPrefix string
 }
 
 type configParser struct {
 	options ConfigOptions
 
-	globalConfig *globalConfig
+	rootGlobalConfig *globalConfig
 }
 
 func newConfigParser(options ConfigOptions) *configParser {
@@ -71,13 +66,13 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
 
-	if p.globalConfig == nil {
-		p.globalConfig = newGlobalConfig(cc, p.options)
-		p.globalConfig.filterCfg = filterCfg
-		return p.globalConfig, nil
+	if p.rootGlobalConfig == nil {
+		p.rootGlobalConfig = newGlobalConfig(cc, p.options)
+		p.rootGlobalConfig.filterCfg = filterCfg
+		return p.rootGlobalConfig, nil
 	}
 
-	copyGlobalConfig := *p.globalConfig
+	copyGlobalConfig := *p.rootGlobalConfig
 	copyGlobalConfig.filterCfg = filterCfg
 	return &copyGlobalConfig, nil
 }
@@ -90,17 +85,17 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 		return parent
 	}
 
-	mergedGlobalConfig := *origParentGlobalConfig
-	mergedFilterCfg, err := p.mergeStruct(mergedGlobalConfig.filterCfg, origChildGlobalConfig.filterCfg)
+	mergedFilterCfg, err := p.mergeStruct(origParentGlobalConfig.filterCfg, origChildGlobalConfig.filterCfg)
 	if err != nil {
 		if p.options.IgnoreMergeError {
-			panic(err)
+			return origParentGlobalConfig
 		}
 
+		panic(err)
 	}
 
-	mergedGlobalConfig.filterCfg = mergedFilterCfg
-	return &mergedGlobalConfig
+	origChildGlobalConfig.filterCfg = mergedFilterCfg
+	return origChildGlobalConfig
 }
 
 func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, error) {
@@ -126,8 +121,8 @@ func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, erro
 		return nil, fmt.Errorf("configparser: merge failed; both parent(%s) and child(%s) configs MUST be references to a struct", parentValue.Kind(), childValue.Kind())
 	}
 
-	if p.options.AlwaysReplaceRootConfig {
-		parentValue.Set(childPtr.Elem())
+	if p.options.AlwaysUseChildConfig {
+		return child, nil
 	}
 
 	parentValue.Set(origParentValue)

@@ -2,16 +2,12 @@ package gonvoy
 
 import (
 	"errors"
+	"strings"
 	"sync"
 
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
-
-var DefaultHttpFilterPhases = []HttpFilterPhase{OnRequestHeaderPhase,
-	OnRequestBodyPhase,
-	OnResponseHeaderPhase,
-	OnResponseBodyPhase}
 
 type Configuration interface {
 	// GetFilterConfig returns the filter configuration associated with the route.
@@ -33,11 +29,11 @@ type globalConfig struct {
 	callbacks  api.ConfigCallbacks
 	localCache Cache
 
+	metricPrefix string
 	gaugeMap     map[string]api.GaugeMetric
 	counterMap   map[string]api.CounterMetric
 	histogramMap map[string]api.HistogramMetric
 
-	enabledHttpFilterPhases  []HttpFilterPhase
 	disabledHttpFilterPhases []HttpFilterPhase
 }
 
@@ -48,12 +44,8 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 		gaugeMap:                 make(map[string]api.GaugeMetric),
 		counterMap:               make(map[string]api.CounterMetric),
 		histogramMap:             make(map[string]api.HistogramMetric),
-		enabledHttpFilterPhases:  options.EnabledHttpFilterPhases,
 		disabledHttpFilterPhases: options.DisabledHttpFilterPhases,
-	}
-
-	if len(gc.enabledHttpFilterPhases) == 0 {
-		gc.enabledHttpFilterPhases = DefaultHttpFilterPhases
+		metricPrefix:             options.MetricPrefix,
 	}
 
 	return gc
@@ -73,6 +65,7 @@ func (c *globalConfig) Cache() Cache {
 }
 
 func (c *globalConfig) metricCounter(name string) api.CounterMetric {
+	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricPrefix + name))
 	counter, ok := c.counterMap[name]
 	if !ok {
 		counter = c.callbacks.DefineCounterMetric(name)
@@ -82,6 +75,7 @@ func (c *globalConfig) metricCounter(name string) api.CounterMetric {
 }
 
 func (c *globalConfig) metricGauge(name string) api.GaugeMetric {
+	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricPrefix + name))
 	gauge, ok := c.gaugeMap[name]
 	if !ok {
 		gauge = c.callbacks.DefineGaugeMetric(name)

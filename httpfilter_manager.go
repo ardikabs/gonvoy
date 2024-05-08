@@ -8,24 +8,22 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
+type HttpFilterAction uint
+
+const (
+	ActionContinue HttpFilterAction = iota + 1
+	ActionPause
+)
+
 type HttpFilterHandlerManager interface {
 	SetErrorHandler(ErrorHandler)
 	RegisterHandler(HttpFilterHandler)
-	Serve(Context, HttpFilterPhase) api.StatusType
+	Serve(c Context, ctrl HttpFilterPhaseController) api.StatusType
 }
-
-type HttpFilterPhase uint
-
-const (
-	OnRequestHeaderPhase HttpFilterPhase = iota + 1
-	OnResponseHeaderPhase
-	OnRequestBodyPhase
-	OnResponseBodyPhase
-)
 
 type DefaultHttpFilterHandlerManager struct {
 	errorHandler ErrorHandler
-	first        httpFilterProcessor
+	entrypoint   httpFilterProcessor
 	last         httpFilterProcessor
 }
 
@@ -43,8 +41,8 @@ func (h *DefaultHttpFilterHandlerManager) RegisterHandler(handler HttpFilterHand
 	}
 
 	processor := NewHttpFilterProcessor(handler)
-	if h.first == nil {
-		h.first = processor
+	if h.entrypoint == nil {
+		h.entrypoint = processor
 		h.last = processor
 		return
 	}
@@ -53,8 +51,12 @@ func (h *DefaultHttpFilterHandlerManager) RegisterHandler(handler HttpFilterHand
 	h.last = processor
 }
 
-func (h *DefaultHttpFilterHandlerManager) Serve(c Context, phase HttpFilterPhase) (status api.StatusType) {
-	var err error
+func (h *DefaultHttpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseController) (status api.StatusType) {
+	var (
+		action HttpFilterAction
+		err    error
+	)
+
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%w; %v", errs.ErrPanic, r)
@@ -65,22 +67,21 @@ func (h *DefaultHttpFilterHandlerManager) Serve(c Context, phase HttpFilterPhase
 		}
 
 		status = c.StatusType()
+
+		switch action {
+		case ActionPause:
+			status = api.StopAndBuffer
+		case ActionContinue:
+			fallthrough
+		default:
+			status = c.StatusType()
+		}
 	}()
 
-	if h.first == nil {
-		h.first = NewHttpFilterProcessor(PassthroughHttpFilterHandler{})
+	if h.entrypoint == nil {
+		h.entrypoint = NewHttpFilterProcessor(PassthroughHttpFilterHandler{})
 	}
 
-	switch phase {
-	case OnRequestHeaderPhase:
-		err = h.first.HandleOnRequestHeader(c)
-	case OnResponseHeaderPhase:
-		err = h.first.HandleOnResponseHeader(c)
-	case OnRequestBodyPhase:
-		err = h.first.HandleOnRequestBody(c)
-	case OnResponseBodyPhase:
-		err = h.first.HandleOnResponseBody(c)
-	}
-
-	return status
+	action, err = ctrl.Handle(c, h.entrypoint)
+	return
 }

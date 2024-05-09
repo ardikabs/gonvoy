@@ -82,13 +82,13 @@ func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStrea
 	return f.ctx.ServeFilter(ctrl)
 }
 
-func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	ctrl := newResponseHeaderController(header)
+func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	ctrl := newRequestBodyController(buffer, endStream)
 	return f.ctx.ServeFilter(ctrl)
 }
 
-func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	ctrl := newRequestBodyController(buffer, endStream)
+func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
+	ctrl := newResponseHeaderController(header)
 	return f.ctx.ServeFilter(ctrl)
 }
 

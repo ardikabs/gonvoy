@@ -58,7 +58,10 @@ func DefaultHttpFilterErrorHandler(ctx Context, err error) api.StatusType {
 
 		// hide internal error to end user
 		// but printed out the error details to envoy log
-		log.Error(err, "unidentified error", "host", ctx.Request().Host, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
+		host := MustGetProperty(ctx, "request.host", "-")
+		method := MustGetProperty(ctx, "request.method", "-")
+		path := MustGetProperty(ctx, "request.path", "-")
+		log.Error(err, "unidentified error", "host", host, "method", method, "path", path)
 		err = ctx.JSON(
 			http.StatusInternalServerError,
 			ResponseInternalServerError,
@@ -67,7 +70,10 @@ func DefaultHttpFilterErrorHandler(ctx Context, err error) api.StatusType {
 	}
 
 	if err != nil {
-		return ctx.StatusType()
+		// if we encounter another error, we will ignore the error
+		// and allowing the request/response to proceed to the next Envoy filter.
+		// Though, this condition is expected to be highly unlikely.
+		return api.Continue
 	}
 
 	return api.LocalReply

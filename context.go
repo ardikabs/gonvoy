@@ -90,7 +90,7 @@ type Context interface {
 	//
 	// It returns true if a compatible value is successfully loaded,
 	// and false if no value is found or an error occurs during the process.
-	Load(key any, receiver interface{}) (ok bool, err error)
+	Load(key, receiver any) (ok bool, err error)
 
 	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` component.
 	// e.g., Envoy flag `--component-log-level http:{debug,info,warn,error,critical}`
@@ -472,11 +472,11 @@ func (c *context) IsResponseBodyWriteable() bool {
 	return c.isResponseBodyWriteable
 }
 
-func (c *context) Store(key any, value any) {
+func (c *context) Store(key, value any) {
 	c.stash.Store(key, value)
 }
 
-func (c *context) Load(key any, receiver interface{}) (bool, error) {
+func (c *context) Load(key, receiver any) (bool, error) {
 	if receiver == nil {
 		return false, errors.New("context: receiver should not be nil")
 	}

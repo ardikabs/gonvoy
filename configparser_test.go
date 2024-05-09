@@ -16,8 +16,6 @@ type foo struct {
 	B int    `json:"b"`
 }
 
-type any interface{}
-
 type dummyConfig struct {
 	A string `json:"a"`
 	B int    `json:"b" envoy:"mergeable"`

@@ -64,10 +64,9 @@ func (h *httpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseControll
 		}
 
 		if err != nil {
-			h.errorHandler(c, err)
+			status = h.errorHandler(c, err)
+			return
 		}
-
-		status = c.StatusType()
 
 		switch action {
 		case ActionPause:

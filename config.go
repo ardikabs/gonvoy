@@ -98,7 +98,7 @@ type Cache interface {
 	//
 	// It returns true if a compatible value is successfully loaded,
 	// and false if no value is found or an error occurs during the process.
-	Load(key any, receiver interface{}) (ok bool, err error)
+	Load(key, receiver any) (ok bool, err error)
 }
 
 type localcache struct {
@@ -113,7 +113,7 @@ func (c *localcache) Store(key, value any) {
 	c.dataMap.Store(key, value)
 }
 
-func (c *localcache) Load(key any, receiver interface{}) (bool, error) {
+func (c *localcache) Load(key, receiver any) (bool, error) {
 	if receiver == nil {
 		return false, errors.New("receiver should not be nil")
 	}

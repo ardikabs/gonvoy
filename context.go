@@ -35,22 +35,19 @@ type Context interface {
 	// ResponseHeader provides an interface to access and modify HTTP Response header, including
 	// add, overwrite, or delete existing header.
 	// It returns panic when the ResponseHeader accessed outside from the following phases:
-	// - OnResponseHeader
-	// - OnResponseBody
+	// OnResponseHeader, OnResponseBody
 	//
 	ResponseHeader() Header
 
 	// RequestBodyBuffer provides an interface to access and manipulate an HTTP Request body.
 	// It returns panic when the RequestBody accessed outside from the following phases:
-	// - OnRequestBody
-	// - OnResponseHeader
-	// - OnResponseBody
+	// OnRequestBody, OnResponseHeader, OnResponseBody
 	//
 	RequestBody() Body
 
 	// ResponseBody provides an interface access and manipulate an HTTP Response body.
 	// It returns panic when the ResponseBody accessed outside from the following phases:
-	// - OnResponseBody
+	// OnResponseBody
 	//
 	ResponseBody() Body
 
@@ -66,8 +63,7 @@ type Context interface {
 	// Attempting to modify this value will have no effect.
 	// Refers to ResponseHeader and ResponseBody for modification attempts.
 	// It returns panic, when the Response accessed outside from the following phases:
-	// - OnResponseHeader
-	// - OnResponseBody
+	// OnResponseHeader, OnResponseBody
 	//
 	Response() *http.Response
 

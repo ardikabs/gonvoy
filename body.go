@@ -48,9 +48,17 @@ func (b *bodyWriter) WriteString(s string) (n int, err error) {
 }
 
 func (b *bodyWriter) String() string {
+	if b == nil {
+		return ""
+	}
+
 	return b.buffer.String()
 }
 
 func (b *bodyWriter) Bytes() []byte {
+	if b.buffer == nil {
+		return []byte{}
+	}
+
 	return b.buffer.Bytes()
 }

@@ -15,7 +15,9 @@ A Go framework to write an HTTP Filter extension on Envoy Proxy. It leverages th
 
 * Logging with [go-logr](https://github.com/go-logr/logr).
 
-* [Stats](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/observability/statistics#arch-overview-statistics) support, enabling users to generate their own custom metrics.
+* [Stats](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/observability/statistics#arch-overview-statistics) support; Enabling users to generate their own custom metrics.
+
+* Panic-free support; If a panic does occur, it is ensured that it won't break the user experience, particularly the Envoy proxy processes, as it will be handled in a graceful manner by returning a configurable response, defaults to `500`.
 
 ### Compatibility Matrix
 

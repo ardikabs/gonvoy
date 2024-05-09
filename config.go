@@ -94,7 +94,7 @@ type Cache interface {
 	Store(key, value any)
 
 	// Load retrieves a value associated with a specific key and assigns it to the receiver.
-	// It designed for sharing data throughout Envoy's lifespan..
+	// It designed for sharing data throughout Envoy's lifespan.
 	//
 	// It returns true if a compatible value is successfully loaded,
 	// and false if no value is found or an error occurs during the process.

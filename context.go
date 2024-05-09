@@ -27,35 +27,47 @@ type Context interface {
 
 	// RequestHeader provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
-	// RequestHeader will panic when it used without initializing the request header map first.
+	// It returns panic when the filter has not yet traversed the HTTP request.
+	// Please refer to the previous Envoy's HTTP filter behavior.
 	//
 	RequestHeader() Header
 
 	// ResponseHeader provides an interface to access and modify HTTP Response header, including
 	// add, overwrite, or delete existing header.
-	// ResponseHeader will panic when it used without initializing the response header map first.
+	// It returns panic when the ResponseHeader accessed outside from the following phases:
+	// - OnResponseHeader
+	// - OnResponseBody
 	//
 	ResponseHeader() Header
 
 	// RequestBodyBuffer provides an interface to access and manipulate an HTTP Request body.
+	// It returns panic when the RequestBody accessed outside from the following phases:
+	// - OnRequestBody
+	// - OnResponseHeader
+	// - OnResponseBody
 	//
 	RequestBody() Body
 
 	// ResponseBody provides an interface access and manipulate an HTTP Response body.
+	// It returns panic when the ResponseBody accessed outside from the following phases:
+	// - OnResponseBody
 	//
 	ResponseBody() Body
 
 	// Request returns an http.Request struct, which is a read-only data.
 	// Attempting to modify this value will have no effect.
-	// To make modifications to the request header, please use the RequestHeader() method instead.
-	// To make modifications to the request body, please use the RequestBody() method instead.
+	// Refers to RequestHeader and RequestBody for modification attempts.
+	// It returns panic when the filter has not yet traversed the HTTP request.
+	// Please refer to the previous Envoy's HTTP filter behavior.
 	//
 	Request() *http.Request
 
 	// Response returns an http.Response struct, which is a read-only data.
-	// It means, update anything to this value will result nothing.
-	// To make modifications to the response header, please use the ResponseHeader() method instead.
-	// To make modifications to the response body, please use the ResponseBody() method instead.
+	// Attempting to modify this value will have no effect.
+	// Refers to ResponseHeader and ResponseBody for modification attempts.
+	// It returns panic, when the Response accessed outside from the following phases:
+	// - OnResponseHeader
+	// - OnResponseBody
 	//
 	Response() *http.Response
 
@@ -85,15 +97,15 @@ type Context interface {
 
 	// Load retrieves a value associated with a specific key and assigns it to the receiver.
 	// It is designed for sharing data within a Context.
-	// If you wish to share data throughout the lifetime of Envoy,
-	// please refer to the Configuration.Cache.
+	// If you wish to share data throughout Envoy's lifespan, please refer to the Configuration.Cache.
 	//
 	// It returns true if a compatible value is successfully loaded,
 	// and false if no value is found or an error occurs during the process.
 	Load(key, receiver any) (ok bool, err error)
 
-	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` component.
-	// e.g., Envoy flag `--component-log-level http:{debug,info,warn,error,critical}`
+	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` and/or `golang` component.
+	// Additionally, only debug, info, and error log levels are being taken into account.
+	// e.g., Envoy flag `--component-log-level http:{debug,info,warn,error,critical},golang:{debug,info,warn,error,critical}`
 	//
 	Log() logr.Logger
 
@@ -122,17 +134,17 @@ type Context interface {
 	//
 	StreamInfo() api.StreamInfo
 
-	// Metrics sets gauge stats that could to record both increase and decrease metric. E.g., current active requests.
+	// Metrics provides an interface for user to create their custom metrics.
 	//
 	Metrics() Metrics
 
 	// GetProperty is a helper function to fetch Envoy attributes based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
-	// Currently, it only supports value that has a string format, work in progress for List/Map format.
+	// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
 	//
 	GetProperty(name, defaultVal string) (string, error)
 
 	// Configuration provides access to the filter configuration,
-	// while also enabling users to persist and share data throughout Envoy's lifespan.
+	// while also enabling users to persist and share data throughout Envoy's lifespan, see Configuration.Cache.
 	//
 	Configuration() Configuration
 
@@ -307,7 +319,7 @@ func (c *context) String(code int, s string, headers map[string][]string, opts .
 
 func (c *context) RequestHeader() Header {
 	if c.reqHeaderMap == nil {
-		panic("Request Header has not been initialized yet")
+		panic("The Request Header is not initialized yet, likely because the filter has not yet traversed the HTTP request. Please refer to the previous HTTP filter behavior.")
 	}
 
 	return &header{c.reqHeaderMap}
@@ -315,7 +327,7 @@ func (c *context) RequestHeader() Header {
 
 func (c *context) ResponseHeader() Header {
 	if c.respHeaderMap == nil {
-		panic("Response Header has not been initialized yet")
+		panic("The Response Header is not initialized yet and is only available during the OnRequestHeader, OnRequestBody, and OnResponseHeader phases")
 	}
 
 	return &header{c.respHeaderMap}
@@ -323,7 +335,7 @@ func (c *context) ResponseHeader() Header {
 
 func (c *context) RequestBody() Body {
 	if c.reqBufferInstance == nil {
-		panic("Request Body has not been initialized yet.")
+		panic("The Request Body is not initialized yet and is only accessible during the OnRequestBody, OnResponseHeader, and OnResponseBody phases.")
 	}
 
 	return &bodyWriter{
@@ -335,7 +347,7 @@ func (c *context) RequestBody() Body {
 
 func (c *context) ResponseBody() Body {
 	if c.respBufferInstance == nil {
-		panic("Response Body has not been initialized yet.")
+		panic("The Response Body is not initialized yet and is only accessible during OnResponseBody phase.")
 	}
 
 	return &bodyWriter{
@@ -417,7 +429,7 @@ func (c *context) SetResponseBody(buffer api.BufferInstance) {
 
 func (c *context) Request() *http.Request {
 	if c.httpReq == nil {
-		panic("Http Request is not yet initialized, see SetRequestHeader.")
+		panic("an HTTP Request is not initialized yet, likely because the filter has not yet traversed the HTTP request. Please refer to the previous HTTP filter behavior.")
 	}
 
 	return c.httpReq
@@ -425,7 +437,7 @@ func (c *context) Request() *http.Request {
 
 func (c *context) Response() *http.Response {
 	if c.httpResp == nil {
-		panic("Http Response is not yet initialized, see SetResponseHeader.")
+		panic("an HTTP Response is not initialized yet, and is only available during the OnResponseHeader, and OnResponseBody phases.")
 	}
 
 	return c.httpResp

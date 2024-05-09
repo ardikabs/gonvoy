@@ -2,7 +2,6 @@ package gonvoy
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -37,12 +36,7 @@ func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 		}
 
 		return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
-			metrics := newMetrics(config.metricCounter, config.metricGauge, config.metricHistogram)
-			ctx, err := newContext(callbacks,
-				WithConfiguration(config),
-				WithMetricHandler(metrics),
-				WithHttpFilterPhaseRules(config.disabledHttpFilterPhases),
-			)
+			ctx, err := newContext(callbacks, config)
 			if err != nil {
 				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): context initialization failed; %v; filter ignored...", httpFilter.Name(), err))
 				return NoOpHttpFilter
@@ -84,34 +78,26 @@ func (f *httpFilterInstance) OnLog() {
 }
 
 func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	ctrl := NewRequestHeaderPhaseCtrl(header)
-	return f.ctx.ServeHttpFilter(ctrl)
+	ctrl := newRequestHeaderController(header)
+	return f.ctx.ServeFilter(ctrl)
 }
 
 func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	ctrl := NewResponseHeaderPhaseCtrl(header)
-	return f.ctx.ServeHttpFilter(ctrl)
+	ctrl := newResponseHeaderController(header)
+	return f.ctx.ServeFilter(ctrl)
 }
 
 func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	ctrl := NewRequestBodyPhaseCtrl(buffer, endStream)
-	return f.ctx.ServeHttpFilter(ctrl)
+	ctrl := newRequestBodyController(buffer, endStream)
+	return f.ctx.ServeFilter(ctrl)
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	ctrl := NewResponseBodyPhaseCtrl(buffer, endStream)
-	return f.ctx.ServeHttpFilter(ctrl)
+	ctrl := newResponseBodyController(buffer, endStream)
+	return f.ctx.ServeFilter(ctrl)
 }
 
 func (f *httpFilterInstance) OnDestroy(reason api.DestroyReason) {
 	f.ctx = nil
 	f.httpFilter = nil
 }
-
-type PassthroughHttpFilterHandler struct{}
-
-func (PassthroughHttpFilterHandler) Disable() bool                                        { return false }
-func (PassthroughHttpFilterHandler) OnRequestHeader(c Context, header http.Header) error  { return nil }
-func (PassthroughHttpFilterHandler) OnRequestBody(c Context, body []byte) error           { return nil }
-func (PassthroughHttpFilterHandler) OnResponseHeader(c Context, header http.Header) error { return nil }
-func (PassthroughHttpFilterHandler) OnResponseBody(c Context, body []byte) error          { return nil }

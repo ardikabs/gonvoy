@@ -8,6 +8,28 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
+var (
+	DefaultResponseCodeDetailInfo         = ResponseCodeDetailPrefix("goext_info")
+	DefaultResponseCodeDetailUnauthorized = ResponseCodeDetailPrefix("goext_unauthorized")
+	DefaultResponseCodeDetailAccessDenied = ResponseCodeDetailPrefix("goext_access_denied")
+	DefaultResponseCodeDetailError        = ResponseCodeDetailPrefix("goext_error")
+
+	DefaultResponseCodeDetails = DefaultResponseCodeDetailInfo.Wrap("via_Go_extension")
+)
+
+type ResponseCodeDetailPrefix string
+
+// Wrap wraps message with given response code detail prefix
+func (prefix ResponseCodeDetailPrefix) Wrap(message string) string {
+	switch {
+	case strings.HasPrefix(message, string(prefix)):
+		// if the incoming message has a same prefix, return as it is
+		return message
+	}
+
+	return fmt.Sprintf("%s{%s}", prefix, util.ReplaceAllEmptySpace(message))
+}
+
 type ReplyOptions struct {
 	statusType          api.StatusType
 	responseCodeDetails string
@@ -42,26 +64,4 @@ func WithStatusType(status api.StatusType) ReplyOption {
 	return func(o *ReplyOptions) {
 		o.statusType = status
 	}
-}
-
-var (
-	DefaultResponseCodeDetailInfo         = ResponseCodeDetailPrefix("goext_info")
-	DefaultResponseCodeDetailUnauthorized = ResponseCodeDetailPrefix("goext_unauthorized")
-	DefaultResponseCodeDetailAccessDenied = ResponseCodeDetailPrefix("goext_access_denied")
-	DefaultResponseCodeDetailError        = ResponseCodeDetailPrefix("goext_error")
-
-	DefaultResponseCodeDetails = DefaultResponseCodeDetailInfo.Wrap("via_Go_extension")
-)
-
-type ResponseCodeDetailPrefix string
-
-// Wrap wraps message with given response code detail prefix
-func (prefix ResponseCodeDetailPrefix) Wrap(message string) string {
-	switch {
-	case strings.HasPrefix(message, string(prefix)):
-		// if the incoming message has a same prefix, return as it is
-		return message
-	}
-
-	return fmt.Sprintf("%s{%s}", prefix, util.ReplaceAllEmptySpace(message))
 }

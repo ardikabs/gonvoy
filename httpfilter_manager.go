@@ -15,19 +15,20 @@ const (
 	ActionPause
 )
 
+// HttpFilterHandlerManager
 type HttpFilterHandlerManager interface {
 	SetErrorHandler(ErrorHandler)
 	RegisterHandler(HttpFilterHandler)
 	Serve(c Context, ctrl HttpFilterPhaseController) api.StatusType
 }
 
-type DefaultHttpFilterHandlerManager struct {
+type httpFilterHandlerManager struct {
 	errorHandler ErrorHandler
-	entrypoint   httpFilterProcessor
-	last         httpFilterProcessor
+	entrypoint   HttpFilterProcessor
+	last         HttpFilterProcessor
 }
 
-func (h *DefaultHttpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) {
+func (h *httpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) {
 	if handler == nil {
 		return
 	}
@@ -35,12 +36,12 @@ func (h *DefaultHttpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) 
 	h.errorHandler = handler
 }
 
-func (h *DefaultHttpFilterHandlerManager) RegisterHandler(handler HttpFilterHandler) {
+func (h *httpFilterHandlerManager) RegisterHandler(handler HttpFilterHandler) {
 	if util.IsNil(handler) || handler.Disable() {
 		return
 	}
 
-	processor := NewHttpFilterProcessor(handler)
+	processor := newHttpFilterProcessor(handler)
 	if h.entrypoint == nil {
 		h.entrypoint = processor
 		h.last = processor
@@ -51,7 +52,7 @@ func (h *DefaultHttpFilterHandlerManager) RegisterHandler(handler HttpFilterHand
 	h.last = processor
 }
 
-func (h *DefaultHttpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseController) (status api.StatusType) {
+func (h *httpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseController) (status api.StatusType) {
 	var (
 		action HttpFilterAction
 		err    error
@@ -79,7 +80,7 @@ func (h *DefaultHttpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseC
 	}()
 
 	if h.entrypoint == nil {
-		h.entrypoint = NewHttpFilterProcessor(PassthroughHttpFilterHandler{})
+		h.entrypoint = newHttpFilterProcessor(DefaultHttpFilterHandler)
 	}
 
 	action, err = ctrl.Handle(c, h.entrypoint)

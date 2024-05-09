@@ -9,10 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestContext_StoreAndLoad(t *testing.T) {
+func fakeDummyContext(t *testing.T) Context {
 	fc := mock_envoy.NewFilterCallbackHandler(t)
-	ctx, err := newContext(fc)
+	cc := mock_envoy.NewConfigCallbackHandler(t)
+	cfg := newGlobalConfig(cc, ConfigOptions{})
+	c, err := newContext(fc, cfg)
 	require.NoError(t, err)
+	return c
+}
+
+func TestContext_StoreAndLoad(t *testing.T) {
+	ctx := fakeDummyContext(t)
 
 	source := bytes.NewReader([]byte("testing"))
 	ctx.Store("foo", source)

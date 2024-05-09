@@ -11,25 +11,26 @@ const (
 	OnResponseBodyPhase
 )
 
+// HttpFilterPhaseController ---
 type HttpFilterPhaseController interface {
-	Handle(c Context, proc httpFilterProcessor) (HttpFilterAction, error)
+	Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error)
 }
 
-// NewRequestHeaderPhaseCtrl returns an Http Filter Phase controller for OnRequestHeaderPhase phase
-func NewRequestHeaderPhaseCtrl(header api.RequestHeaderMap) HttpFilterPhaseController {
-	return &requestHeaderPhaseController{
+// newRequestHeaderController returns an Http Filter Phase controller for OnRequestHeaderPhase phase
+func newRequestHeaderController(header api.RequestHeaderMap) HttpFilterPhaseController {
+	return &requestHeaderController{
 		phase:  OnRequestHeaderPhase,
 		header: header,
 	}
 }
 
-type requestHeaderPhaseController struct {
+type requestHeaderController struct {
 	phase  HttpFilterPhase
 	header api.RequestHeaderMap
 }
 
-func (p *requestHeaderPhaseController) Handle(c Context, proc httpFilterProcessor) (HttpFilterAction, error) {
-	if c.IsHttpFilterPhaseDisabled(p.phase) {
+func (p *requestHeaderController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
+	if c.IsFilterPhaseEnabled(p.phase) {
 		return ActionContinue, nil
 	}
 
@@ -43,21 +44,21 @@ func (p *requestHeaderPhaseController) Handle(c Context, proc httpFilterProcesso
 	return ActionContinue, proc.HandleOnRequestHeader(c)
 }
 
-// NewResponseHeaderPhaseCtrl returns an Http Filter Phase controller for OnResponseHeaderPhase phase
-func NewResponseHeaderPhaseCtrl(header api.ResponseHeaderMap) HttpFilterPhaseController {
-	return &responseHeaderPhaseController{
+// newResponseHeaderController returns an Http Filter Phase controller for OnResponseHeaderPhase phase
+func newResponseHeaderController(header api.ResponseHeaderMap) HttpFilterPhaseController {
+	return &responseHeaderController{
 		phase:  OnResponseHeaderPhase,
 		header: header,
 	}
 }
 
-type responseHeaderPhaseController struct {
+type responseHeaderController struct {
 	phase  HttpFilterPhase
 	header api.ResponseHeaderMap
 }
 
-func (p *responseHeaderPhaseController) Handle(c Context, proc httpFilterProcessor) (HttpFilterAction, error) {
-	if c.IsHttpFilterPhaseDisabled(p.phase) {
+func (p *responseHeaderController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
+	if c.IsFilterPhaseEnabled(p.phase) {
 		return ActionContinue, nil
 	}
 
@@ -71,24 +72,24 @@ func (p *responseHeaderPhaseController) Handle(c Context, proc httpFilterProcess
 	return ActionContinue, proc.HandleOnResponseHeader(c)
 }
 
-// NewRequestBodyPhaseCtrl returns an Http Filter Phase controller for OnRequestBodyPhase phase
-func NewRequestBodyPhaseCtrl(buffer api.BufferInstance, endStream bool) HttpFilterPhaseController {
-	return &requestBodyPhaseController{
+// newRequestBodyController returns an Http Filter Phase controller for OnRequestBodyPhase phase
+func newRequestBodyController(buffer api.BufferInstance, endStream bool) HttpFilterPhaseController {
+	return &requestBodyController{
 		phase:     OnRequestBodyPhase,
 		buffer:    buffer,
 		endStream: endStream,
 	}
 }
 
-type requestBodyPhaseController struct {
+type requestBodyController struct {
 	phase     HttpFilterPhase
 	buffer    api.BufferInstance
 	endStream bool
 }
 
-func (p *requestBodyPhaseController) Handle(c Context, proc httpFilterProcessor) (HttpFilterAction, error) {
+func (p *requestBodyController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
 	isBodyAccessible := c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
-	if c.IsHttpFilterPhaseDisabled(p.phase) || !isBodyAccessible {
+	if c.IsFilterPhaseEnabled(p.phase) || !isBodyAccessible {
 		return ActionContinue, nil
 	}
 
@@ -103,24 +104,24 @@ func (p *requestBodyPhaseController) Handle(c Context, proc httpFilterProcessor)
 	return ActionPause, nil
 }
 
-// NewResponseBodyPhaseCtrl returns an Http Filter Phase controller for OnResponseBodyPhase phase
-func NewResponseBodyPhaseCtrl(buffer api.BufferInstance, endStream bool) HttpFilterPhaseController {
-	return &responseBodyPhaseController{
+// newResponseBodyController returns an Http Filter Phase controller for OnResponseBodyPhase phase
+func newResponseBodyController(buffer api.BufferInstance, endStream bool) HttpFilterPhaseController {
+	return &responseBodyController{
 		phase:     OnResponseBodyPhase,
 		buffer:    buffer,
 		endStream: endStream,
 	}
 }
 
-type responseBodyPhaseController struct {
+type responseBodyController struct {
 	phase     HttpFilterPhase
 	buffer    api.BufferInstance
 	endStream bool
 }
 
-func (p *responseBodyPhaseController) Handle(c Context, proc httpFilterProcessor) (HttpFilterAction, error) {
+func (p *responseBodyController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
 	isBodyAccessible := c.IsResponseBodyReadable() || c.IsResponseBodyWriteable()
-	if c.IsHttpFilterPhaseDisabled(p.phase) || !isBodyAccessible {
+	if c.IsFilterPhaseEnabled(p.phase) || !isBodyAccessible {
 		return ActionContinue, nil
 	}
 

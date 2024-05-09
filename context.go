@@ -20,10 +20,10 @@ type Context interface {
 	//
 	SetErrorHandler(ErrorHandler)
 
-	// RegisterHandler adds an Http Filter Handler to the chain,
+	// RegisterFilterHandler adds an Http Filter Handler to the chain,
 	// which should be run during filter startup (HttpFilter.OnStart).
 	//
-	RegisterHandler(HttpFilterHandler)
+	RegisterFilterHandler(HttpFilterHandler)
 
 	// RequestHeader provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
@@ -156,14 +156,14 @@ type Context interface {
 	//
 	IsResponseBodyWriteable() bool
 
-	// IsHttpFilterPhaseDisabled specifies whether given http filter phase is enabled or not
+	// IsFilterPhaseEnabled specifies whether given http filter phase is enabled or not
 	//
-	IsHttpFilterPhaseDisabled(HttpFilterPhase) bool
+	IsFilterPhaseEnabled(HttpFilterPhase) bool
 
-	// ServeHttpFilter serves the Http Filter for the specified phase.
+	// ServeFilter serves the Http Filter for the specified phase.
 	// This method is designed for internal use as it is directly invoked within each filter instance's phase.
 	//
-	ServeHttpFilter(ctrl HttpFilterPhaseController) api.StatusType
+	ServeFilter(ctrl HttpFilterPhaseController) api.StatusType
 }
 
 type context struct {
@@ -195,47 +195,7 @@ type context struct {
 	disabledHttpFilterPhase []HttpFilterPhase
 }
 
-type ContextOption func(c *context) error
-
-func WithHttpFilterPhaseRules(lists []HttpFilterPhase) ContextOption {
-	return func(c *context) error {
-		c.disabledHttpFilterPhase = lists
-		return nil
-	}
-}
-
-func WithMetricHandler(m Metrics) ContextOption {
-	return func(c *context) error {
-		c.metrics = m
-		return nil
-	}
-}
-
-func WithConfiguration(cfg Configuration) ContextOption {
-	return func(c *context) error {
-		type validator interface {
-			Validate() error
-		}
-
-		if validate, ok := cfg.GetFilterConfig().(validator); ok {
-			if err := validate.Validate(); err != nil {
-				return fmt.Errorf("invalid filter config; %w", err)
-			}
-		}
-
-		c.config = cfg
-		return nil
-	}
-}
-
-func WithStrictBodyAccess(strict bool) ContextOption {
-	return func(c *context) error {
-		c.isStrictBodyAccess = strict
-		return nil
-	}
-}
-
-func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) {
+func newContext(cb api.FilterCallbacks, cfg *globalConfig) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
@@ -243,21 +203,41 @@ func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 	c := &context{
 		callback: cb,
 		logger:   NewLogger(cb),
-		httpFilterManager: &DefaultHttpFilterHandlerManager{
+		httpFilterManager: &httpFilterHandlerManager{
 			errorHandler: DefaultHttpFilterErrorHandler,
 		},
 	}
 
-	for _, opt := range opts {
-		if err := opt(c); err != nil {
-			return nil, err
-		}
+	if err := c.setupConfig(cfg); err != nil {
+		return nil, err
 	}
 
 	return c, nil
 }
 
-func (c *context) IsHttpFilterPhaseDisabled(p HttpFilterPhase) bool {
+func (c *context) setupConfig(cfg *globalConfig) error {
+	if cfg == nil {
+		return errors.New("global configuration can not be nil")
+	}
+
+	type validator interface {
+		Validate() error
+	}
+
+	if validate, ok := cfg.GetFilterConfig().(validator); ok {
+		if err := validate.Validate(); err != nil {
+			return fmt.Errorf("invalid filter config; %w", err)
+		}
+	}
+
+	c.config = cfg
+	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
+	c.isStrictBodyAccess = cfg.strictBodyAccess
+	c.disabledHttpFilterPhase = cfg.disabledHttpFilterPhases
+	return nil
+}
+
+func (c *context) IsFilterPhaseEnabled(p HttpFilterPhase) bool {
 	return util.In(p, c.disabledHttpFilterPhase...)
 }
 
@@ -265,11 +245,11 @@ func (c *context) SetErrorHandler(e ErrorHandler) {
 	c.httpFilterManager.SetErrorHandler(e)
 }
 
-func (c *context) RegisterHandler(handler HttpFilterHandler) {
+func (c *context) RegisterFilterHandler(handler HttpFilterHandler) {
 	c.httpFilterManager.RegisterHandler(handler)
 }
 
-func (c *context) ServeHttpFilter(ctrl HttpFilterPhaseController) api.StatusType {
+func (c *context) ServeFilter(ctrl HttpFilterPhaseController) api.StatusType {
 	return c.httpFilterManager.Serve(c, ctrl)
 }
 
@@ -382,11 +362,7 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 	c.httpReq = req
 	c.reqHeaderMap = header
 
-	if c.isStrictBodyAccess {
-		return
-	}
-
-	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccess(c.isStrictBodyAccess, header)
+	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccessibility(c.isStrictBodyAccess, header)
 }
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
@@ -406,7 +382,7 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	c.httpResp = resp
 	c.respHeaderMap = header
 
-	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccess(c.isStrictBodyAccess, header)
+	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccessibility(c.isStrictBodyAccess, header)
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {

@@ -17,7 +17,7 @@ packages:
     config:
       dir: .
       inpackage: true
-      filename: "zz_mock.{{ .InterfaceName | lower }}_test.go"
+      filename: "zz_generated.{{ .InterfaceName | lower }}_test.go"
       mockname: "Mock{{.InterfaceName}}"
     interfaces:
       Context:

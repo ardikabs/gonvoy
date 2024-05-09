@@ -38,13 +38,13 @@ func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 		return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
 			ctx, err := newContext(callbacks, config)
 			if err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): context initialization failed; %v; filter ignored...", httpFilter.Name(), err))
+				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): filter context initialization failed; %v; filter ignored...", httpFilter.Name(), err))
 				return NoOpHttpFilter
 			}
 
 			newHttpFilterIface, err := util.NewFrom(httpFilter)
 			if err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): instance initialization failed; %v; filter ignored...", httpFilter.Name(), err))
+				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): filter instance initialization failed; %v; filter ignored...", httpFilter.Name(), err))
 				return NoOpHttpFilter
 			}
 

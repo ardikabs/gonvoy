@@ -23,8 +23,6 @@ var (
 	ResponseTooManyRequest      = NewMinimalJSONResponse("TOO_MANY_REQUEST", "TOO_MANY_REQUEST")
 	ResponseInternalServerError = NewMinimalJSONResponse("RUNTIME_ERROR", "RUNTIME_ERROR")
 	ResponseServiceUnavailable  = NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
-
-	DefaultHttpFilterHandler = PassthroughHttpFilterHandler{}
 )
 
 type ErrorHandler func(Context, error) api.StatusType

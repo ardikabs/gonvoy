@@ -29,7 +29,7 @@ type httpFilterHandlerManager struct {
 }
 
 func (h *httpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) {
-	if handler == nil {
+	if util.IsNil(handler) {
 		return
 	}
 
@@ -69,17 +69,17 @@ func (h *httpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseControll
 		}
 
 		switch action {
+		case ActionContinue:
+			status = c.StatusType()
 		case ActionPause:
 			status = api.StopAndBuffer
-		case ActionContinue:
-			fallthrough
 		default:
-			status = c.StatusType()
+			status = api.Continue
 		}
 	}()
 
 	if h.entrypoint == nil {
-		h.entrypoint = newHttpFilterProcessor(DefaultHttpFilterHandler)
+		return
 	}
 
 	action, err = ctrl.Handle(c, h.entrypoint)

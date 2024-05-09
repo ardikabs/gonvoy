@@ -10,11 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// func fakeGlobalConfig(t *testing.T) Configuration {
-// 	cc := mock_envoy.NewConfigCallbackHandler(t)
-// 	return newGlobalConfig(cc, ConfigOptions{})
-// }
-
 func TestConfiguration_Metrics(t *testing.T) {
 	cc := mock_envoy.NewConfigCallbackHandler(t)
 	cc.EXPECT().DefineCounterMetric(mock.MatchedBy(func(name string) bool {

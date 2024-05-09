@@ -7,7 +7,6 @@ import (
 	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHeaderMapAsMap(t *testing.T) {
@@ -84,11 +83,7 @@ func TestNewGatewayHeaders(t *testing.T) {
 		reqHeaderMap.EXPECT().Host().Return("foo.bar.com")
 		reqHeaderMap.EXPECT().Path().Return("/foo/bar")
 
-		fc := mock_envoy.NewFilterCallbackHandler(t)
-		ctx, err := newContext(fc)
-		require.NoError(t, err)
-		require.NotNil(t, ctx)
-
+		ctx := fakeDummyContext(t)
 		ctx.SetRequestHeader(reqHeaderMap)
 
 		headers := NewGatewayHeadersWithEnvoyHeader(ctx.RequestHeader())

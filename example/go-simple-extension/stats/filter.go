@@ -5,7 +5,9 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(Filter{}, gonvoy.ConfigOptions{})
+	gonvoy.RunHttpFilter(Filter{}, gonvoy.ConfigOptions{
+		MetricPrefix: "gse_stats_",
+	})
 }
 
 type Filter struct{}
@@ -21,7 +23,7 @@ func (f Filter) OnStart(c gonvoy.Context) error {
 }
 
 func (f Filter) OnComplete(c gonvoy.Context) error {
-	c.Metrics().Counter("gse_requests_total",
+	c.Metrics().Counter("requests_total",
 		"host", gonvoy.MustGetProperty(c, "request.host", "-"),
 		"method", gonvoy.MustGetProperty(c, "request.method", "-"),
 		"status_code", gonvoy.MustGetProperty(c, "response.code", "-"),

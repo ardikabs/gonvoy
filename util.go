@@ -41,7 +41,7 @@ func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	return bodyByte
 }
 
-func checkBodyAccess(strict bool, header api.HeaderMap) (read, write bool) {
+func checkBodyAccessibility(strict bool, header api.HeaderMap) (read, write bool) {
 	access := isBodyAccessible(header)
 
 	if !strict {

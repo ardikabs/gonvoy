@@ -13,3 +13,14 @@ packages:
       ResponseHeaderMap:
       CounterMetric:
       GaugeMetric:
+  github.com/ardikabs/gonvoy:
+    config:
+      dir: .
+      inpackage: true
+      filename: "zz_mock.{{ .InterfaceName | lower }}_test.go"
+      mockname: "Mock{{.InterfaceName}}"
+    interfaces:
+      Context:
+      Configuration:
+      HttpFilterHandler:
+      HttpFilterPhaseController:

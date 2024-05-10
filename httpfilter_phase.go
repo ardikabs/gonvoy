@@ -13,8 +13,15 @@ const (
 	OnResponseBodyPhase
 )
 
-// HttpFilterPhaseStrategy is an interface that represents the Strategy for a phase of an HTTP filter.
+// HttpFilterPhaseStrategy is an interface representing the Sstrategy for handling a phase of an HTTP filter.
 type HttpFilterPhaseStrategy interface {
+
+	// Execute executes the strategy for the specified HTTP filter phase.
+	// Keep in mind that the 'first' HttpFilterProcessor is intended for managing HTTP Request flows,
+	// while the 'last' HttpFilterProcessor is used for handling HTTP Response flows.
+	// In other words, use the 'first' HttpFilterProcessor during OnRequestHeader and OnRequestBody phases,
+	// and utilize the 'last' HttpFilterProcessor during OnResponseHeader and OnResponseBody phases.
+	//
 	Execute(c Context, first, last HttpFilterProcessor) (HttpFilterAction, error)
 }
 

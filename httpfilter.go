@@ -10,6 +10,16 @@ import (
 
 var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 
+// RunHttpFilter is an entrypoint for onboarding User's HTTP filters at runtime.
+// It must be declared inside `func init()` blocks in main package.
+// Example usage:
+//
+//	package main
+//	func init() {
+//		RunHttpFilter(new(UserHttpFilterInstance), ConfigOptions{
+//			BaseConfig: new(UserHttpFilterConfig),
+//		})
+//	}
 func RunHttpFilter(filter HttpFilter, options ConfigOptions) {
 	envoyhttp.RegisterHttpFilterConfigFactoryAndParser(
 		filter.Name(),
@@ -18,22 +28,28 @@ func RunHttpFilter(filter HttpFilter, options ConfigOptions) {
 	)
 }
 
+// HttpFilter defines an interface for an HTTP filter.
+// It provides methods for managing filter names, startup, and completion.
+// This interface is specifically designed as a mechanism for onboarding the user HTTP filters to Envoy.
 type HttpFilter interface {
-	// Name used as the filter name on Envoy.
+	// Name returns the filter name used in Envoy.
 	//
 	Name() string
 
 	// OnBegin is executed during filter startup.
 	// If an error is returned, the filter will be ignored.
-	// This step could be used by the user to do filter preparation such as but not limited to:
-	// retrieving filter configuration (if provided), register filter handlers, or capture user-generated metrics.
+	// This step can be used by the user for filter preparation tasks, such as (but not limited to):
+	// - Retrieving filter configuration (if provided)
+	// - Register filter handlers
+	// - Capture user-generated metrics
 	//
 	OnBegin(c RuntimeContext) error
 
 	// OnComplete is executed filter completion.
 	// If an error is returned, nothing happened.
-	// This step could be used by the user to do filter completion such as but not limited to:
-	// capture user-generated metrics, or resource cleanup.
+	// This step can be used by the user for filter completion tasks, such as (but not limited to):
+	// - Capture user-generated metrics
+	// - Resource cleanup
 	//
 	OnComplete(c RuntimeContext) error
 }

@@ -1,13 +1,32 @@
 package gonvoy
 
-// HttpFilterProcessor ---
+// HttpFilterProcessor defines an interface for processing HTTP filter phases,
+// and enabling chaining between user's HTTP filter handlers.
 type HttpFilterProcessor interface {
+	// HandleOnRequestHeader manages operations during the OnRequestHeader phase.
+	//
 	HandleOnRequestHeader(Context) error
-	HandleOnResponseHeader(Context) error
+
+	// HandleOnRequestBody manages operations during the OnRequestBody phase.
+	//
 	HandleOnRequestBody(Context) error
+
+	// HandleOnResponseHeader manages operations during the OnResponseHeader phase.
+	//
+	HandleOnResponseHeader(Context) error
+
+	// HandleOnResponseBody manages operations during the OnResponseBody phase.
+	//
 	HandleOnResponseBody(Context) error
 
+	// SetNext sets the next HttpFilterProcessor in the sequence.
+	// It is specifically used for managing the flow of HTTP requests.
+	//
 	SetNext(HttpFilterProcessor)
+
+	// SetPrevious sets the previous HttpFilterProcessor in the sequence.
+	// It is specifically used for managing the flow of HTTP responses.
+	//
 	SetPrevious(HttpFilterProcessor)
 }
 

@@ -46,7 +46,7 @@ type HttpFilterManager interface {
 
 	// ServeHTTPFilter serves the Http Filter for the specified phase.
 	// This method is designed for internal use as it is directly invoked within each filter instance's phases.
-	// Available phases: OnRequestHeaderPhase, OnRequestBodyPhase, OnResponseHeaderPhase, OnResponseBodyPhase.
+	// Refers to HttpFilterPhaseStrategy.
 	//
 	ServeHTTPFilter(strategy HttpFilterPhaseStrategy) api.StatusType
 }

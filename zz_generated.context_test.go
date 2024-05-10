@@ -411,20 +411,20 @@ func (_c *MockContext_IsResponseBodyWriteable_Call) RunAndReturn(run func() bool
 	return _c
 }
 
-// JSON provides a mock function with given fields: code, b, headers, opts
-func (_m *MockContext) JSON(code int, b []byte, headers map[string][]string, opts ...ReplyOption) error {
+// JSON provides a mock function with given fields: code, b, header, opts
+func (_m *MockContext) JSON(code int, b []byte, header http.Header, opts ...ReplyOption) error {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
 	var _ca []interface{}
-	_ca = append(_ca, code, b, headers)
+	_ca = append(_ca, code, b, header)
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(int, []byte, map[string][]string, ...ReplyOption) error); ok {
-		r0 = rf(code, b, headers, opts...)
+	if rf, ok := ret.Get(0).(func(int, []byte, http.Header, ...ReplyOption) error); ok {
+		r0 = rf(code, b, header, opts...)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -440,14 +440,14 @@ type MockContext_JSON_Call struct {
 // JSON is a helper method to define mock.On call
 //   - code int
 //   - b []byte
-//   - headers map[string][]string
+//   - header http.Header
 //   - opts ...ReplyOption
-func (_e *MockContext_Expecter) JSON(code interface{}, b interface{}, headers interface{}, opts ...interface{}) *MockContext_JSON_Call {
+func (_e *MockContext_Expecter) JSON(code interface{}, b interface{}, header interface{}, opts ...interface{}) *MockContext_JSON_Call {
 	return &MockContext_JSON_Call{Call: _e.mock.On("JSON",
-		append([]interface{}{code, b, headers}, opts...)...)}
+		append([]interface{}{code, b, header}, opts...)...)}
 }
 
-func (_c *MockContext_JSON_Call) Run(run func(code int, b []byte, headers map[string][]string, opts ...ReplyOption)) *MockContext_JSON_Call {
+func (_c *MockContext_JSON_Call) Run(run func(code int, b []byte, header http.Header, opts ...ReplyOption)) *MockContext_JSON_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		variadicArgs := make([]ReplyOption, len(args)-3)
 		for i, a := range args[3:] {
@@ -455,7 +455,7 @@ func (_c *MockContext_JSON_Call) Run(run func(code int, b []byte, headers map[st
 				variadicArgs[i] = a.(ReplyOption)
 			}
 		}
-		run(args[0].(int), args[1].([]byte), args[2].(map[string][]string), variadicArgs...)
+		run(args[0].(int), args[1].([]byte), args[2].(http.Header), variadicArgs...)
 	})
 	return _c
 }
@@ -465,7 +465,7 @@ func (_c *MockContext_JSON_Call) Return(_a0 error) *MockContext_JSON_Call {
 	return _c
 }
 
-func (_c *MockContext_JSON_Call) RunAndReturn(run func(int, []byte, map[string][]string, ...ReplyOption) error) *MockContext_JSON_Call {
+func (_c *MockContext_JSON_Call) RunAndReturn(run func(int, []byte, http.Header, ...ReplyOption) error) *MockContext_JSON_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1179,20 +1179,20 @@ func (_c *MockContext_StreamInfo_Call) RunAndReturn(run func() api.StreamInfo) *
 	return _c
 }
 
-// String provides a mock function with given fields: code, s, headers, opts
-func (_m *MockContext) String(code int, s string, headers map[string][]string, opts ...ReplyOption) error {
+// String provides a mock function with given fields: code, s, header, opts
+func (_m *MockContext) String(code int, s string, header http.Header, opts ...ReplyOption) error {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
 	}
 	var _ca []interface{}
-	_ca = append(_ca, code, s, headers)
+	_ca = append(_ca, code, s, header)
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(int, string, map[string][]string, ...ReplyOption) error); ok {
-		r0 = rf(code, s, headers, opts...)
+	if rf, ok := ret.Get(0).(func(int, string, http.Header, ...ReplyOption) error); ok {
+		r0 = rf(code, s, header, opts...)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -1208,14 +1208,14 @@ type MockContext_String_Call struct {
 // String is a helper method to define mock.On call
 //   - code int
 //   - s string
-//   - headers map[string][]string
+//   - header http.Header
 //   - opts ...ReplyOption
-func (_e *MockContext_Expecter) String(code interface{}, s interface{}, headers interface{}, opts ...interface{}) *MockContext_String_Call {
+func (_e *MockContext_Expecter) String(code interface{}, s interface{}, header interface{}, opts ...interface{}) *MockContext_String_Call {
 	return &MockContext_String_Call{Call: _e.mock.On("String",
-		append([]interface{}{code, s, headers}, opts...)...)}
+		append([]interface{}{code, s, header}, opts...)...)}
 }
 
-func (_c *MockContext_String_Call) Run(run func(code int, s string, headers map[string][]string, opts ...ReplyOption)) *MockContext_String_Call {
+func (_c *MockContext_String_Call) Run(run func(code int, s string, header http.Header, opts ...ReplyOption)) *MockContext_String_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		variadicArgs := make([]ReplyOption, len(args)-3)
 		for i, a := range args[3:] {
@@ -1223,7 +1223,7 @@ func (_c *MockContext_String_Call) Run(run func(code int, s string, headers map[
 				variadicArgs[i] = a.(ReplyOption)
 			}
 		}
-		run(args[0].(int), args[1].(string), args[2].(map[string][]string), variadicArgs...)
+		run(args[0].(int), args[1].(string), args[2].(http.Header), variadicArgs...)
 	})
 	return _c
 }
@@ -1233,7 +1233,7 @@ func (_c *MockContext_String_Call) Return(_a0 error) *MockContext_String_Call {
 	return _c
 }
 
-func (_c *MockContext_String_Call) RunAndReturn(run func(int, string, map[string][]string, ...ReplyOption) error) *MockContext_String_Call {
+func (_c *MockContext_String_Call) RunAndReturn(run func(int, string, http.Header, ...ReplyOption) error) *MockContext_String_Call {
 	_c.Call.Return(run)
 	return _c
 }

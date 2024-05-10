@@ -82,7 +82,7 @@ type Cache interface {
 	// If the receiver is not a pointer of the stored data type,
 	// Load will return an ErrIncompatibleReceiver.
 	//
-	// Examples:
+	// Example usage:
 	//	type mystruct struct{}
 	//
 	//	data := new(mystruct)

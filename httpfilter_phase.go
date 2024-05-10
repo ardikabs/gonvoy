@@ -15,6 +15,7 @@ const (
 
 // HttpFilterPhaseController is an interface that represents the controller for a phase of an HTTP filter.
 type HttpFilterPhaseController interface {
+	Phase() HttpFilterPhase
 	Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error)
 }
 
@@ -29,6 +30,10 @@ func newRequestHeaderController(header api.RequestHeaderMap) HttpFilterPhaseCont
 type requestHeaderController struct {
 	phase  HttpFilterPhase
 	header api.RequestHeaderMap
+}
+
+func (p *requestHeaderController) Phase() HttpFilterPhase {
+	return p.phase
 }
 
 func (p *requestHeaderController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
@@ -61,6 +66,10 @@ func newResponseHeaderController(header api.ResponseHeaderMap) HttpFilterPhaseCo
 type responseHeaderController struct {
 	phase  HttpFilterPhase
 	header api.ResponseHeaderMap
+}
+
+func (p *responseHeaderController) Phase() HttpFilterPhase {
+	return p.phase
 }
 
 func (p *responseHeaderController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
@@ -97,6 +106,10 @@ type requestBodyController struct {
 	endStream bool
 }
 
+func (p *requestBodyController) Phase() HttpFilterPhase {
+	return p.phase
+}
+
 func (p *requestBodyController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
 	isBodyAccessible := c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
 	if c.IsFilterPhaseDisabled(p.phase) || !isBodyAccessible {
@@ -127,6 +140,10 @@ type responseBodyController struct {
 	phase     HttpFilterPhase
 	buffer    api.BufferInstance
 	endStream bool
+}
+
+func (p *responseBodyController) Phase() HttpFilterPhase {
+	return p.phase
 }
 
 func (p *responseBodyController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {

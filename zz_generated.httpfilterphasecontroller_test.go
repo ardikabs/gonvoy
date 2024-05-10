@@ -70,6 +70,47 @@ func (_c *MockHttpFilterPhaseController_Handle_Call) RunAndReturn(run func(Conte
 	return _c
 }
 
+// Phase provides a mock function with given fields:
+func (_m *MockHttpFilterPhaseController) Phase() HttpFilterPhase {
+	ret := _m.Called()
+
+	var r0 HttpFilterPhase
+	if rf, ok := ret.Get(0).(func() HttpFilterPhase); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(HttpFilterPhase)
+	}
+
+	return r0
+}
+
+// MockHttpFilterPhaseController_Phase_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Phase'
+type MockHttpFilterPhaseController_Phase_Call struct {
+	*mock.Call
+}
+
+// Phase is a helper method to define mock.On call
+func (_e *MockHttpFilterPhaseController_Expecter) Phase() *MockHttpFilterPhaseController_Phase_Call {
+	return &MockHttpFilterPhaseController_Phase_Call{Call: _e.mock.On("Phase")}
+}
+
+func (_c *MockHttpFilterPhaseController_Phase_Call) Run(run func()) *MockHttpFilterPhaseController_Phase_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockHttpFilterPhaseController_Phase_Call) Return(_a0 HttpFilterPhase) *MockHttpFilterPhaseController_Phase_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockHttpFilterPhaseController_Phase_Call) RunAndReturn(run func() HttpFilterPhase) *MockHttpFilterPhaseController_Phase_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockHttpFilterPhaseController creates a new instance of MockHttpFilterPhaseController. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockHttpFilterPhaseController(t interface {

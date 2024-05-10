@@ -26,13 +26,27 @@ type HttpFilterManager interface {
 	SetErrorHandler(ErrorHandler)
 
 	// RegisterHTTPFilterHandler adds an Http Filter Handler to the chain,
-	// which should be run during filter startup (HttpFilter.OnStart).
+	// which should be run during filter startup (HttpFilter.OnBegin).
+	// It's important to note the order when registering filter handlers.
+	// While HTTP requests follow FIFO sequences, HTTP responses follow LIFO sequences.
+	//
+	// Example usage:
+	//	func (f *UserFilter) OnBegin(c RuntimeContext) error {
+	//		...
+	//		c.RegisterHTTPFilterHandler(handlerA)
+	//		c.RegisterHTTPFilterHandler(handlerB)
+	//		c.RegisterHTTPFilterHandler(handlerC)
+	//		c.RegisterHTTPFilterHandler(handlerD)
+	//	}
+	//
+	// During HTTP requests, traffic flows from `handlerA -> handlerB -> handlerC -> handlerD`.
+	// During HTTP responses, traffic flows in reverse: `handlerD -> handlerC -> handlerB -> handlerA`.
 	//
 	RegisterHTTPFilterHandler(HttpFilterHandler)
 
 	// ServeHTTPFilter serves the Http Filter for the specified phase.
 	// This method is designed for internal use as it is directly invoked within each filter instance's phases.
-	// Available phases: OnRequestHeaderPhase -> OnRequestBodyPhase -> OnResponseHeaderPhase -> OnResponseBodyPhase
+	// Available phases: OnRequestHeaderPhase, OnRequestBodyPhase, OnResponseHeaderPhase, OnResponseBodyPhase.
 	//
 	ServeHTTPFilter(ctrl HttpFilterPhaseController) api.StatusType
 }
@@ -50,7 +64,7 @@ type httpFilterManager struct {
 	disabledPhase []HttpFilterPhase
 
 	errorHandler ErrorHandler
-	entrypoint   HttpFilterProcessor
+	first        HttpFilterProcessor
 	last         HttpFilterProcessor
 }
 
@@ -72,11 +86,13 @@ func (h *httpFilterManager) RegisterHTTPFilterHandler(handler HttpFilterHandler)
 	}
 
 	processor := newHttpFilterProcessor(handler)
-	if h.entrypoint == nil {
-		h.entrypoint = processor
+	if h.first == nil {
+		h.first = processor
 		h.last = processor
 		return
 	}
+
+	processor.SetPrevious(h.last)
 
 	h.last.SetNext(processor)
 	h.last = processor
@@ -108,10 +124,16 @@ func (h *httpFilterManager) ServeHTTPFilter(ctrl HttpFilterPhaseController) (sta
 		}
 	}()
 
-	if h.entrypoint == nil {
+	if h.first == nil {
 		return
 	}
 
-	action, err = ctrl.Handle(h.ctx, h.entrypoint)
+	switch ctrl.Phase() {
+	case OnRequestHeaderPhase, OnRequestBodyPhase:
+		action, err = ctrl.Handle(h.ctx, h.first)
+	case OnResponseHeaderPhase, OnResponseBodyPhase:
+		action, err = ctrl.Handle(h.ctx, h.last)
+	}
+
 	return
 }

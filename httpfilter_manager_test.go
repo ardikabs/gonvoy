@@ -50,6 +50,7 @@ func TestHttpFilterManager_RegisterHandler(t *testing.T) {
 			mockContext.EXPECT().Committed().Return(false).Maybe()
 
 			mockCtrl := NewMockHttpFilterPhaseController(t)
+			mockCtrl.EXPECT().Phase().Return(OnRequestHeaderPhase)
 			mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Run(func(c Context, proc HttpFilterProcessor) {
 				_ = proc.HandleOnRequestHeader(c)
 			}).Return(ActionPause, nil)
@@ -78,6 +79,7 @@ func TestHttpFilterManager_RegisterHandler(t *testing.T) {
 			mockContext.EXPECT().Committed().Return(false).Maybe()
 
 			mockCtrl := NewMockHttpFilterPhaseController(t)
+			mockCtrl.EXPECT().Phase().Return(OnRequestBodyPhase)
 			mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Run(func(c Context, proc HttpFilterProcessor) {
 				_ = proc.HandleOnRequestBody(c)
 			}).Return(ActionPause, nil)
@@ -98,14 +100,15 @@ func TestHttpFilterManager_RegisterHandler(t *testing.T) {
 			secondHandlerOnResponseHeader := mockHandlerSecond.EXPECT().OnResponseHeader(mock.Anything, mock.Anything).Return(nil)
 			thirdHandlerOnResponseHeader := mockHandlerThird.EXPECT().OnResponseHeader(mock.Anything, mock.Anything).Return(nil)
 
-			secondHandlerOnResponseHeader.NotBefore(firstHandlerOnResponseHeader.Call)
-			thirdHandlerOnResponseHeader.NotBefore(firstHandlerOnResponseHeader.Call, secondHandlerOnResponseHeader.Call)
+			firstHandlerOnResponseHeader.NotBefore(secondHandlerOnResponseHeader.Call, thirdHandlerOnResponseHeader.Call)
+			secondHandlerOnResponseHeader.NotBefore(thirdHandlerOnResponseHeader.Call)
 
 			mockContext := NewMockContext(t)
 			mockContext.EXPECT().Response().Return(&http.Response{}).Maybe()
 			mockContext.EXPECT().Committed().Return(false).Maybe()
 
 			mockCtrl := NewMockHttpFilterPhaseController(t)
+			mockCtrl.EXPECT().Phase().Return(OnResponseHeaderPhase)
 			mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Run(func(c Context, proc HttpFilterProcessor) {
 				_ = proc.HandleOnResponseHeader(c)
 			}).Return(ActionPause, nil)
@@ -126,14 +129,15 @@ func TestHttpFilterManager_RegisterHandler(t *testing.T) {
 			secondHandlerOnResponseBody := mockHandlerSecond.EXPECT().OnResponseBody(mock.Anything, mock.Anything).Return(nil)
 			thirdHandlerOnResponseBody := mockHandlerThird.EXPECT().OnResponseBody(mock.Anything, mock.Anything).Return(nil)
 
-			secondHandlerOnResponseBody.NotBefore(firstHandlerOnResponseBody.Call)
-			thirdHandlerOnResponseBody.NotBefore(firstHandlerOnResponseBody.Call, secondHandlerOnResponseBody.Call)
+			firstHandlerOnResponseBody.NotBefore(secondHandlerOnResponseBody.Call, thirdHandlerOnResponseBody.Call)
+			secondHandlerOnResponseBody.NotBefore(thirdHandlerOnResponseBody.Call)
 
 			mockContext := NewMockContext(t)
 			mockContext.EXPECT().ResponseBody().Return(&bodyWriter{}).Maybe()
 			mockContext.EXPECT().Committed().Return(false).Maybe()
 
 			mockCtrl := NewMockHttpFilterPhaseController(t)
+			mockCtrl.EXPECT().Phase().Return(OnResponseBodyPhase)
 			mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Run(func(c Context, proc HttpFilterProcessor) {
 				_ = proc.HandleOnResponseBody(c)
 			}).Return(ActionPause, nil)
@@ -157,7 +161,7 @@ func TestHttpFilterManager_RegisterHandler(t *testing.T) {
 		}
 
 		mgr.RegisterHTTPFilterHandler(createBadHandlerFn())
-		assert.Nil(t, mgr.entrypoint)
+		assert.Nil(t, mgr.first)
 	})
 
 	t.Run("a disabled handler won't be registered", func(t *testing.T) {
@@ -167,7 +171,7 @@ func TestHttpFilterManager_RegisterHandler(t *testing.T) {
 		mockHandler.EXPECT().Disable().Return(true)
 
 		mgr.RegisterHTTPFilterHandler(mockHandler)
-		assert.Nil(t, mgr.entrypoint)
+		assert.Nil(t, mgr.first)
 	})
 }
 
@@ -188,12 +192,13 @@ func TestHttpFilterManager_ServeHTTPFilter(t *testing.T) {
 			mock.Anything,
 		).Return(nil)
 		mockCtrl := NewMockHttpFilterPhaseController(t)
+		mockCtrl.EXPECT().Phase().Return(OnRequestHeaderPhase)
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Panic("unexpected action")
 
 		mgr := &httpFilterManager{
 			ctx:          mockContext,
 			errorHandler: DefaultErrorHandler,
-			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
+			first:        newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
 		}
 
 		status := mgr.ServeHTTPFilter(mockCtrl)
@@ -203,12 +208,13 @@ func TestHttpFilterManager_ServeHTTPFilter(t *testing.T) {
 	t.Run("ServeHTTPFilter and got pause action", func(t *testing.T) {
 		mockContext := NewMockContext(t)
 		mockCtrl := NewMockHttpFilterPhaseController(t)
+		mockCtrl.EXPECT().Phase().Return(OnRequestHeaderPhase)
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Return(ActionPause, nil)
 
 		mgr := &httpFilterManager{
 			ctx:          mockContext,
 			errorHandler: DefaultErrorHandler,
-			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
+			first:        newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
 		}
 
 		status := mgr.ServeHTTPFilter(mockCtrl)
@@ -219,12 +225,13 @@ func TestHttpFilterManager_ServeHTTPFilter(t *testing.T) {
 		mockContext := NewMockContext(t)
 		mockContext.EXPECT().StatusType().Return(api.Continue)
 		mockCtrl := NewMockHttpFilterPhaseController(t)
+		mockCtrl.EXPECT().Phase().Return(OnRequestHeaderPhase)
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Return(ActionContinue, nil)
 
 		mgr := &httpFilterManager{
 			ctx:          mockContext,
 			errorHandler: DefaultErrorHandler,
-			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
+			first:        newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
 		}
 
 		status := mgr.ServeHTTPFilter(mockCtrl)

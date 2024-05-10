@@ -205,8 +205,8 @@ func (_c *MockContext_GlobalCache_Call) RunAndReturn(run func() Cache) *MockCont
 	return _c
 }
 
-// IsFilterPhaseEnabled provides a mock function with given fields: _a0
-func (_m *MockContext) IsFilterPhaseEnabled(_a0 HttpFilterPhase) bool {
+// IsFilterPhaseDisabled provides a mock function with given fields: _a0
+func (_m *MockContext) IsFilterPhaseDisabled(_a0 HttpFilterPhase) bool {
 	ret := _m.Called(_a0)
 
 	var r0 bool
@@ -219,30 +219,30 @@ func (_m *MockContext) IsFilterPhaseEnabled(_a0 HttpFilterPhase) bool {
 	return r0
 }
 
-// MockContext_IsFilterPhaseEnabled_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsFilterPhaseEnabled'
-type MockContext_IsFilterPhaseEnabled_Call struct {
+// MockContext_IsFilterPhaseDisabled_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsFilterPhaseDisabled'
+type MockContext_IsFilterPhaseDisabled_Call struct {
 	*mock.Call
 }
 
-// IsFilterPhaseEnabled is a helper method to define mock.On call
+// IsFilterPhaseDisabled is a helper method to define mock.On call
 //   - _a0 HttpFilterPhase
-func (_e *MockContext_Expecter) IsFilterPhaseEnabled(_a0 interface{}) *MockContext_IsFilterPhaseEnabled_Call {
-	return &MockContext_IsFilterPhaseEnabled_Call{Call: _e.mock.On("IsFilterPhaseEnabled", _a0)}
+func (_e *MockContext_Expecter) IsFilterPhaseDisabled(_a0 interface{}) *MockContext_IsFilterPhaseDisabled_Call {
+	return &MockContext_IsFilterPhaseDisabled_Call{Call: _e.mock.On("IsFilterPhaseDisabled", _a0)}
 }
 
-func (_c *MockContext_IsFilterPhaseEnabled_Call) Run(run func(_a0 HttpFilterPhase)) *MockContext_IsFilterPhaseEnabled_Call {
+func (_c *MockContext_IsFilterPhaseDisabled_Call) Run(run func(_a0 HttpFilterPhase)) *MockContext_IsFilterPhaseDisabled_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(HttpFilterPhase))
 	})
 	return _c
 }
 
-func (_c *MockContext_IsFilterPhaseEnabled_Call) Return(_a0 bool) *MockContext_IsFilterPhaseEnabled_Call {
+func (_c *MockContext_IsFilterPhaseDisabled_Call) Return(_a0 bool) *MockContext_IsFilterPhaseDisabled_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_IsFilterPhaseEnabled_Call) RunAndReturn(run func(HttpFilterPhase) bool) *MockContext_IsFilterPhaseEnabled_Call {
+func (_c *MockContext_IsFilterPhaseDisabled_Call) RunAndReturn(run func(HttpFilterPhase) bool) *MockContext_IsFilterPhaseDisabled_Call {
 	_c.Call.Return(run)
 	return _c
 }

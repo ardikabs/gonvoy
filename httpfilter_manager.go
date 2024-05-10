@@ -11,14 +11,15 @@ import (
 type HttpFilterAction uint
 
 const (
-	ActionContinue HttpFilterAction = iota + 1
+	ActionSkip HttpFilterAction = iota
+	ActionContinue
 	ActionPause
 )
 
-type Manager interface {
-	// IsFilterPhaseEnabled specifies whether given http filter phase is enabled or not
+type HttpFilterManager interface {
+	// IsFilterPhaseDisabled specifies whether given http filter phase is disabled or not
 	//
-	IsFilterPhaseEnabled(HttpFilterPhase) bool
+	IsFilterPhaseDisabled(HttpFilterPhase) bool
 
 	// SetErrorHandler sets a custom error handler for an Http Filter
 	//
@@ -30,32 +31,34 @@ type Manager interface {
 	RegisterHTTPFilterHandler(HttpFilterHandler)
 
 	// ServeHTTPFilter serves the Http Filter for the specified phase.
-	// This method is designed for internal use as it is directly invoked within each filter instance's phase.
+	// This method is designed for internal use as it is directly invoked within each filter instance's phases.
+	// Available phases: OnRequestHeaderPhase -> OnRequestBodyPhase -> OnResponseHeaderPhase -> OnResponseBodyPhase
 	//
 	ServeHTTPFilter(ctrl HttpFilterPhaseController) api.StatusType
 }
 
-func newManager(ctx Context, cfg *globalConfig) *httpFilterHandlerManager {
-	return &httpFilterHandlerManager{
+func newHttpFilterManager(ctx Context, cfg *globalConfig) *httpFilterManager {
+	return &httpFilterManager{
 		ctx:           ctx,
 		disabledPhase: cfg.disabledHttpFilterPhases,
 		errorHandler:  DefaultErrorHandler,
 	}
 }
 
-type httpFilterHandlerManager struct {
+type httpFilterManager struct {
 	ctx           Context
 	disabledPhase []HttpFilterPhase
-	errorHandler  ErrorHandler
-	entrypoint    HttpFilterProcessor
-	last          HttpFilterProcessor
+
+	errorHandler ErrorHandler
+	entrypoint   HttpFilterProcessor
+	last         HttpFilterProcessor
 }
 
-func (h *httpFilterHandlerManager) IsFilterPhaseEnabled(phase HttpFilterPhase) bool {
-	return util.NotIn(phase, h.disabledPhase...)
+func (h *httpFilterManager) IsFilterPhaseDisabled(phase HttpFilterPhase) bool {
+	return util.In(phase, h.disabledPhase...)
 }
 
-func (h *httpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) {
+func (h *httpFilterManager) SetErrorHandler(handler ErrorHandler) {
 	if util.IsNil(handler) {
 		return
 	}
@@ -63,7 +66,7 @@ func (h *httpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) {
 	h.errorHandler = handler
 }
 
-func (h *httpFilterHandlerManager) RegisterHTTPFilterHandler(handler HttpFilterHandler) {
+func (h *httpFilterManager) RegisterHTTPFilterHandler(handler HttpFilterHandler) {
 	if util.IsNil(handler) || handler.Disable() {
 		return
 	}
@@ -79,7 +82,7 @@ func (h *httpFilterHandlerManager) RegisterHTTPFilterHandler(handler HttpFilterH
 	h.last = processor
 }
 
-func (h *httpFilterHandlerManager) ServeHTTPFilter(ctrl HttpFilterPhaseController) (status api.StatusType) {
+func (h *httpFilterManager) ServeHTTPFilter(ctrl HttpFilterPhaseController) (status api.StatusType) {
 	var (
 		action HttpFilterAction
 		err    error

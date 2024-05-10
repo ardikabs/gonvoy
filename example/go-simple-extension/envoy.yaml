@@ -6,7 +6,7 @@ stats_config:
     - tag_name: status_code
       regex: "(_status_code=([0-9]+))"
     - tag_name: method
-      regex: "(_method=([a-zA-Z]+))"
+      regex: "(_method=([A-Z]+))"
 
 admin:
   access_log_path: "/dev/null"

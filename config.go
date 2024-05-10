@@ -1,10 +1,10 @@
 package gonvoy
 
 import (
-	"errors"
 	"strings"
 	"sync"
 
+	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
@@ -20,7 +20,8 @@ type globalConfig struct {
 	counterMap   map[string]api.CounterMetric
 	histogramMap map[string]api.HistogramMetric
 
-	strictBodyAccess         bool
+	strictBodyRead           bool
+	strictBodyWrite          bool
 	disabledHttpFilterPhases []HttpFilterPhase
 }
 
@@ -31,7 +32,8 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 		gaugeMap:                 make(map[string]api.GaugeMetric),
 		counterMap:               make(map[string]api.CounterMetric),
 		histogramMap:             make(map[string]api.HistogramMetric),
-		strictBodyAccess:         !options.DisableStrictBodyAccess,
+		strictBodyRead:           !options.DisableStrictBodyRead,
+		strictBodyWrite:          !options.DisableStrictBodyWrite,
 		disabledHttpFilterPhases: options.DisabledHttpFilterPhases,
 		metricPrefix:             options.MetricPrefix,
 	}
@@ -76,11 +78,23 @@ type Cache interface {
 	//
 	// It returns true if a compatible value is successfully loaded,
 	// and false if no value is found or an error occurs during the process.
+	//
+	// If the receiver is not a pointer of the stored data type,
+	// Load will return an ErrIncompatibleReceiver.
+	//
+	// Examples:
+	//	type mystruct struct{}
+	//
+	//	data := new(mystruct)
+	//	cache.Store("keyName", data)
+	//
+	//	receiver := new(mystruct)
+	//	_, _ = cache.Load("keyName", &receiver)
 	Load(key, receiver any) (ok bool, err error)
 }
 
 type inmemoryCache struct {
-	dataMap sync.Map
+	stash sync.Map
 }
 
 func newCache() *inmemoryCache {
@@ -88,21 +102,21 @@ func newCache() *inmemoryCache {
 }
 
 func (c *inmemoryCache) Store(key, value any) {
-	c.dataMap.Store(key, value)
+	c.stash.Store(key, value)
 }
 
 func (c *inmemoryCache) Load(key, receiver any) (bool, error) {
 	if receiver == nil {
-		return false, errors.New("receiver should not be nil")
+		return false, errs.ErrNilReceiver
 	}
 
-	v, ok := c.dataMap.Load(key)
+	v, ok := c.stash.Load(key)
 	if !ok {
 		return false, nil
 	}
 
 	if !util.CastTo(receiver, v) {
-		return false, errors.New("receiver and value has an incompatible type")
+		return false, errs.ErrIncompatibleReceiver
 	}
 
 	return true, nil

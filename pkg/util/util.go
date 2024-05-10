@@ -75,7 +75,3 @@ func In[T comparable](value T, list ...T) bool {
 	}
 	return false
 }
-
-func NotIn[T comparable](value T, list ...T) bool {
-	return !In(value, list...)
-}

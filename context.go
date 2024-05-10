@@ -14,29 +14,29 @@ import (
 	"github.com/go-logr/logr"
 )
 
-type Context interface {
+type HttpFilterContext interface {
 	// RequestHeader provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
-	// It returns panic when the filter has not yet traversed the HTTP request.
+	// It returns panic when the filter has not yet traversed the HTTP request or OnRequestHeader phase is disabled.
 	// Please refer to the previous Envoy's HTTP filter behavior.
 	//
 	RequestHeader() Header
 
 	// ResponseHeader provides an interface to access and modify HTTP Response header, including
 	// add, overwrite, or delete existing header.
-	// It returns panic when the ResponseHeader accessed outside from the following phases:
+	// It returns panic when OnResponseHeader phase is disabled or ResponseHeader accessed outside from the following phases:
 	// OnResponseHeader, OnResponseBody
 	//
 	ResponseHeader() Header
 
 	// RequestBodyBuffer provides an interface to access and manipulate an HTTP Request body.
-	// It returns panic when the RequestBody accessed outside from the following phases:
+	// It returns panic when OnRequestBody phase is disabled or RequestBody accessed outside from the following phases:
 	// OnRequestBody, OnResponseHeader, OnResponseBody
 	//
 	RequestBody() Body
 
 	// ResponseBody provides an interface access and manipulate an HTTP Response body.
-	// It returns panic when the ResponseBody accessed outside from the following phases:
+	// It returns panic when OnResponseBody phase is disabled or ResponseBody accessed outside from the following phases:
 	// OnResponseBody
 	//
 	ResponseBody() Body
@@ -44,7 +44,7 @@ type Context interface {
 	// Request returns an http.Request struct, which is a read-only data.
 	// Attempting to modify this value will have no effect.
 	// Refers to RequestHeader and RequestBody for modification attempts.
-	// It returns panic when the filter has not yet traversed the HTTP request.
+	// It returns panic when the filter has not yet traversed the HTTP request or OnRequestHeader phase is disabled.
 	// Please refer to the previous Envoy's HTTP filter behavior.
 	//
 	Request() *http.Request
@@ -52,7 +52,7 @@ type Context interface {
 	// Response returns an http.Response struct, which is a read-only data.
 	// Attempting to modify this value will have no effect.
 	// Refers to ResponseHeader and ResponseBody for modification attempts.
-	// It returns panic, when the Response accessed outside from the following phases:
+	// It returns panic, when OnResponseHeader phase is disabled or Response accessed outside from the following phases:
 	// OnResponseHeader, OnResponseBody
 	//
 	Response() *http.Response
@@ -98,15 +98,10 @@ type Context interface {
 	//
 	// This action halts the handler chaining and immediately returns back to Envoy.
 	String(code int, s string, headers map[string][]string, opts ...ReplyOption) error
+}
 
-	// StatusType is a low-level API used to specify the type of status to be communicated to Envoy.
-	//
-	StatusType() api.StatusType
-
-	// Committed indicates whether the current context has already completed its processing
-	// within the plugin and forwarded the result to Envoy.
-	//
-	Committed() bool
+type RuntimeContext interface {
+	HttpFilterManager
 
 	// GetProperty is a helper function to fetch Envoy attributes based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
 	// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
@@ -146,37 +141,21 @@ type Context interface {
 	// Metrics provides an interface for user to create their custom metrics.
 	//
 	Metrics() Metrics
-
-	Manager
 }
 
-type context struct {
-	callback api.FilterCallbacks
+type Context interface {
+	RuntimeContext
 
-	reqHeaderMap       api.RequestHeaderMap
-	respHeaderMap      api.ResponseHeaderMap
-	reqBufferInstance  api.BufferInstance
-	respBufferInstance api.BufferInstance
+	HttpFilterContext
 
-	isStrictBodyAccess      bool
-	isRequestBodyReadable   bool
-	isRequestBodyWriteable  bool
-	isResponseBodyWriteable bool
-	isResponseBodyReadable  bool
+	// StatusType is a low-level API used to specify the type of status to be communicated to Envoy.
+	//
+	StatusType() api.StatusType
 
-	httpReq  *http.Request
-	httpResp *http.Response
-
-	filterConfig interface{}
-	globalCache  Cache
-	localCache   Cache
-	metrics      Metrics
-	logger       logr.Logger
-	statusType   api.StatusType
-	committed    bool
-
-	manager Manager
-	filter  HttpFilter
+	// Committed indicates whether the current context has already completed its processing
+	// within the filter and forwarded the result to Envoy.
+	//
+	Committed() bool
 }
 
 type ContextOption func(c *context) error
@@ -226,11 +205,12 @@ func WithContextConfig(cfg *globalConfig) ContextOption {
 		}
 
 		c.filterConfig = cfg.filterConfig
-		c.manager = newManager(c, cfg)
+		c.manager = newHttpFilterManager(c, cfg)
 
 		c.globalCache = cfg.globalCache
 		c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
-		c.isStrictBodyAccess = cfg.strictBodyAccess
+		c.isStrictBodyRead = cfg.strictBodyRead
+		c.isStrictBodyWrite = cfg.strictBodyWrite
 		return nil
 	}
 }
@@ -249,6 +229,7 @@ func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 
 	c := &context{
 		callback:   cb,
+		statusType: api.Continue,
 		localCache: newCache(),
 	}
 
@@ -259,6 +240,37 @@ func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 	}
 
 	return c, nil
+}
+
+type context struct {
+	callback api.FilterCallbacks
+
+	reqHeaderMap       api.RequestHeaderMap
+	respHeaderMap      api.ResponseHeaderMap
+	reqBufferInstance  api.BufferInstance
+	respBufferInstance api.BufferInstance
+
+	isStrictBodyRead  bool
+	isStrictBodyWrite bool
+
+	isRequestBodyReadable   bool
+	isRequestBodyWriteable  bool
+	isResponseBodyWriteable bool
+	isResponseBodyReadable  bool
+
+	httpReq  *http.Request
+	httpResp *http.Response
+
+	filterConfig interface{}
+	globalCache  Cache
+	localCache   Cache
+	metrics      Metrics
+	logger       logr.Logger
+	statusType   api.StatusType
+	committed    bool
+
+	manager HttpFilterManager
+	filter  HttpFilter
 }
 
 func (c *context) JSON(code int, body []byte, headers map[string][]string, opts ...ReplyOption) error {
@@ -299,7 +311,7 @@ func (c *context) String(code int, s string, headers map[string][]string, opts .
 
 func (c *context) RequestHeader() Header {
 	if c.reqHeaderMap == nil {
-		panic("The Request Header is not initialized yet, likely because the filter has not yet traversed the HTTP request. Please refer to the previous HTTP filter behavior.")
+		panic("The Request Header is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
 	}
 
 	return &header{c.reqHeaderMap}
@@ -354,7 +366,7 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 	c.httpReq = req
 	c.reqHeaderMap = header
 
-	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccessibility(c.isStrictBodyAccess, header)
+	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccessibility(c.isStrictBodyRead, c.isStrictBodyWrite, header)
 }
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
@@ -374,7 +386,7 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	c.httpResp = resp
 	c.respHeaderMap = header
 
-	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccessibility(c.isStrictBodyAccess, header)
+	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccessibility(c.isStrictBodyRead, c.isStrictBodyWrite, header)
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {
@@ -409,7 +421,7 @@ func (c *context) SetResponseBody(buffer api.BufferInstance) {
 
 func (c *context) Request() *http.Request {
 	if c.httpReq == nil {
-		panic("an HTTP Request is not initialized yet, likely because the filter has not yet traversed the HTTP request. Please refer to the previous HTTP filter behavior.")
+		panic("an HTTP Request is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
 	}
 
 	return c.httpReq
@@ -505,8 +517,8 @@ func (c *context) Metrics() Metrics {
 	return c.metrics
 }
 
-func (c *context) IsFilterPhaseEnabled(phase HttpFilterPhase) bool {
-	return c.manager.IsFilterPhaseEnabled(phase)
+func (c *context) IsFilterPhaseDisabled(phase HttpFilterPhase) bool {
+	return c.manager.IsFilterPhaseDisabled(phase)
 }
 
 func (c *context) SetErrorHandler(e ErrorHandler) {

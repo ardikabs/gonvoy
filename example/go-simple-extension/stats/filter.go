@@ -18,11 +18,11 @@ func (f Filter) Name() string {
 	return "stats"
 }
 
-func (f Filter) OnBegin(c gonvoy.Context) error {
+func (f Filter) OnBegin(c gonvoy.RuntimeContext) error {
 	return nil
 }
 
-func (f Filter) OnComplete(c gonvoy.Context) error {
+func (f Filter) OnComplete(c gonvoy.RuntimeContext) error {
 	c.Metrics().Counter("requests_total",
 		"host", gonvoy.MustGetProperty(c, "request.host", "-"),
 		"method", gonvoy.MustGetProperty(c, "request.method", "-"),

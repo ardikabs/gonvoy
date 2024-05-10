@@ -13,7 +13,8 @@ func init() {
 		MetricPrefix: "myfilter_",
 
 		DisabledHttpFilterPhases: []gonvoy.HttpFilterPhase{gonvoy.OnResponseBodyPhase},
-		DisableStrictBodyAccess:  true,
+		// DisableStrictBodyRead:  true,
+		DisableStrictBodyWrite: true,
 	})
 }
 
@@ -25,7 +26,7 @@ func (f Filter) Name() string {
 	return "myfilter"
 }
 
-func (f Filter) OnBegin(c gonvoy.Context) error {
+func (f Filter) OnBegin(c gonvoy.RuntimeContext) error {
 	fcfg := c.GetFilterConfig()
 	cfg, ok := fcfg.(*Config)
 	if !ok {
@@ -38,7 +39,7 @@ func (f Filter) OnBegin(c gonvoy.Context) error {
 	return nil
 }
 
-func (f Filter) OnComplete(c gonvoy.Context) error {
+func (f Filter) OnComplete(c gonvoy.RuntimeContext) error {
 	c.Metrics().Counter("requests_total",
 		"host", gonvoy.MustGetProperty(c, "request.host", "-"),
 		"method", gonvoy.MustGetProperty(c, "request.method", "-"),

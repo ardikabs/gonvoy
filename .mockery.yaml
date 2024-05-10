@@ -9,6 +9,7 @@ packages:
     interfaces:
       FilterCallbackHandler:
       ConfigCallbackHandler:
+      BufferInstance:
       RequestHeaderMap:
       ResponseHeaderMap:
       CounterMetric:

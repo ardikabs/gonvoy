@@ -10,23 +10,23 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestHttpFilterHandlerManager_SetErrorHandler(t *testing.T) {
+func TestHttpFilterManager_SetErrorHandler(t *testing.T) {
 	t.Run("nil error handler will be ignored", func(t *testing.T) {
-		mgr := &httpFilterHandlerManager{}
+		mgr := &httpFilterManager{}
 
 		mgr.SetErrorHandler(nil)
 		assert.Nil(t, mgr.errorHandler)
 	})
 
 	t.Run("a custom error handler will be used", func(t *testing.T) {
-		mgr := &httpFilterHandlerManager{}
+		mgr := &httpFilterManager{}
 
 		mgr.SetErrorHandler(DefaultErrorHandler)
 		assert.NotNil(t, mgr.errorHandler)
 	})
 }
 
-func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
+func TestHttpFilterManager_RegisterHandler(t *testing.T) {
 
 	t.Run("execution order of all registerd handlers must follow a FIFO sequence", func(t *testing.T) {
 		mockHandlerFirst := NewMockHttpFilterHandler(t)
@@ -54,7 +54,7 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 				_ = proc.HandleOnRequestHeader(c)
 			}).Return(ActionPause, nil)
 
-			mgr := &httpFilterHandlerManager{
+			mgr := &httpFilterManager{
 				ctx: mockContext,
 			}
 			mgr.RegisterHTTPFilterHandler(mockHandlerFirst)
@@ -82,7 +82,7 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 				_ = proc.HandleOnRequestBody(c)
 			}).Return(ActionPause, nil)
 
-			mgr := &httpFilterHandlerManager{
+			mgr := &httpFilterManager{
 				ctx: mockContext,
 			}
 			mgr.RegisterHTTPFilterHandler(mockHandlerFirst)
@@ -110,7 +110,7 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 				_ = proc.HandleOnResponseHeader(c)
 			}).Return(ActionPause, nil)
 
-			mgr := &httpFilterHandlerManager{
+			mgr := &httpFilterManager{
 				ctx: mockContext,
 			}
 			mgr.RegisterHTTPFilterHandler(mockHandlerFirst)
@@ -138,7 +138,7 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 				_ = proc.HandleOnResponseBody(c)
 			}).Return(ActionPause, nil)
 
-			mgr := &httpFilterHandlerManager{
+			mgr := &httpFilterManager{
 				ctx: mockContext,
 			}
 			mgr.RegisterHTTPFilterHandler(mockHandlerFirst)
@@ -151,7 +151,7 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 	})
 
 	t.Run("a nil handler won't be registered", func(t *testing.T) {
-		mgr := &httpFilterHandlerManager{}
+		mgr := &httpFilterManager{}
 		createBadHandlerFn := func() *PassthroughHttpFilterHandler {
 			return nil
 		}
@@ -161,7 +161,7 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 	})
 
 	t.Run("a disabled handler won't be registered", func(t *testing.T) {
-		mgr := &httpFilterHandlerManager{}
+		mgr := &httpFilterManager{}
 
 		mockHandler := NewMockHttpFilterHandler(t)
 		mockHandler.EXPECT().Disable().Return(true)
@@ -171,7 +171,7 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 	})
 }
 
-func TestHttpFilterHandlerManager_ServeHTTPFilter(t *testing.T) {
+func TestHttpFilterManager_ServeHTTPFilter(t *testing.T) {
 
 	t.Run("ServeHTTPFilter and catch a panic", func(t *testing.T) {
 		mockContext := NewMockContext(t)
@@ -190,7 +190,7 @@ func TestHttpFilterHandlerManager_ServeHTTPFilter(t *testing.T) {
 		mockCtrl := NewMockHttpFilterPhaseController(t)
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Panic("unexpected action")
 
-		mgr := &httpFilterHandlerManager{
+		mgr := &httpFilterManager{
 			ctx:          mockContext,
 			errorHandler: DefaultErrorHandler,
 			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
@@ -205,7 +205,7 @@ func TestHttpFilterHandlerManager_ServeHTTPFilter(t *testing.T) {
 		mockCtrl := NewMockHttpFilterPhaseController(t)
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Return(ActionPause, nil)
 
-		mgr := &httpFilterHandlerManager{
+		mgr := &httpFilterManager{
 			ctx:          mockContext,
 			errorHandler: DefaultErrorHandler,
 			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
@@ -221,7 +221,7 @@ func TestHttpFilterHandlerManager_ServeHTTPFilter(t *testing.T) {
 		mockCtrl := NewMockHttpFilterPhaseController(t)
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Return(ActionContinue, nil)
 
-		mgr := &httpFilterHandlerManager{
+		mgr := &httpFilterManager{
 			ctx:          mockContext,
 			errorHandler: DefaultErrorHandler,
 			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
@@ -235,7 +235,7 @@ func TestHttpFilterHandlerManager_ServeHTTPFilter(t *testing.T) {
 		mockContext := NewMockContext(t)
 		mockCtrl := NewMockHttpFilterPhaseController(t)
 
-		mgr := &httpFilterHandlerManager{
+		mgr := &httpFilterManager{
 			ctx:          mockContext,
 			errorHandler: DefaultErrorHandler,
 		}

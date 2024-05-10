@@ -48,7 +48,7 @@ func (b *bodyWriter) WriteString(s string) (n int, err error) {
 }
 
 func (b *bodyWriter) String() string {
-	if b == nil {
+	if b.buffer == nil {
 		return ""
 	}
 
@@ -57,7 +57,7 @@ func (b *bodyWriter) String() string {
 
 func (b *bodyWriter) Bytes() []byte {
 	if b.buffer == nil {
-		return []byte{}
+		return nil
 	}
 
 	return b.buffer.Bytes()

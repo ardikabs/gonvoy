@@ -9,7 +9,7 @@ import (
 )
 
 // MustGetProperty is an extended of GetProperty, only panic if value is not in acceptable format.
-func MustGetProperty(c Context, name, defaultVal string) string {
+func MustGetProperty(c RuntimeContext, name, defaultVal string) string {
 	value, err := c.GetProperty(name, defaultVal)
 	if err != nil {
 		panic(err)
@@ -41,11 +41,17 @@ func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	return bodyByte
 }
 
-func checkBodyAccessibility(strict bool, header api.HeaderMap) (read, write bool) {
+func checkBodyAccessibility(strictRead, strictWrite bool, header api.HeaderMap) (read, write bool) {
 	access := isBodyAccessible(header)
 
-	if !strict {
+	if !strictRead {
 		read = access
+	}
+
+	if !strictWrite {
+		read = access
+		write = access
+		return
 	}
 
 	operation, ok := header.Get(HeaderXContentOperation)

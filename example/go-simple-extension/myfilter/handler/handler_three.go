@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ardikabs/gonvoy"
 	"github.com/ardikabs/gonvoy/pkg/errs"
@@ -20,6 +21,26 @@ func (h *HandlerThree) OnRequestHeader(c gonvoy.Context, header http.Header) err
 
 	for k, v := range h.RequestHeaders {
 		c.RequestHeader().Set(k, v)
+	}
+
+	localdata := localdata{}
+	if ok, err := c.LocalCache().Load(LocalKey, &localdata); ok && err == nil {
+		if localdata.Name != "from-handler-one" {
+			return errs.ErrUnauthorized
+		}
+
+		if localdata.Foo.Name != "from-handler-two" {
+			return errs.ErrUnauthorized
+		}
+
+		log.Info("localdata looks good", "data", localdata, "pointer", fmt.Sprintf("%p", localdata.Foo))
+	}
+
+	data := new(globaldata)
+	if ok, err := c.GlobalCache().Load(GLOBAL, &data); ok && err == nil {
+		data.Time3 = time.Now()
+		log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
+		c.GlobalCache().Store(GLOBAL, data)
 	}
 
 	log.Info("handling request", "request", c.RequestHeader().AsMap())
@@ -43,8 +64,8 @@ func (h *HandlerThree) OnResponseHeader(c gonvoy.Context, header http.Header) er
 			gonvoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
 			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
 			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
-
 	}
+
 	return nil
 }
 

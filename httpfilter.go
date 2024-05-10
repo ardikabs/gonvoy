@@ -28,14 +28,14 @@ type HttpFilter interface {
 	// This step could be used by the user to do filter preparation such as but not limited to:
 	// retrieving filter configuration (if provided), register filter handlers, or capture user-generated metrics.
 	//
-	OnBegin(c Context) error
+	OnBegin(c RuntimeContext) error
 
 	// OnComplete is executed filter completion.
 	// If an error is returned, nothing happened.
 	// This step could be used by the user to do filter completion such as but not limited to:
 	// capture user-generated metrics, or resource cleanup.
 	//
-	OnComplete(c Context) error
+	OnComplete(c RuntimeContext) error
 }
 
 func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {

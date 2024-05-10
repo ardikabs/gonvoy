@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ardikabs/gonvoy"
 	"github.com/ardikabs/gonvoy/pkg/errs"
@@ -37,6 +38,32 @@ func (h *HandlerOne) OnRequestHeader(c gonvoy.Context, header http.Header) error
 		}(); err != nil {
 			return err
 		}
+	}
+
+	if c.Request().Header.Get("x-data") == "local" {
+		data := localdata{}
+		data.Name = "from-handler-one"
+		data.Foo = &foo{}
+
+		if ok, _ := c.LocalCache().Load(LocalKey, &data); ok {
+			panic("MUST PANIC IF ANY DATA EXISTS, as the local cache will be cleaned up on every HTTP context")
+		}
+
+		c.LocalCache().Store(LocalKey, data)
+		log.Info("localdata looks good", "data", data, "pointer", fmt.Sprintf("%p", data.Foo))
+
+	}
+
+	if c.Request().Header.Get("x-data") == "global" {
+		data := new(globaldata)
+		data.Name = "from-handler-one"
+
+		if ok, err := c.GlobalCache().Load(GLOBAL, &data); ok && err == nil {
+			data.Time = time.Now()
+			log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
+		}
+
+		c.GlobalCache().Store(GLOBAL, data)
 	}
 
 	if c.Request().Header.Get("x-error") == "panick" {

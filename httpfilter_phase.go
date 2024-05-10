@@ -1,6 +1,8 @@
 package gonvoy
 
-import "github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+import (
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+)
 
 type HttpFilterPhase uint
 
@@ -11,7 +13,7 @@ const (
 	OnResponseBodyPhase
 )
 
-// HttpFilterPhaseController ---
+// HttpFilterPhaseController is an interface that represents the controller for a phase of an HTTP filter.
 type HttpFilterPhaseController interface {
 	Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error)
 }
@@ -30,18 +32,22 @@ type requestHeaderController struct {
 }
 
 func (p *requestHeaderController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
-	if c.IsFilterPhaseEnabled(p.phase) {
-		return ActionContinue, nil
+	if c.IsFilterPhaseDisabled(p.phase) {
+		return ActionSkip, nil
 	}
 
 	c.SetRequestHeader(p.header)
+
+	if err := proc.HandleOnRequestHeader(c); err != nil {
+		return ActionContinue, err
+	}
 
 	if c.IsRequestBodyWriteable() {
 		c.RequestHeader().Del(HeaderXContentOperation)
 		return ActionPause, nil
 	}
 
-	return ActionContinue, proc.HandleOnRequestHeader(c)
+	return ActionContinue, nil
 }
 
 // newResponseHeaderController returns an Http Filter Phase controller for OnResponseHeaderPhase phase
@@ -58,18 +64,22 @@ type responseHeaderController struct {
 }
 
 func (p *responseHeaderController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
-	if c.IsFilterPhaseEnabled(p.phase) {
-		return ActionContinue, nil
+	if c.IsFilterPhaseDisabled(p.phase) {
+		return ActionSkip, nil
 	}
 
 	c.SetResponseHeader(p.header)
+
+	if err := proc.HandleOnResponseHeader(c); err != nil {
+		return ActionContinue, err
+	}
 
 	if c.IsResponseBodyWriteable() {
 		c.RequestHeader().Del(HeaderXContentOperation)
 		return ActionPause, nil
 	}
 
-	return ActionContinue, proc.HandleOnResponseHeader(c)
+	return ActionContinue, nil
 }
 
 // newRequestBodyController returns an Http Filter Phase controller for OnRequestBodyPhase phase
@@ -89,8 +99,8 @@ type requestBodyController struct {
 
 func (p *requestBodyController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
 	isBodyAccessible := c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
-	if c.IsFilterPhaseEnabled(p.phase) || !isBodyAccessible {
-		return ActionContinue, nil
+	if c.IsFilterPhaseDisabled(p.phase) || !isBodyAccessible {
+		return ActionSkip, nil
 	}
 
 	if p.buffer.Len() > 0 {
@@ -121,8 +131,8 @@ type responseBodyController struct {
 
 func (p *responseBodyController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
 	isBodyAccessible := c.IsResponseBodyReadable() || c.IsResponseBodyWriteable()
-	if c.IsFilterPhaseEnabled(p.phase) || !isBodyAccessible {
-		return ActionContinue, nil
+	if c.IsFilterPhaseDisabled(p.phase) || !isBodyAccessible {
+		return ActionSkip, nil
 	}
 
 	if p.buffer.Len() > 0 {

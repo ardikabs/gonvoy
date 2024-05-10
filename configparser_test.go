@@ -72,9 +72,9 @@ func TestConfigParser(t *testing.T) {
 		parentCfg, err := cp.Parse(nil, mockCC)
 		require.NoError(t, err)
 
-		pConfig, ok := parentCfg.(Configuration)
+		pConfig, ok := parentCfg.(*globalConfig)
 		assert.True(t, ok)
-		assert.Nil(t, pConfig.GetFilterConfig())
+		assert.Nil(t, pConfig.filterConfig)
 	})
 
 	t.Run("with config | Parent only", func(t *testing.T) {
@@ -85,10 +85,10 @@ func TestConfigParser(t *testing.T) {
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
 
-		pConfig, ok := parentCfg.(Configuration)
+		pConfig, ok := parentCfg.(*globalConfig)
 		assert.True(t, ok)
 
-		pFilterCfg, ok := (pConfig.GetFilterConfig()).(*dummyConfig)
+		pFilterCfg, ok := (pConfig.filterConfig).(*dummyConfig)
 		assert.True(t, ok)
 		assert.Equal(t, 300, pFilterCfg.B)
 		assert.Equal(t, []string{"parent", "value"}, pFilterCfg.Arrays)
@@ -105,21 +105,21 @@ func TestConfigParser(t *testing.T) {
 		require.Nil(t, err)
 
 		mergedCfg := cp.Merge(parentCfg, childCfg)
-		mConfig, ok := mergedCfg.(Configuration)
+		mConfig, ok := mergedCfg.(*globalConfig)
 		assert.True(t, ok)
 
-		pMergedCfg, ok := (mConfig.GetFilterConfig()).(*dummyConfig)
+		pMergedCfg, ok := (mConfig.filterConfig).(*dummyConfig)
 		assert.True(t, ok)
 		assert.Equal(t, "parent value", pMergedCfg.A)
 		assert.Equal(t, 500, pMergedCfg.B)
 		assert.Equal(t, "child value", pMergedCfg.C)
 		assert.Equal(t, []string{"parent", "value"}, pMergedCfg.Arrays)
 
-		assert.Same(t, parentCfg.(Configuration).Cache(), mConfig.Cache())
-		assert.Same(t, parentCfg.(Configuration).Cache(), childCfg.(Configuration).Cache())
-		assert.Same(t, childCfg.(Configuration).Cache(), mConfig.Cache())
-		assert.NotSame(t, parentCfg.(Configuration).GetFilterConfig(), mConfig.GetFilterConfig())
-		assert.Same(t, childCfg.(Configuration).GetFilterConfig(), mConfig.GetFilterConfig())
+		assert.Same(t, parentCfg.(*globalConfig).globalCache, mConfig.globalCache)
+		assert.Same(t, parentCfg.(*globalConfig).globalCache, childCfg.(*globalConfig).globalCache)
+		assert.Same(t, childCfg.(*globalConfig).globalCache, mConfig.globalCache)
+		assert.NotSame(t, parentCfg.(*globalConfig).filterConfig, mConfig.filterConfig)
+		assert.Same(t, childCfg.(*globalConfig).filterConfig, mConfig.filterConfig)
 	})
 
 	t.Run("with config | Always use Child config", func(t *testing.T) {
@@ -134,28 +134,28 @@ func TestConfigParser(t *testing.T) {
 		require.Nil(t, err)
 
 		mergedCfg := cp.Merge(parentCfg, childCfg)
-		mConfig, ok := mergedCfg.(Configuration)
+		mConfig, ok := mergedCfg.(*globalConfig)
 		assert.True(t, ok)
 
-		pMergedCfg, ok := (mConfig.GetFilterConfig()).(*dummyConfig)
+		pMergedCfg, ok := (mConfig.filterConfig).(*dummyConfig)
 		assert.True(t, ok)
 		assert.Equal(t, "child value", pMergedCfg.A)
 		assert.Equal(t, 500, pMergedCfg.B)
 		assert.Equal(t, "child value", pMergedCfg.C)
 		assert.Empty(t, pMergedCfg.Arrays)
 
-		assert.Same(t, parentCfg.(Configuration).Cache(), mConfig.Cache())
-		assert.Same(t, parentCfg.(Configuration).Cache(), childCfg.(Configuration).Cache())
-		assert.Same(t, childCfg.(Configuration).Cache(), mConfig.Cache())
-		assert.NotSame(t, parentCfg.(Configuration).GetFilterConfig(), mConfig.GetFilterConfig())
-		assert.NotSame(t, parentCfg.(Configuration).GetFilterConfig(), childCfg.(Configuration).GetFilterConfig())
+		assert.Same(t, parentCfg.(*globalConfig).globalCache, mConfig.globalCache)
+		assert.Same(t, parentCfg.(*globalConfig).globalCache, childCfg.(*globalConfig).globalCache)
+		assert.Same(t, childCfg.(*globalConfig).globalCache, mConfig.globalCache)
+		assert.NotSame(t, parentCfg.(*globalConfig).filterConfig, mConfig.filterConfig)
+		assert.NotSame(t, parentCfg.(*globalConfig).filterConfig, childCfg.(*globalConfig).filterConfig)
 		assert.NotSame(t, parentCfg, childCfg)
 		assert.NotSame(t, parentCfg, mConfig)
-		assert.Same(t, childCfg.(Configuration).GetFilterConfig(), mConfig.GetFilterConfig())
+		assert.Same(t, childCfg.(*globalConfig).filterConfig, mConfig.filterConfig)
 		assert.Same(t, childCfg, mConfig)
 
-		pParentCfg := (parentCfg.(Configuration).GetFilterConfig()).(*dummyConfig)
-		pChildCfg := (childCfg.(Configuration).GetFilterConfig()).(*dummyConfig)
+		pParentCfg := (parentCfg.(*globalConfig).filterConfig).(*dummyConfig)
+		pChildCfg := (childCfg.(*globalConfig).filterConfig).(*dummyConfig)
 		assert.NotSame(t, pParentCfg.S, pChildCfg.S)
 		assert.NotSame(t, pParentCfg.S, pMergedCfg.S)
 		assert.Same(t, pChildCfg.S, pMergedCfg.S)

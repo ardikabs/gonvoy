@@ -21,7 +21,7 @@ func TestHttpFilterHandlerManager_SetErrorHandler(t *testing.T) {
 	t.Run("a custom error handler will be used", func(t *testing.T) {
 		mgr := &httpFilterHandlerManager{}
 
-		mgr.SetErrorHandler(DefaultHttpFilterErrorHandler)
+		mgr.SetErrorHandler(DefaultErrorHandler)
 		assert.NotNil(t, mgr.errorHandler)
 	})
 }
@@ -54,12 +54,14 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 				_ = proc.HandleOnRequestHeader(c)
 			}).Return(ActionPause, nil)
 
-			mgr := &httpFilterHandlerManager{}
-			mgr.RegisterHandler(mockHandlerFirst)
-			mgr.RegisterHandler(mockHandlerSecond)
-			mgr.RegisterHandler(mockHandlerThird)
+			mgr := &httpFilterHandlerManager{
+				ctx: mockContext,
+			}
+			mgr.RegisterHTTPFilterHandler(mockHandlerFirst)
+			mgr.RegisterHTTPFilterHandler(mockHandlerSecond)
+			mgr.RegisterHTTPFilterHandler(mockHandlerThird)
 
-			status := mgr.Serve(mockContext, mockCtrl)
+			status := mgr.ServeHTTPFilter(mockCtrl)
 			assert.Equal(t, api.StopAndBuffer, status)
 		})
 
@@ -80,12 +82,14 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 				_ = proc.HandleOnRequestBody(c)
 			}).Return(ActionPause, nil)
 
-			mgr := &httpFilterHandlerManager{}
-			mgr.RegisterHandler(mockHandlerFirst)
-			mgr.RegisterHandler(mockHandlerSecond)
-			mgr.RegisterHandler(mockHandlerThird)
+			mgr := &httpFilterHandlerManager{
+				ctx: mockContext,
+			}
+			mgr.RegisterHTTPFilterHandler(mockHandlerFirst)
+			mgr.RegisterHTTPFilterHandler(mockHandlerSecond)
+			mgr.RegisterHTTPFilterHandler(mockHandlerThird)
 
-			status := mgr.Serve(mockContext, mockCtrl)
+			status := mgr.ServeHTTPFilter(mockCtrl)
 			assert.Equal(t, api.StopAndBuffer, status)
 		})
 
@@ -106,12 +110,14 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 				_ = proc.HandleOnResponseHeader(c)
 			}).Return(ActionPause, nil)
 
-			mgr := &httpFilterHandlerManager{}
-			mgr.RegisterHandler(mockHandlerFirst)
-			mgr.RegisterHandler(mockHandlerSecond)
-			mgr.RegisterHandler(mockHandlerThird)
+			mgr := &httpFilterHandlerManager{
+				ctx: mockContext,
+			}
+			mgr.RegisterHTTPFilterHandler(mockHandlerFirst)
+			mgr.RegisterHTTPFilterHandler(mockHandlerSecond)
+			mgr.RegisterHTTPFilterHandler(mockHandlerThird)
 
-			status := mgr.Serve(mockContext, mockCtrl)
+			status := mgr.ServeHTTPFilter(mockCtrl)
 			assert.Equal(t, api.StopAndBuffer, status)
 		})
 
@@ -132,12 +138,14 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 				_ = proc.HandleOnResponseBody(c)
 			}).Return(ActionPause, nil)
 
-			mgr := &httpFilterHandlerManager{}
-			mgr.RegisterHandler(mockHandlerFirst)
-			mgr.RegisterHandler(mockHandlerSecond)
-			mgr.RegisterHandler(mockHandlerThird)
+			mgr := &httpFilterHandlerManager{
+				ctx: mockContext,
+			}
+			mgr.RegisterHTTPFilterHandler(mockHandlerFirst)
+			mgr.RegisterHTTPFilterHandler(mockHandlerSecond)
+			mgr.RegisterHTTPFilterHandler(mockHandlerThird)
 
-			status := mgr.Serve(mockContext, mockCtrl)
+			status := mgr.ServeHTTPFilter(mockCtrl)
 			assert.Equal(t, api.StopAndBuffer, status)
 		})
 	})
@@ -148,7 +156,7 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 			return nil
 		}
 
-		mgr.RegisterHandler(createBadHandlerFn())
+		mgr.RegisterHTTPFilterHandler(createBadHandlerFn())
 		assert.Nil(t, mgr.entrypoint)
 	})
 
@@ -158,14 +166,14 @@ func TestHttpFilterHandlerManager_RegisterHandler(t *testing.T) {
 		mockHandler := NewMockHttpFilterHandler(t)
 		mockHandler.EXPECT().Disable().Return(true)
 
-		mgr.RegisterHandler(mockHandler)
+		mgr.RegisterHTTPFilterHandler(mockHandler)
 		assert.Nil(t, mgr.entrypoint)
 	})
 }
 
-func TestHttpFilterHandlerManager_Serve(t *testing.T) {
+func TestHttpFilterHandlerManager_ServeHTTPFilter(t *testing.T) {
 
-	t.Run("serve and catch a panic", func(t *testing.T) {
+	t.Run("ServeHTTPFilter and catch a panic", func(t *testing.T) {
 		mockContext := NewMockContext(t)
 		mockContext.EXPECT().Log().Return(logr.Logger{})
 		mockContext.EXPECT().GetProperty(mock.Anything, mock.Anything).Return("", nil)
@@ -183,52 +191,56 @@ func TestHttpFilterHandlerManager_Serve(t *testing.T) {
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Panic("unexpected action")
 
 		mgr := &httpFilterHandlerManager{
-			errorHandler: DefaultHttpFilterErrorHandler,
+			ctx:          mockContext,
+			errorHandler: DefaultErrorHandler,
 			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
 		}
 
-		status := mgr.Serve(mockContext, mockCtrl)
+		status := mgr.ServeHTTPFilter(mockCtrl)
 		assert.Equal(t, api.LocalReply, status)
 	})
 
-	t.Run("serve and got pause action", func(t *testing.T) {
+	t.Run("ServeHTTPFilter and got pause action", func(t *testing.T) {
 		mockContext := NewMockContext(t)
 		mockCtrl := NewMockHttpFilterPhaseController(t)
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Return(ActionPause, nil)
 
 		mgr := &httpFilterHandlerManager{
-			errorHandler: DefaultHttpFilterErrorHandler,
+			ctx:          mockContext,
+			errorHandler: DefaultErrorHandler,
 			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
 		}
 
-		status := mgr.Serve(mockContext, mockCtrl)
+		status := mgr.ServeHTTPFilter(mockCtrl)
 		assert.Equal(t, api.StopAndBuffer, status)
 	})
 
-	t.Run("serve with continue action", func(t *testing.T) {
+	t.Run("ServeHTTPFilter with continue action", func(t *testing.T) {
 		mockContext := NewMockContext(t)
 		mockContext.EXPECT().StatusType().Return(api.Continue)
 		mockCtrl := NewMockHttpFilterPhaseController(t)
 		mockCtrl.EXPECT().Handle(mock.Anything, mock.Anything).Return(ActionContinue, nil)
 
 		mgr := &httpFilterHandlerManager{
-			errorHandler: DefaultHttpFilterErrorHandler,
+			ctx:          mockContext,
+			errorHandler: DefaultErrorHandler,
 			entrypoint:   newHttpFilterProcessor(PassthroughHttpFilterHandler{}),
 		}
 
-		status := mgr.Serve(mockContext, mockCtrl)
+		status := mgr.ServeHTTPFilter(mockCtrl)
 		assert.Equal(t, api.Continue, status)
 	})
 
-	t.Run("serve with no handler being registered", func(t *testing.T) {
+	t.Run("ServeHTTPFilter with no handler being registered", func(t *testing.T) {
 		mockContext := NewMockContext(t)
 		mockCtrl := NewMockHttpFilterPhaseController(t)
 
 		mgr := &httpFilterHandlerManager{
-			errorHandler: DefaultHttpFilterErrorHandler,
+			ctx:          mockContext,
+			errorHandler: DefaultErrorHandler,
 		}
 
-		status := mgr.Serve(mockContext, mockCtrl)
+		status := mgr.ServeHTTPFilter(mockCtrl)
 		assert.Equal(t, api.Continue, status)
 	})
 }

@@ -9,25 +9,11 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-type Configuration interface {
-	// GetFilterConfig returns the filter configuration associated with the route.
-	// It defaults to the parent filter configuration if no route filter configuration was found.
-	// Otherwise, once typed_per_filter_config present in the route then it will return the child filter configuration.
-	// Whether these filter configurations can be merged depends on the filter configuration struct tags.
-	//
-	GetFilterConfig() interface{}
-
-	// Cache provides the global cache, that persists throughout Envoy's lifespan.
-	// Use this cache when variable initialization is expensive or requires a statefulness.
-	//
-	Cache() Cache
-}
-
 type globalConfig struct {
-	filterCfg interface{}
+	filterConfig interface{}
 
-	callbacks  api.ConfigCallbacks
-	localCache Cache
+	callbacks   api.ConfigCallbacks
+	globalCache Cache
 
 	metricPrefix string
 	gaugeMap     map[string]api.GaugeMetric
@@ -41,7 +27,7 @@ type globalConfig struct {
 func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfig {
 	gc := &globalConfig{
 		callbacks:                cc,
-		localCache:               NewCache(),
+		globalCache:              newCache(),
 		gaugeMap:                 make(map[string]api.GaugeMetric),
 		counterMap:               make(map[string]api.CounterMetric),
 		histogramMap:             make(map[string]api.HistogramMetric),
@@ -52,14 +38,6 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 
 	return gc
 
-}
-
-func (c *globalConfig) GetFilterConfig() interface{} {
-	return c.filterCfg
-}
-
-func (c *globalConfig) Cache() Cache {
-	return c.localCache
 }
 
 func (c *globalConfig) metricCounter(name string) api.CounterMetric {
@@ -101,19 +79,19 @@ type Cache interface {
 	Load(key, receiver any) (ok bool, err error)
 }
 
-type localcache struct {
+type inmemoryCache struct {
 	dataMap sync.Map
 }
 
-func NewCache() *localcache {
-	return &localcache{}
+func newCache() *inmemoryCache {
+	return &inmemoryCache{}
 }
 
-func (c *localcache) Store(key, value any) {
+func (c *inmemoryCache) Store(key, value any) {
 	c.dataMap.Store(key, value)
 }
 
-func (c *localcache) Load(key, receiver any) (bool, error) {
+func (c *inmemoryCache) Load(key, receiver any) (bool, error) {
 	if receiver == nil {
 		return false, errors.New("receiver should not be nil")
 	}

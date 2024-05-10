@@ -27,7 +27,7 @@ var (
 
 type ErrorHandler func(Context, error) api.StatusType
 
-func DefaultHttpFilterErrorHandler(ctx Context, err error) api.StatusType {
+func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 	unwrapErr := errs.Unwrap(err)
 	if unwrapErr == nil {
 		return api.Continue

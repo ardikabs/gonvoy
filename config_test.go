@@ -29,7 +29,7 @@ func TestConfiguration_Metrics(t *testing.T) {
 }
 
 func TestCache_StoreAndLoad(t *testing.T) {
-	lc := NewCache()
+	lc := newCache()
 
 	source := bytes.NewReader([]byte("testing"))
 	lc.Store("foo", source)

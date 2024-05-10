@@ -66,45 +66,45 @@ func (_c *MockContext_Committed_Call) RunAndReturn(run func() bool) *MockContext
 	return _c
 }
 
-// Configuration provides a mock function with given fields:
-func (_m *MockContext) Configuration() Configuration {
+// GetFilterConfig provides a mock function with given fields:
+func (_m *MockContext) GetFilterConfig() interface{} {
 	ret := _m.Called()
 
-	var r0 Configuration
-	if rf, ok := ret.Get(0).(func() Configuration); ok {
+	var r0 interface{}
+	if rf, ok := ret.Get(0).(func() interface{}); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(Configuration)
+			r0 = ret.Get(0).(interface{})
 		}
 	}
 
 	return r0
 }
 
-// MockContext_Configuration_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Configuration'
-type MockContext_Configuration_Call struct {
+// MockContext_GetFilterConfig_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetFilterConfig'
+type MockContext_GetFilterConfig_Call struct {
 	*mock.Call
 }
 
-// Configuration is a helper method to define mock.On call
-func (_e *MockContext_Expecter) Configuration() *MockContext_Configuration_Call {
-	return &MockContext_Configuration_Call{Call: _e.mock.On("Configuration")}
+// GetFilterConfig is a helper method to define mock.On call
+func (_e *MockContext_Expecter) GetFilterConfig() *MockContext_GetFilterConfig_Call {
+	return &MockContext_GetFilterConfig_Call{Call: _e.mock.On("GetFilterConfig")}
 }
 
-func (_c *MockContext_Configuration_Call) Run(run func()) *MockContext_Configuration_Call {
+func (_c *MockContext_GetFilterConfig_Call) Run(run func()) *MockContext_GetFilterConfig_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run()
 	})
 	return _c
 }
 
-func (_c *MockContext_Configuration_Call) Return(_a0 Configuration) *MockContext_Configuration_Call {
+func (_c *MockContext_GetFilterConfig_Call) Return(_a0 interface{}) *MockContext_GetFilterConfig_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Configuration_Call) RunAndReturn(run func() Configuration) *MockContext_Configuration_Call {
+func (_c *MockContext_GetFilterConfig_Call) RunAndReturn(run func() interface{}) *MockContext_GetFilterConfig_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -158,6 +158,49 @@ func (_c *MockContext_GetProperty_Call) Return(_a0 string, _a1 error) *MockConte
 }
 
 func (_c *MockContext_GetProperty_Call) RunAndReturn(run func(string, string) (string, error)) *MockContext_GetProperty_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GlobalCache provides a mock function with given fields:
+func (_m *MockContext) GlobalCache() Cache {
+	ret := _m.Called()
+
+	var r0 Cache
+	if rf, ok := ret.Get(0).(func() Cache); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(Cache)
+		}
+	}
+
+	return r0
+}
+
+// MockContext_GlobalCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GlobalCache'
+type MockContext_GlobalCache_Call struct {
+	*mock.Call
+}
+
+// GlobalCache is a helper method to define mock.On call
+func (_e *MockContext_Expecter) GlobalCache() *MockContext_GlobalCache_Call {
+	return &MockContext_GlobalCache_Call{Call: _e.mock.On("GlobalCache")}
+}
+
+func (_c *MockContext_GlobalCache_Call) Run(run func()) *MockContext_GlobalCache_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockContext_GlobalCache_Call) Return(_a0 Cache) *MockContext_GlobalCache_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_GlobalCache_Call) RunAndReturn(run func() Cache) *MockContext_GlobalCache_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -427,55 +470,45 @@ func (_c *MockContext_JSON_Call) RunAndReturn(run func(int, []byte, map[string][
 	return _c
 }
 
-// Load provides a mock function with given fields: key, receiver
-func (_m *MockContext) Load(key interface{}, receiver interface{}) (bool, error) {
-	ret := _m.Called(key, receiver)
+// LocalCache provides a mock function with given fields:
+func (_m *MockContext) LocalCache() Cache {
+	ret := _m.Called()
 
-	var r0 bool
-	var r1 error
-	if rf, ok := ret.Get(0).(func(interface{}, interface{}) (bool, error)); ok {
-		return rf(key, receiver)
-	}
-	if rf, ok := ret.Get(0).(func(interface{}, interface{}) bool); ok {
-		r0 = rf(key, receiver)
+	var r0 Cache
+	if rf, ok := ret.Get(0).(func() Cache); ok {
+		r0 = rf()
 	} else {
-		r0 = ret.Get(0).(bool)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(Cache)
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func(interface{}, interface{}) error); ok {
-		r1 = rf(key, receiver)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
-// MockContext_Load_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Load'
-type MockContext_Load_Call struct {
+// MockContext_LocalCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LocalCache'
+type MockContext_LocalCache_Call struct {
 	*mock.Call
 }
 
-// Load is a helper method to define mock.On call
-//   - key interface{}
-//   - receiver interface{}
-func (_e *MockContext_Expecter) Load(key interface{}, receiver interface{}) *MockContext_Load_Call {
-	return &MockContext_Load_Call{Call: _e.mock.On("Load", key, receiver)}
+// LocalCache is a helper method to define mock.On call
+func (_e *MockContext_Expecter) LocalCache() *MockContext_LocalCache_Call {
+	return &MockContext_LocalCache_Call{Call: _e.mock.On("LocalCache")}
 }
 
-func (_c *MockContext_Load_Call) Run(run func(key interface{}, receiver interface{})) *MockContext_Load_Call {
+func (_c *MockContext_LocalCache_Call) Run(run func()) *MockContext_LocalCache_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(interface{}), args[1].(interface{}))
+		run()
 	})
 	return _c
 }
 
-func (_c *MockContext_Load_Call) Return(ok bool, err error) *MockContext_Load_Call {
-	_c.Call.Return(ok, err)
+func (_c *MockContext_LocalCache_Call) Return(_a0 Cache) *MockContext_LocalCache_Call {
+	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_Load_Call) RunAndReturn(run func(interface{}, interface{}) (bool, error)) *MockContext_Load_Call {
+func (_c *MockContext_LocalCache_Call) RunAndReturn(run func() Cache) *MockContext_LocalCache_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -564,35 +597,35 @@ func (_c *MockContext_Metrics_Call) RunAndReturn(run func() Metrics) *MockContex
 	return _c
 }
 
-// RegisterFilterHandler provides a mock function with given fields: _a0
-func (_m *MockContext) RegisterFilterHandler(_a0 HttpFilterHandler) {
+// RegisterHTTPFilterHandler provides a mock function with given fields: _a0
+func (_m *MockContext) RegisterHTTPFilterHandler(_a0 HttpFilterHandler) {
 	_m.Called(_a0)
 }
 
-// MockContext_RegisterFilterHandler_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RegisterFilterHandler'
-type MockContext_RegisterFilterHandler_Call struct {
+// MockContext_RegisterHTTPFilterHandler_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RegisterHTTPFilterHandler'
+type MockContext_RegisterHTTPFilterHandler_Call struct {
 	*mock.Call
 }
 
-// RegisterFilterHandler is a helper method to define mock.On call
+// RegisterHTTPFilterHandler is a helper method to define mock.On call
 //   - _a0 HttpFilterHandler
-func (_e *MockContext_Expecter) RegisterFilterHandler(_a0 interface{}) *MockContext_RegisterFilterHandler_Call {
-	return &MockContext_RegisterFilterHandler_Call{Call: _e.mock.On("RegisterFilterHandler", _a0)}
+func (_e *MockContext_Expecter) RegisterHTTPFilterHandler(_a0 interface{}) *MockContext_RegisterHTTPFilterHandler_Call {
+	return &MockContext_RegisterHTTPFilterHandler_Call{Call: _e.mock.On("RegisterHTTPFilterHandler", _a0)}
 }
 
-func (_c *MockContext_RegisterFilterHandler_Call) Run(run func(_a0 HttpFilterHandler)) *MockContext_RegisterFilterHandler_Call {
+func (_c *MockContext_RegisterHTTPFilterHandler_Call) Run(run func(_a0 HttpFilterHandler)) *MockContext_RegisterHTTPFilterHandler_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(HttpFilterHandler))
 	})
 	return _c
 }
 
-func (_c *MockContext_RegisterFilterHandler_Call) Return() *MockContext_RegisterFilterHandler_Call {
+func (_c *MockContext_RegisterHTTPFilterHandler_Call) Return() *MockContext_RegisterHTTPFilterHandler_Call {
 	_c.Call.Return()
 	return _c
 }
 
-func (_c *MockContext_RegisterFilterHandler_Call) RunAndReturn(run func(HttpFilterHandler)) *MockContext_RegisterFilterHandler_Call {
+func (_c *MockContext_RegisterHTTPFilterHandler_Call) RunAndReturn(run func(HttpFilterHandler)) *MockContext_RegisterHTTPFilterHandler_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -855,8 +888,8 @@ func (_c *MockContext_ResponseHeader_Call) RunAndReturn(run func() Header) *Mock
 	return _c
 }
 
-// ServeFilter provides a mock function with given fields: ctrl
-func (_m *MockContext) ServeFilter(ctrl HttpFilterPhaseController) api.StatusType {
+// ServeHTTPFilter provides a mock function with given fields: ctrl
+func (_m *MockContext) ServeHTTPFilter(ctrl HttpFilterPhaseController) api.StatusType {
 	ret := _m.Called(ctrl)
 
 	var r0 api.StatusType
@@ -869,30 +902,30 @@ func (_m *MockContext) ServeFilter(ctrl HttpFilterPhaseController) api.StatusTyp
 	return r0
 }
 
-// MockContext_ServeFilter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ServeFilter'
-type MockContext_ServeFilter_Call struct {
+// MockContext_ServeHTTPFilter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ServeHTTPFilter'
+type MockContext_ServeHTTPFilter_Call struct {
 	*mock.Call
 }
 
-// ServeFilter is a helper method to define mock.On call
+// ServeHTTPFilter is a helper method to define mock.On call
 //   - ctrl HttpFilterPhaseController
-func (_e *MockContext_Expecter) ServeFilter(ctrl interface{}) *MockContext_ServeFilter_Call {
-	return &MockContext_ServeFilter_Call{Call: _e.mock.On("ServeFilter", ctrl)}
+func (_e *MockContext_Expecter) ServeHTTPFilter(ctrl interface{}) *MockContext_ServeHTTPFilter_Call {
+	return &MockContext_ServeHTTPFilter_Call{Call: _e.mock.On("ServeHTTPFilter", ctrl)}
 }
 
-func (_c *MockContext_ServeFilter_Call) Run(run func(ctrl HttpFilterPhaseController)) *MockContext_ServeFilter_Call {
+func (_c *MockContext_ServeHTTPFilter_Call) Run(run func(ctrl HttpFilterPhaseController)) *MockContext_ServeHTTPFilter_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(HttpFilterPhaseController))
 	})
 	return _c
 }
 
-func (_c *MockContext_ServeFilter_Call) Return(_a0 api.StatusType) *MockContext_ServeFilter_Call {
+func (_c *MockContext_ServeHTTPFilter_Call) Return(_a0 api.StatusType) *MockContext_ServeHTTPFilter_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_ServeFilter_Call) RunAndReturn(run func(HttpFilterPhaseController) api.StatusType) *MockContext_ServeFilter_Call {
+func (_c *MockContext_ServeHTTPFilter_Call) RunAndReturn(run func(HttpFilterPhaseController) api.StatusType) *MockContext_ServeHTTPFilter_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1099,40 +1132,6 @@ func (_c *MockContext_StatusType_Call) Return(_a0 api.StatusType) *MockContext_S
 }
 
 func (_c *MockContext_StatusType_Call) RunAndReturn(run func() api.StatusType) *MockContext_StatusType_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// Store provides a mock function with given fields: key, value
-func (_m *MockContext) Store(key interface{}, value interface{}) {
-	_m.Called(key, value)
-}
-
-// MockContext_Store_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Store'
-type MockContext_Store_Call struct {
-	*mock.Call
-}
-
-// Store is a helper method to define mock.On call
-//   - key interface{}
-//   - value interface{}
-func (_e *MockContext_Expecter) Store(key interface{}, value interface{}) *MockContext_Store_Call {
-	return &MockContext_Store_Call{Call: _e.mock.On("Store", key, value)}
-}
-
-func (_c *MockContext_Store_Call) Run(run func(key interface{}, value interface{})) *MockContext_Store_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(interface{}), args[1].(interface{}))
-	})
-	return _c
-}
-
-func (_c *MockContext_Store_Call) Return() *MockContext_Store_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockContext_Store_Call) RunAndReturn(run func(interface{}, interface{})) *MockContext_Store_Call {
 	_c.Call.Return(run)
 	return _c
 }

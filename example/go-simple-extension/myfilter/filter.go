@@ -25,16 +25,16 @@ func (f Filter) Name() string {
 	return "myfilter"
 }
 
-func (f Filter) OnStart(c gonvoy.Context) error {
-	fcfg := c.Configuration().GetFilterConfig()
+func (f Filter) OnBegin(c gonvoy.Context) error {
+	fcfg := c.GetFilterConfig()
 	cfg, ok := fcfg.(*Config)
 	if !ok {
 		return fmt.Errorf("unexpected configuration type %T, expecting %T", fcfg, cfg)
 	}
 
-	c.RegisterFilterHandler(&handler.HandlerOne{})
-	c.RegisterFilterHandler(&handler.HandlerTwo{})
-	c.RegisterFilterHandler(&handler.HandlerThree{RequestHeaders: cfg.RequestHeaders})
+	c.RegisterHTTPFilterHandler(&handler.HandlerOne{})
+	c.RegisterHTTPFilterHandler(&handler.HandlerTwo{})
+	c.RegisterHTTPFilterHandler(&handler.HandlerThree{RequestHeaders: cfg.RequestHeaders})
 	return nil
 }
 

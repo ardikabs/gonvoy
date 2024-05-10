@@ -18,7 +18,7 @@ func (f Filter) Name() string {
 	return "stats"
 }
 
-func (f Filter) OnStart(c gonvoy.Context) error {
+func (f Filter) OnBegin(c gonvoy.Context) error {
 	return nil
 }
 

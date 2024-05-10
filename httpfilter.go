@@ -19,13 +19,27 @@ func RunHttpFilter(filter HttpFilter, options ConfigOptions) {
 }
 
 type HttpFilter interface {
+	// Name used as the filter name on Envoy.
+	//
 	Name() string
-	OnStart(c Context) error
+
+	// OnBegin is executed during filter startup.
+	// If an error is returned, the filter will be ignored.
+	// This step could be used by the user to do filter preparation such as but not limited to:
+	// retrieving filter configuration (if provided), register filter handlers, or capture user-generated metrics.
+	//
+	OnBegin(c Context) error
+
+	// OnComplete is executed filter completion.
+	// If an error is returned, nothing happened.
+	// This step could be used by the user to do filter completion such as but not limited to:
+	// capture user-generated metrics, or resource cleanup.
+	//
 	OnComplete(c Context) error
 }
 
-func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
-	if util.IsNil(httpFilter) {
+func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
+	if util.IsNil(filter) {
 		panic("httpFilterFactory: httpFilter shouldn't be a nil")
 	}
 
@@ -35,29 +49,21 @@ func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 			panic(fmt.Sprintf("httpFilterFactory: unexpected config type '%T', expecting '%T'", cfg, config))
 		}
 
-		return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
-			ctx, err := newContext(callbacks, config)
+		return func(cb api.FilterCallbackHandler) api.StreamFilter {
+			log := newLogger(cb)
+			opts := []ContextOption{
+				WithContextConfig(config),
+				WithContextLogger(log),
+				WithHttpFilter(filter),
+			}
+
+			ctx, err := newContext(cb, opts...)
 			if err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): filter context initialization failed; %v; filter ignored...", httpFilter.Name(), err))
+				log.Error(err, "initialization failed, filter ignored ...")
 				return NoOpHttpFilter
 			}
 
-			newHttpFilterIface, err := util.NewFrom(httpFilter)
-			if err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): filter instance initialization failed; %v; filter ignored...", httpFilter.Name(), err))
-				return NoOpHttpFilter
-			}
-
-			newHttpFilter := newHttpFilterIface.(HttpFilter)
-			if err := newHttpFilter.OnStart(ctx); err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): caught an error during OnStart; %v; filter ignored...", httpFilter.Name(), err))
-				return NoOpHttpFilter
-			}
-
-			return &httpFilterInstance{
-				ctx:        ctx,
-				httpFilter: newHttpFilter,
-			}
+			return &httpFilterInstance{ctx: ctx}
 		}
 	}
 }
@@ -67,37 +73,33 @@ var _ api.StreamFilter = &httpFilterInstance{}
 type httpFilterInstance struct {
 	api.PassThroughStreamFilter
 
-	ctx        Context
-	httpFilter HttpFilter
+	ctx Context
 }
 
 func (f *httpFilterInstance) OnLog() {
-	if err := f.httpFilter.OnComplete(f.ctx); err != nil {
-		f.ctx.Log().Error(err, "httpFilter(%s): caught an error during OnComplete; %v", f.httpFilter.Name(), err)
-	}
+	runHttpFilterOnComplete(f.ctx)
 }
 
 func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	ctrl := newRequestHeaderController(header)
-	return f.ctx.ServeFilter(ctrl)
+	return f.ctx.ServeHTTPFilter(ctrl)
 }
 
 func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	ctrl := newRequestBodyController(buffer, endStream)
-	return f.ctx.ServeFilter(ctrl)
+	return f.ctx.ServeHTTPFilter(ctrl)
 }
 
 func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
 	ctrl := newResponseHeaderController(header)
-	return f.ctx.ServeFilter(ctrl)
+	return f.ctx.ServeHTTPFilter(ctrl)
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	ctrl := newResponseBodyController(buffer, endStream)
-	return f.ctx.ServeFilter(ctrl)
+	return f.ctx.ServeHTTPFilter(ctrl)
 }
 
 func (f *httpFilterInstance) OnDestroy(reason api.DestroyReason) {
 	f.ctx = nil
-	f.httpFilter = nil
 }

@@ -74,12 +74,12 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 
 	if p.rootGlobalConfig == nil {
 		p.rootGlobalConfig = newGlobalConfig(cc, p.options)
-		p.rootGlobalConfig.filterCfg = filterCfg
+		p.rootGlobalConfig.filterConfig = filterCfg
 		return p.rootGlobalConfig, nil
 	}
 
 	copyGlobalConfig := *p.rootGlobalConfig
-	copyGlobalConfig.filterCfg = filterCfg
+	copyGlobalConfig.filterConfig = filterCfg
 	return &copyGlobalConfig, nil
 }
 
@@ -87,11 +87,11 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 	origParentGlobalConfig := parent.(*globalConfig)
 	origChildGlobalConfig := child.(*globalConfig)
 
-	if util.IsNil(origParentGlobalConfig.filterCfg) {
+	if util.IsNil(origParentGlobalConfig.filterConfig) {
 		return parent
 	}
 
-	mergedFilterCfg, err := p.mergeStruct(origParentGlobalConfig.filterCfg, origChildGlobalConfig.filterCfg)
+	mergedFilterCfg, err := p.mergeStruct(origParentGlobalConfig.filterConfig, origChildGlobalConfig.filterConfig)
 	if err != nil {
 		if p.options.IgnoreMergeError {
 			return origParentGlobalConfig
@@ -100,7 +100,7 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 		panic(err)
 	}
 
-	origChildGlobalConfig.filterCfg = mergedFilterCfg
+	origChildGlobalConfig.filterConfig = mergedFilterCfg
 	return origChildGlobalConfig
 }
 

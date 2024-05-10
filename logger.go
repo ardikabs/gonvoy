@@ -47,7 +47,7 @@ type logSink struct {
 	depth int
 }
 
-func NewLogger(callback api.FilterCallbacks) logr.Logger {
+func newLogger(callback api.FilterCallbacks) logr.Logger {
 	out := &logWriter{buf: &bytes.Buffer{}}
 
 	writer := zerolog.ConsoleWriter{

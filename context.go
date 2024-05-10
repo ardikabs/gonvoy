@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"runtime"
-	"sync"
 
 	"github.com/ardikabs/gonvoy/pkg/types"
 	"github.com/ardikabs/gonvoy/pkg/util"
@@ -16,15 +15,6 @@ import (
 )
 
 type Context interface {
-	// SetErrorHandler sets a custom error handler for an Http Filter
-	//
-	SetErrorHandler(ErrorHandler)
-
-	// RegisterFilterHandler adds an Http Filter Handler to the chain,
-	// which should be run during filter startup (HttpFilter.OnStart).
-	//
-	RegisterFilterHandler(HttpFilterHandler)
-
 	// RequestHeader provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
 	// It returns panic when the filter has not yet traversed the HTTP request.
@@ -83,27 +73,21 @@ type Context interface {
 	//
 	SetResponseBody(api.BufferInstance)
 
-	// Store allows you to save a value of any type under a key of any type.
-	// It is designed for sharing data within a Context.
-	// If you wish to share data throughout the lifetime of Envoy,
-	// please refer to the Configuration.Cache.
+	// IsRequestBodyReadable specifies whether an HTTP Request body is readable or not.
 	//
-	// Please be cautious! The Store function overwrites any existing data.
-	Store(key, value any)
+	IsRequestBodyReadable() bool
 
-	// Load retrieves a value associated with a specific key and assigns it to the receiver.
-	// It is designed for sharing data within a Context.
-	// If you wish to share data throughout Envoy's lifespan, please refer to the Configuration.Cache.
+	// IsRequestBodyWriteable specifies whether an HTTP Request body is writeable or not.
 	//
-	// It returns true if a compatible value is successfully loaded,
-	// and false if no value is found or an error occurs during the process.
-	Load(key, receiver any) (ok bool, err error)
+	IsRequestBodyWriteable() bool
 
-	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` and/or `golang` component.
-	// Additionally, only debug, info, and error log levels are being taken into account.
-	// e.g., Envoy flag `--component-log-level http:{debug,info,warn,error,critical},golang:{debug,info,warn,error,critical}`
+	// IsResponseBodyReadable specifies whether an HTTP Response body is readable or not.
 	//
-	Log() logr.Logger
+	IsResponseBodyReadable() bool
+
+	// IsResponseBodyWriteable specifies whether an HTTP Response body is writeable or not.
+	//
+	IsResponseBodyWriteable() bool
 
 	// JSON sends a JSON response with a status code.
 	//
@@ -124,58 +108,50 @@ type Context interface {
 	//
 	Committed() bool
 
+	// GetProperty is a helper function to fetch Envoy attributes based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
+	// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
+	//
+	GetProperty(name, defaultVal string) (string, error)
+
 	// StreamInfo offers an interface for retrieving comprehensive details about the incoming HTTP traffic, including
 	// information such as the route name, filter chain name, dynamic metadata, and more.
 	// It provides direct access to low-level Envoy information, so it's important to use it with a clear understanding of your intent.
 	//
 	StreamInfo() api.StreamInfo
 
+	// GetFilterConfig returns the filter configuration associated with the route.
+	// It defaults to the parent filter configuration if no route filter configuration was found.
+	// Otherwise, once typed_per_filter_config present in the route then it will return the child filter configuration.
+	// Whether these filter configurations can be merged depends on the filter configuration struct tags.
+	//
+	GetFilterConfig() interface{}
+
+	// GlobalCache provides a global cache, that persists throughout Envoy's lifespan.
+	// Use this cache when variable initialization is expensive or requires a statefulness.
+	//
+	GlobalCache() Cache
+
+	// LocalCache provides a cache associated to a HTTP Context.
+	// It is designed for sharing or moving data within an HTTP Context.
+	// If you wish to share data throughout Envoy's lifespan, use GlobalCache instead.
+	//
+	LocalCache() Cache
+
+	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` and/or `golang` component.
+	// Additionally, only debug, info, and error log levels are being taken into account.
+	// e.g., Envoy flag `--component-log-level http:{debug,info,warn,error,critical},golang:{debug,info,warn,error,critical}`
+	//
+	Log() logr.Logger
+
 	// Metrics provides an interface for user to create their custom metrics.
 	//
 	Metrics() Metrics
 
-	// GetProperty is a helper function to fetch Envoy attributes based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
-	// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
-	//
-	GetProperty(name, defaultVal string) (string, error)
-
-	// Configuration provides access to the filter configuration,
-	// while also enabling users to persist and share data throughout Envoy's lifespan, see Configuration.Cache.
-	//
-	Configuration() Configuration
-
-	//
-	// --- Intended for Internal use ---
-	//
-
-	// IsRequestBodyReadable specifies whether an HTTP Request body is readable or not.
-	//
-	IsRequestBodyReadable() bool
-
-	// IsRequestBodyWriteable specifies whether an HTTP Request body is writeable or not.
-	//
-	IsRequestBodyWriteable() bool
-
-	// IsResponseBodyReadable specifies whether an HTTP Response body is readable or not.
-	//
-	IsResponseBodyReadable() bool
-
-	// IsResponseBodyWriteable specifies whether an HTTP Response body is writeable or not.
-	//
-	IsResponseBodyWriteable() bool
-
-	// IsFilterPhaseEnabled specifies whether given http filter phase is enabled or not
-	//
-	IsFilterPhaseEnabled(HttpFilterPhase) bool
-
-	// ServeFilter serves the Http Filter for the specified phase.
-	// This method is designed for internal use as it is directly invoked within each filter instance's phase.
-	//
-	ServeFilter(ctrl HttpFilterPhaseController) api.StatusType
+	Manager
 }
 
 type context struct {
-	config Configuration
+	callback api.FilterCallbacks
 
 	reqHeaderMap       api.RequestHeaderMap
 	respHeaderMap      api.ResponseHeaderMap
@@ -188,93 +164,101 @@ type context struct {
 	isResponseBodyWriteable bool
 	isResponseBodyReadable  bool
 
-	callback   api.FilterCallbacks
-	statusType api.StatusType
-	metrics    Metrics
-
 	httpReq  *http.Request
 	httpResp *http.Response
 
-	stash     sync.Map
-	logger    logr.Logger
-	committed bool
+	filterConfig interface{}
+	globalCache  Cache
+	localCache   Cache
+	metrics      Metrics
+	logger       logr.Logger
+	statusType   api.StatusType
+	committed    bool
 
-	httpFilterManager       HttpFilterHandlerManager
-	disabledHttpFilterPhase []HttpFilterPhase
+	manager Manager
+	filter  HttpFilter
 }
 
-func newContext(cb api.FilterCallbacks, cfg *globalConfig) (Context, error) {
+type ContextOption func(c *context) error
+
+func runHttpFilterOnComplete(c Context) {
+	ctx, ok := c.(*context)
+	if !ok {
+		return
+	}
+
+	if ctx.filter == nil {
+		return
+	}
+
+	if err := ctx.filter.OnComplete(c); err != nil {
+		c.Log().Error(err, "filter completion failed")
+	}
+}
+
+func WithHttpFilter(filter HttpFilter) ContextOption {
+	return func(c *context) error {
+		iface, err := util.NewFrom(filter)
+		if err != nil {
+			return fmt.Errorf("filter creation failed, %w", err)
+		}
+
+		newFilter := iface.(HttpFilter)
+		if err := newFilter.OnBegin(c); err != nil {
+			return fmt.Errorf("filter startup failed, %w", err)
+		}
+
+		c.filter = newFilter
+		return nil
+	}
+}
+
+func WithContextConfig(cfg *globalConfig) ContextOption {
+	return func(c *context) error {
+		type validator interface {
+			Validate() error
+		}
+
+		if validate, ok := cfg.filterConfig.(validator); ok {
+			if err := validate.Validate(); err != nil {
+				return fmt.Errorf("invalid filter config; %w", err)
+			}
+		}
+
+		c.filterConfig = cfg.filterConfig
+		c.manager = newManager(c, cfg)
+
+		c.globalCache = cfg.globalCache
+		c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
+		c.isStrictBodyAccess = cfg.strictBodyAccess
+		return nil
+	}
+}
+
+func WithContextLogger(logger logr.Logger) ContextOption {
+	return func(c *context) error {
+		c.logger = logger
+		return nil
+	}
+}
+
+func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
 
 	c := &context{
-		callback: cb,
-		logger:   NewLogger(cb),
-		httpFilterManager: &httpFilterHandlerManager{
-			errorHandler: DefaultHttpFilterErrorHandler,
-		},
+		callback:   cb,
+		localCache: newCache(),
 	}
 
-	if err := c.setupConfig(cfg); err != nil {
-		return nil, err
-	}
-
-	return c, nil
-}
-
-func (c *context) setupConfig(cfg *globalConfig) error {
-	if cfg == nil {
-		return errors.New("global configuration can not be nil")
-	}
-
-	type validator interface {
-		Validate() error
-	}
-
-	if validate, ok := cfg.GetFilterConfig().(validator); ok {
-		if err := validate.Validate(); err != nil {
-			return fmt.Errorf("invalid filter config; %w", err)
+	for _, opt := range opts {
+		if err := opt(c); err != nil {
+			return nil, err
 		}
 	}
 
-	c.config = cfg
-	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
-	c.isStrictBodyAccess = cfg.strictBodyAccess
-	c.disabledHttpFilterPhase = cfg.disabledHttpFilterPhases
-	return nil
-}
-
-func (c *context) IsFilterPhaseEnabled(p HttpFilterPhase) bool {
-	return util.In(p, c.disabledHttpFilterPhase...)
-}
-
-func (c *context) SetErrorHandler(e ErrorHandler) {
-	c.httpFilterManager.SetErrorHandler(e)
-}
-
-func (c *context) RegisterFilterHandler(handler HttpFilterHandler) {
-	c.httpFilterManager.RegisterHandler(handler)
-}
-
-func (c *context) ServeFilter(ctrl HttpFilterPhaseController) api.StatusType {
-	return c.httpFilterManager.Serve(c, ctrl)
-}
-
-func (c *context) Configuration() Configuration {
-	return c.config
-}
-
-func (c *context) Metrics() Metrics {
-	return c.metrics
-}
-
-func (c *context) StreamInfo() api.StreamInfo {
-	return c.callback.StreamInfo()
-}
-
-func (c *context) Log() logr.Logger {
-	return c.logger
+	return c, nil
 }
 
 func (c *context) JSON(code int, body []byte, headers map[string][]string, opts ...ReplyOption) error {
@@ -480,27 +464,6 @@ func (c *context) IsResponseBodyWriteable() bool {
 	return c.isResponseBodyWriteable
 }
 
-func (c *context) Store(key, value any) {
-	c.stash.Store(key, value)
-}
-
-func (c *context) Load(key, receiver any) (bool, error) {
-	if receiver == nil {
-		return false, errors.New("context: receiver should not be nil")
-	}
-
-	v, ok := c.stash.Load(key)
-	if !ok {
-		return false, nil
-	}
-
-	if !util.CastTo(receiver, v) {
-		return false, errors.New("context: receiver and value has an incompatible type")
-	}
-
-	return true, nil
-}
-
 func (c *context) GetProperty(name, defaultVal string) (string, error) {
 	value, err := c.callback.GetProperty(name)
 	if err != nil {
@@ -516,4 +479,44 @@ func (c *context) GetProperty(name, defaultVal string) (string, error) {
 	}
 
 	return value, nil
+}
+
+func (c *context) StreamInfo() api.StreamInfo {
+	return c.callback.StreamInfo()
+}
+
+func (c *context) GetFilterConfig() interface{} {
+	return c.filterConfig
+}
+
+func (c *context) GlobalCache() Cache {
+	return c.globalCache
+}
+
+func (c *context) LocalCache() Cache {
+	return c.localCache
+}
+
+func (c *context) Log() logr.Logger {
+	return c.logger
+}
+
+func (c *context) Metrics() Metrics {
+	return c.metrics
+}
+
+func (c *context) IsFilterPhaseEnabled(phase HttpFilterPhase) bool {
+	return c.manager.IsFilterPhaseEnabled(phase)
+}
+
+func (c *context) SetErrorHandler(e ErrorHandler) {
+	c.manager.SetErrorHandler(e)
+}
+
+func (c *context) RegisterHTTPFilterHandler(handler HttpFilterHandler) {
+	c.manager.RegisterHTTPFilterHandler(handler)
+}
+
+func (c *context) ServeHTTPFilter(ctrl HttpFilterPhaseController) api.StatusType {
+	return c.manager.ServeHTTPFilter(ctrl)
 }

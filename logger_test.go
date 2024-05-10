@@ -32,7 +32,7 @@ func TestLogger(t *testing.T) {
 		return strings.Contains(msg, logMsg2)
 	}))
 
-	logger := NewLogger(mockFilterCallback)
+	logger := newLogger(mockFilterCallback)
 	logger.V(1).Info(logMsg0)
 	logger.Info(logMsg1)
 	logger.Error(errors.New("error1"), logMsg2)
@@ -40,7 +40,7 @@ func TestLogger(t *testing.T) {
 
 func TestLogger_WithName(t *testing.T) {
 	mockFilterCallback := mock_envoy.NewFilterCallbackHandler(t)
-	logger := NewLogger(mockFilterCallback)
+	logger := newLogger(mockFilterCallback)
 
 	mockFilterCallback.EXPECT().Log(mock.MatchedBy(func(l api.LogType) bool {
 		return l == api.Info

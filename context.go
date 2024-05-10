@@ -529,6 +529,6 @@ func (c *context) RegisterHTTPFilterHandler(handler HttpFilterHandler) {
 	c.manager.RegisterHTTPFilterHandler(handler)
 }
 
-func (c *context) ServeHTTPFilter(ctrl HttpFilterPhaseController) api.StatusType {
-	return c.manager.ServeHTTPFilter(ctrl)
+func (c *context) ServeHTTPFilter(strategy HttpFilterPhaseStrategy) api.StatusType {
+	return c.manager.ServeHTTPFilter(strategy)
 }

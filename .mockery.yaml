@@ -24,4 +24,4 @@ packages:
       Context:
       Configuration:
       HttpFilterHandler:
-      HttpFilterPhaseController:
+      HttpFilterPhaseStrategy:

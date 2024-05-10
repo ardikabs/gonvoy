@@ -48,7 +48,7 @@ type HttpFilterManager interface {
 	// This method is designed for internal use as it is directly invoked within each filter instance's phases.
 	// Available phases: OnRequestHeaderPhase, OnRequestBodyPhase, OnResponseHeaderPhase, OnResponseBodyPhase.
 	//
-	ServeHTTPFilter(ctrl HttpFilterPhaseController) api.StatusType
+	ServeHTTPFilter(strategy HttpFilterPhaseStrategy) api.StatusType
 }
 
 func newHttpFilterManager(ctx Context, cfg *globalConfig) *httpFilterManager {
@@ -85,20 +85,19 @@ func (h *httpFilterManager) RegisterHTTPFilterHandler(handler HttpFilterHandler)
 		return
 	}
 
-	processor := newHttpFilterProcessor(handler)
+	proc := newHttpFilterProcessor(handler)
 	if h.first == nil {
-		h.first = processor
-		h.last = processor
+		h.first = proc
+		h.last = proc
 		return
 	}
 
-	processor.SetPrevious(h.last)
-
-	h.last.SetNext(processor)
-	h.last = processor
+	proc.SetPrevious(h.last)
+	h.last.SetNext(proc)
+	h.last = proc
 }
 
-func (h *httpFilterManager) ServeHTTPFilter(ctrl HttpFilterPhaseController) (status api.StatusType) {
+func (h *httpFilterManager) ServeHTTPFilter(strategy HttpFilterPhaseStrategy) (status api.StatusType) {
 	var (
 		action HttpFilterAction
 		err    error
@@ -124,16 +123,10 @@ func (h *httpFilterManager) ServeHTTPFilter(ctrl HttpFilterPhaseController) (sta
 		}
 	}()
 
-	if h.first == nil {
+	if h.first == nil || h.last == nil {
 		return
 	}
 
-	switch ctrl.Phase() {
-	case OnRequestHeaderPhase, OnRequestBodyPhase:
-		action, err = ctrl.Handle(h.ctx, h.first)
-	case OnResponseHeaderPhase, OnResponseBodyPhase:
-		action, err = ctrl.Handle(h.ctx, h.last)
-	}
-
+	action, err = strategy.Execute(h.ctx, h.first, h.last)
 	return
 }

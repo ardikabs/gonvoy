@@ -92,12 +92,12 @@ type HttpFilterContext interface {
 	// JSON sends a JSON response with a status code.
 	//
 	// This action halts the handler chaining and immediately returns back to Envoy.
-	JSON(code int, b []byte, headers map[string][]string, opts ...ReplyOption) error
+	JSON(code int, b []byte, header http.Header, opts ...ReplyOption) error
 
 	// String sends a plain text response with a status code.
 	//
 	// This action halts the handler chaining and immediately returns back to Envoy.
-	String(code int, s string, headers map[string][]string, opts ...ReplyOption) error
+	String(code int, s string, header http.Header, opts ...ReplyOption) error
 }
 
 type RuntimeContext interface {
@@ -273,22 +273,22 @@ type context struct {
 	filter  HttpFilter
 }
 
-func (c *context) JSON(code int, body []byte, headers map[string][]string, opts ...ReplyOption) error {
+func (c *context) JSON(code int, body []byte, header http.Header, opts ...ReplyOption) error {
 	options := NewDefaultReplyOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	if headers == nil {
-		headers = make(map[string][]string)
+	if header == nil {
+		header = make(http.Header)
 	}
 
 	if body == nil {
 		body = []byte("{}")
 	}
 
-	headers["content-type"] = []string{"application/json"}
-	c.callback.SendLocalReply(code, string(body), headers, options.grpcStatusCode, options.responseCodeDetails)
+	header.Set("content-type", "application/json")
+	c.callback.SendLocalReply(code, string(body), header, options.grpcStatusCode, options.responseCodeDetails)
 	c.committed = true
 	c.statusType = options.statusType
 
@@ -296,13 +296,13 @@ func (c *context) JSON(code int, body []byte, headers map[string][]string, opts 
 	return nil
 }
 
-func (c *context) String(code int, s string, headers map[string][]string, opts ...ReplyOption) error {
+func (c *context) String(code int, s string, header http.Header, opts ...ReplyOption) error {
 	options := NewDefaultReplyOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	c.callback.SendLocalReply(code, s, headers, options.grpcStatusCode, options.responseCodeDetails)
+	c.callback.SendLocalReply(code, s, header, options.grpcStatusCode, options.responseCodeDetails)
 	c.committed = true
 	c.statusType = options.statusType
 

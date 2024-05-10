@@ -11,24 +11,68 @@ import (
 type HttpFilterAction uint
 
 const (
-	ActionContinue HttpFilterAction = iota + 1
+	ActionSkip HttpFilterAction = iota
+	ActionContinue
 	ActionPause
 )
 
-// HttpFilterHandlerManager
-type HttpFilterHandlerManager interface {
+type HttpFilterManager interface {
+	// IsFilterPhaseDisabled specifies whether given http filter phase is disabled or not
+	//
+	IsFilterPhaseDisabled(HttpFilterPhase) bool
+
+	// SetErrorHandler sets a custom error handler for an Http Filter
+	//
 	SetErrorHandler(ErrorHandler)
-	RegisterHandler(HttpFilterHandler)
-	Serve(c Context, ctrl HttpFilterPhaseController) api.StatusType
+
+	// RegisterHTTPFilterHandler adds an Http Filter Handler to the chain,
+	// which should be run during filter startup (HttpFilter.OnBegin).
+	// It's important to note the order when registering filter handlers.
+	// While HTTP requests follow FIFO sequences, HTTP responses follow LIFO sequences.
+	//
+	// Example usage:
+	//	func (f *UserFilter) OnBegin(c RuntimeContext) error {
+	//		...
+	//		c.RegisterHTTPFilterHandler(handlerA)
+	//		c.RegisterHTTPFilterHandler(handlerB)
+	//		c.RegisterHTTPFilterHandler(handlerC)
+	//		c.RegisterHTTPFilterHandler(handlerD)
+	//	}
+	//
+	// During HTTP requests, traffic flows from `handlerA -> handlerB -> handlerC -> handlerD`.
+	// During HTTP responses, traffic flows in reverse: `handlerD -> handlerC -> handlerB -> handlerA`.
+	//
+	RegisterHTTPFilterHandler(HttpFilterHandler)
+
+	// ServeHTTPFilter serves the Http Filter for the specified phase.
+	// This method is designed for internal use as it is directly invoked within each filter instance's phases.
+	// Refers to HttpFilterPhaseStrategy.
+	//
+	ServeHTTPFilter(strategy HttpFilterPhaseStrategy) api.StatusType
 }
 
-type httpFilterHandlerManager struct {
+func newHttpFilterManager(ctx Context, cfg *globalConfig) *httpFilterManager {
+	return &httpFilterManager{
+		ctx:           ctx,
+		disabledPhase: cfg.disabledHttpFilterPhases,
+		errorHandler:  DefaultErrorHandler,
+	}
+}
+
+type httpFilterManager struct {
+	ctx           Context
+	disabledPhase []HttpFilterPhase
+
 	errorHandler ErrorHandler
-	entrypoint   HttpFilterProcessor
+	first        HttpFilterProcessor
 	last         HttpFilterProcessor
 }
 
-func (h *httpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) {
+func (h *httpFilterManager) IsFilterPhaseDisabled(phase HttpFilterPhase) bool {
+	return util.In(phase, h.disabledPhase...)
+}
+
+func (h *httpFilterManager) SetErrorHandler(handler ErrorHandler) {
 	if util.IsNil(handler) {
 		return
 	}
@@ -36,23 +80,24 @@ func (h *httpFilterHandlerManager) SetErrorHandler(handler ErrorHandler) {
 	h.errorHandler = handler
 }
 
-func (h *httpFilterHandlerManager) RegisterHandler(handler HttpFilterHandler) {
+func (h *httpFilterManager) RegisterHTTPFilterHandler(handler HttpFilterHandler) {
 	if util.IsNil(handler) || handler.Disable() {
 		return
 	}
 
-	processor := newHttpFilterProcessor(handler)
-	if h.entrypoint == nil {
-		h.entrypoint = processor
-		h.last = processor
+	proc := newHttpFilterProcessor(handler)
+	if h.first == nil {
+		h.first = proc
+		h.last = proc
 		return
 	}
 
-	h.last.SetNext(processor)
-	h.last = processor
+	proc.SetPrevious(h.last)
+	h.last.SetNext(proc)
+	h.last = proc
 }
 
-func (h *httpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseController) (status api.StatusType) {
+func (h *httpFilterManager) ServeHTTPFilter(strategy HttpFilterPhaseStrategy) (status api.StatusType) {
 	var (
 		action HttpFilterAction
 		err    error
@@ -64,13 +109,13 @@ func (h *httpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseControll
 		}
 
 		if err != nil {
-			status = h.errorHandler(c, err)
+			status = h.errorHandler(h.ctx, err)
 			return
 		}
 
 		switch action {
 		case ActionContinue:
-			status = c.StatusType()
+			status = h.ctx.StatusType()
 		case ActionPause:
 			status = api.StopAndBuffer
 		default:
@@ -78,10 +123,10 @@ func (h *httpFilterHandlerManager) Serve(c Context, ctrl HttpFilterPhaseControll
 		}
 	}()
 
-	if h.entrypoint == nil {
+	if h.first == nil || h.last == nil {
 		return
 	}
 
-	action, err = ctrl.Handle(c, h.entrypoint)
+	action, err = strategy.Execute(h.ctx, h.first, h.last)
 	return
 }

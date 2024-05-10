@@ -13,7 +13,8 @@ func init() {
 		MetricPrefix: "myfilter_",
 
 		DisabledHttpFilterPhases: []gonvoy.HttpFilterPhase{gonvoy.OnResponseBodyPhase},
-		DisableStrictBodyAccess:  true,
+		// DisableStrictBodyRead:  true,
+		DisableStrictBodyWrite: true,
 	})
 }
 
@@ -25,20 +26,20 @@ func (f Filter) Name() string {
 	return "myfilter"
 }
 
-func (f Filter) OnStart(c gonvoy.Context) error {
-	fcfg := c.Configuration().GetFilterConfig()
+func (f Filter) OnBegin(c gonvoy.RuntimeContext) error {
+	fcfg := c.GetFilterConfig()
 	cfg, ok := fcfg.(*Config)
 	if !ok {
 		return fmt.Errorf("unexpected configuration type %T, expecting %T", fcfg, cfg)
 	}
 
-	c.RegisterFilterHandler(&handler.HandlerOne{})
-	c.RegisterFilterHandler(&handler.HandlerTwo{})
-	c.RegisterFilterHandler(&handler.HandlerThree{RequestHeaders: cfg.RequestHeaders})
+	c.RegisterHTTPFilterHandler(&handler.HandlerOne{})
+	c.RegisterHTTPFilterHandler(&handler.HandlerTwo{})
+	c.RegisterHTTPFilterHandler(&handler.HandlerThree{RequestHeaders: cfg.RequestHeaders})
 	return nil
 }
 
-func (f Filter) OnComplete(c gonvoy.Context) error {
+func (f Filter) OnComplete(c gonvoy.RuntimeContext) error {
 	c.Metrics().Counter("requests_total",
 		"host", gonvoy.MustGetProperty(c, "request.host", "-"),
 		"method", gonvoy.MustGetProperty(c, "request.method", "-"),

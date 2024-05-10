@@ -25,11 +25,18 @@ type ConfigOptions struct {
 	// DisabledHttpFilterPhases lists the HttpFilterPhase options disabled for the filter.
 	DisabledHttpFilterPhases []HttpFilterPhase
 
-	// DisableStrictBodyAccess specifies whether HTTP body access follows strict rules.
+	// DisableStrictBodyRead specifies whether HTTP body access follows strict rules.
 	// As its name goes, the default behavior is strict, which mean that HTTP body access and/or manipulation is only possible
 	// with the presence of the `X-Content-Operation` header, with accepted values being `ReadOnly` and `ReadWrite`.
 	// However, when it is disabled, HTTP body access is allowed, but manipulation still requires the presence of `X-Content-Operation` with the `ReadWrite` value.
-	DisableStrictBodyAccess bool
+	// See DisableStrictBodyWrite to allow HTTP request/response body manipulation.
+	DisableStrictBodyRead bool
+
+	// DisableStrictBodyWrite specifies whether HTTP body manipulation follows strict rules.
+	// As its name goes, the default behavior is strict, which mean that HTTP body access and/or manipulation is only possible
+	// with the presence of the `X-Content-Operation` header, with accepted values being `ReadWrite`.
+	// However, when it is disabled, HTTP body manipulation is allowed.
+	DisableStrictBodyWrite bool
 
 	// MetricPrefix specifies the prefix used for metrics.
 	MetricPrefix string
@@ -74,12 +81,12 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 
 	if p.rootGlobalConfig == nil {
 		p.rootGlobalConfig = newGlobalConfig(cc, p.options)
-		p.rootGlobalConfig.filterCfg = filterCfg
+		p.rootGlobalConfig.filterConfig = filterCfg
 		return p.rootGlobalConfig, nil
 	}
 
 	copyGlobalConfig := *p.rootGlobalConfig
-	copyGlobalConfig.filterCfg = filterCfg
+	copyGlobalConfig.filterConfig = filterCfg
 	return &copyGlobalConfig, nil
 }
 
@@ -87,11 +94,11 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 	origParentGlobalConfig := parent.(*globalConfig)
 	origChildGlobalConfig := child.(*globalConfig)
 
-	if util.IsNil(origParentGlobalConfig.filterCfg) {
+	if util.IsNil(origParentGlobalConfig.filterConfig) {
 		return parent
 	}
 
-	mergedFilterCfg, err := p.mergeStruct(origParentGlobalConfig.filterCfg, origChildGlobalConfig.filterCfg)
+	mergedFilterCfg, err := p.mergeStruct(origParentGlobalConfig.filterConfig, origChildGlobalConfig.filterConfig)
 	if err != nil {
 		if p.options.IgnoreMergeError {
 			return origParentGlobalConfig
@@ -100,7 +107,7 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 		panic(err)
 	}
 
-	origChildGlobalConfig.filterCfg = mergedFilterCfg
+	origChildGlobalConfig.filterConfig = mergedFilterCfg
 	return origChildGlobalConfig
 }
 

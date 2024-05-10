@@ -1,6 +1,8 @@
 package gonvoy
 
-import "github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+import (
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+)
 
 type HttpFilterPhase uint
 
@@ -11,86 +13,69 @@ const (
 	OnResponseBodyPhase
 )
 
-// HttpFilterPhaseController ---
-type HttpFilterPhaseController interface {
-	Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error)
+// HttpFilterPhaseStrategy is an interface representing the Sstrategy for handling a phase of an HTTP filter.
+type HttpFilterPhaseStrategy interface {
+
+	// Execute executes the strategy for the specified HTTP filter phase.
+	// Keep in mind that the 'first' HttpFilterProcessor is intended for managing HTTP Request flows,
+	// while the 'last' HttpFilterProcessor is used for handling HTTP Response flows.
+	// In other words, use the 'first' HttpFilterProcessor during OnRequestHeader and OnRequestBody phases,
+	// and utilize the 'last' HttpFilterProcessor during OnResponseHeader and OnResponseBody phases.
+	//
+	Execute(c Context, first, last HttpFilterProcessor) (HttpFilterAction, error)
 }
 
-// newRequestHeaderController returns an Http Filter Phase controller for OnRequestHeaderPhase phase
-func newRequestHeaderController(header api.RequestHeaderMap) HttpFilterPhaseController {
-	return &requestHeaderController{
+// newRequestHeaderStrategy returns an HttpFilterPhaseStrategy based on OnRequestHeaderPhase phase
+func newRequestHeaderStrategy(header api.RequestHeaderMap) HttpFilterPhaseStrategy {
+	return &requestHeaderStrategy{
 		phase:  OnRequestHeaderPhase,
 		header: header,
 	}
 }
 
-type requestHeaderController struct {
+type requestHeaderStrategy struct {
 	phase  HttpFilterPhase
 	header api.RequestHeaderMap
 }
 
-func (p *requestHeaderController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
-	if c.IsFilterPhaseEnabled(p.phase) {
-		return ActionContinue, nil
+func (p *requestHeaderStrategy) Execute(c Context, first, last HttpFilterProcessor) (HttpFilterAction, error) {
+	if c.IsFilterPhaseDisabled(p.phase) {
+		return ActionSkip, nil
 	}
 
 	c.SetRequestHeader(p.header)
+
+	if err := first.HandleOnRequestHeader(c); err != nil {
+		return ActionContinue, err
+	}
 
 	if c.IsRequestBodyWriteable() {
 		c.RequestHeader().Del(HeaderXContentOperation)
 		return ActionPause, nil
 	}
 
-	return ActionContinue, proc.HandleOnRequestHeader(c)
+	return ActionContinue, nil
 }
 
-// newResponseHeaderController returns an Http Filter Phase controller for OnResponseHeaderPhase phase
-func newResponseHeaderController(header api.ResponseHeaderMap) HttpFilterPhaseController {
-	return &responseHeaderController{
-		phase:  OnResponseHeaderPhase,
-		header: header,
-	}
-}
-
-type responseHeaderController struct {
-	phase  HttpFilterPhase
-	header api.ResponseHeaderMap
-}
-
-func (p *responseHeaderController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
-	if c.IsFilterPhaseEnabled(p.phase) {
-		return ActionContinue, nil
-	}
-
-	c.SetResponseHeader(p.header)
-
-	if c.IsResponseBodyWriteable() {
-		c.RequestHeader().Del(HeaderXContentOperation)
-		return ActionPause, nil
-	}
-
-	return ActionContinue, proc.HandleOnResponseHeader(c)
-}
-
-// newRequestBodyController returns an Http Filter Phase controller for OnRequestBodyPhase phase
-func newRequestBodyController(buffer api.BufferInstance, endStream bool) HttpFilterPhaseController {
-	return &requestBodyController{
+// newRequestBodyStrategy returns an HttpFilterPhaseStrategy based on OnRequestBodyPhase phase
+func newRequestBodyStrategy(buffer api.BufferInstance, endStream bool) HttpFilterPhaseStrategy {
+	return &requestBodyStrategy{
 		phase:     OnRequestBodyPhase,
 		buffer:    buffer,
 		endStream: endStream,
 	}
 }
 
-type requestBodyController struct {
+type requestBodyStrategy struct {
 	phase     HttpFilterPhase
 	buffer    api.BufferInstance
 	endStream bool
 }
 
-func (p *requestBodyController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
+func (p *requestBodyStrategy) Execute(c Context, first, last HttpFilterProcessor) (HttpFilterAction, error) {
 	isBodyAccessible := c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
-	if c.IsFilterPhaseEnabled(p.phase) || !isBodyAccessible {
-		return ActionContinue, nil
+	if c.IsFilterPhaseDisabled(p.phase) || !isBodyAccessible {
+		return ActionSkip, nil
 	}
 
 	if p.buffer.Len() > 0 {
@@ -98,31 +83,63 @@ func (p *requestBodyController) Handle(c Context, proc HttpFilterProcessor) (Htt
 	}
 
 	if p.endStream {
-		return ActionContinue, proc.HandleOnRequestBody(c)
+		return ActionContinue, first.HandleOnRequestBody(c)
 	}
 
 	return ActionPause, nil
 }
 
-// newResponseBodyController returns an Http Filter Phase controller for OnResponseBodyPhase phase
-func newResponseBodyController(buffer api.BufferInstance, endStream bool) HttpFilterPhaseController {
-	return &responseBodyController{
+// newResponseHeaderStrategy returns an HttpFilterPhaseStrategy based on OnResponseHeaderPhase phase
+func newResponseHeaderStrategy(header api.ResponseHeaderMap) HttpFilterPhaseStrategy {
+	return &responseHeaderStrategy{
+		phase:  OnResponseHeaderPhase,
+		header: header,
+	}
+}
+
+type responseHeaderStrategy struct {
+	phase  HttpFilterPhase
+	header api.ResponseHeaderMap
+}
+
+func (p *responseHeaderStrategy) Execute(c Context, first, last HttpFilterProcessor) (HttpFilterAction, error) {
+	if c.IsFilterPhaseDisabled(p.phase) {
+		return ActionSkip, nil
+	}
+
+	c.SetResponseHeader(p.header)
+
+	if err := last.HandleOnResponseHeader(c); err != nil {
+		return ActionContinue, err
+	}
+
+	if c.IsResponseBodyWriteable() {
+		c.RequestHeader().Del(HeaderXContentOperation)
+		return ActionPause, nil
+	}
+
+	return ActionContinue, nil
+}
+
+// newResponseBodyStrategy returns an HttpFilterPhaseStrategy based on OnResponseBodyPhase phase
+func newResponseBodyStrategy(buffer api.BufferInstance, endStream bool) HttpFilterPhaseStrategy {
+	return &responseBodyStrategy{
 		phase:     OnResponseBodyPhase,
 		buffer:    buffer,
 		endStream: endStream,
 	}
 }
 
-type responseBodyController struct {
+type responseBodyStrategy struct {
 	phase     HttpFilterPhase
 	buffer    api.BufferInstance
 	endStream bool
 }
 
-func (p *responseBodyController) Handle(c Context, proc HttpFilterProcessor) (HttpFilterAction, error) {
+func (p *responseBodyStrategy) Execute(c Context, first, last HttpFilterProcessor) (HttpFilterAction, error) {
 	isBodyAccessible := c.IsResponseBodyReadable() || c.IsResponseBodyWriteable()
-	if c.IsFilterPhaseEnabled(p.phase) || !isBodyAccessible {
-		return ActionContinue, nil
+	if c.IsFilterPhaseDisabled(p.phase) || !isBodyAccessible {
+		return ActionSkip, nil
 	}
 
 	if p.buffer.Len() > 0 {
@@ -130,7 +147,7 @@ func (p *responseBodyController) Handle(c Context, proc HttpFilterProcessor) (Ht
 	}
 
 	if p.endStream {
-		return ActionContinue, proc.HandleOnResponseBody(c)
+		return ActionContinue, last.HandleOnResponseBody(c)
 	}
 
 	return ActionPause, nil

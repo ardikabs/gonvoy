@@ -1,65 +1,45 @@
 package gonvoy
 
 import (
-	"errors"
 	"strings"
 	"sync"
 
+	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-type Configuration interface {
-	// GetFilterConfig returns the filter configuration associated with the route.
-	// It defaults to the parent filter configuration if no route filter configuration was found.
-	// Otherwise, once typed_per_filter_config present in the route then it will return the child filter configuration.
-	// Whether these filter configurations can be merged depends on the filter configuration struct tags.
-	//
-	GetFilterConfig() interface{}
-
-	// Cache provides the global cache, that persists throughout Envoy's lifespan.
-	// Use this cache when variable initialization is expensive or requires a statefulness.
-	//
-	Cache() Cache
-}
-
 type globalConfig struct {
-	filterCfg interface{}
+	filterConfig interface{}
 
-	callbacks  api.ConfigCallbacks
-	localCache Cache
+	callbacks   api.ConfigCallbacks
+	globalCache Cache
 
 	metricPrefix string
 	gaugeMap     map[string]api.GaugeMetric
 	counterMap   map[string]api.CounterMetric
 	histogramMap map[string]api.HistogramMetric
 
-	strictBodyAccess         bool
+	strictBodyRead           bool
+	strictBodyWrite          bool
 	disabledHttpFilterPhases []HttpFilterPhase
 }
 
 func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfig {
 	gc := &globalConfig{
 		callbacks:                cc,
-		localCache:               NewCache(),
+		globalCache:              newCache(),
 		gaugeMap:                 make(map[string]api.GaugeMetric),
 		counterMap:               make(map[string]api.CounterMetric),
 		histogramMap:             make(map[string]api.HistogramMetric),
-		strictBodyAccess:         !options.DisableStrictBodyAccess,
+		strictBodyRead:           !options.DisableStrictBodyRead,
+		strictBodyWrite:          !options.DisableStrictBodyWrite,
 		disabledHttpFilterPhases: options.DisabledHttpFilterPhases,
 		metricPrefix:             options.MetricPrefix,
 	}
 
 	return gc
 
-}
-
-func (c *globalConfig) GetFilterConfig() interface{} {
-	return c.filterCfg
-}
-
-func (c *globalConfig) Cache() Cache {
-	return c.localCache
 }
 
 func (c *globalConfig) metricCounter(name string) api.CounterMetric {
@@ -98,33 +78,45 @@ type Cache interface {
 	//
 	// It returns true if a compatible value is successfully loaded,
 	// and false if no value is found or an error occurs during the process.
+	//
+	// If the receiver is not a pointer of the stored data type,
+	// Load will return an ErrIncompatibleReceiver.
+	//
+	// Example usage:
+	//	type mystruct struct{}
+	//
+	//	data := new(mystruct)
+	//	cache.Store("keyName", data)
+	//
+	//	receiver := new(mystruct)
+	//	_, _ = cache.Load("keyName", &receiver)
 	Load(key, receiver any) (ok bool, err error)
 }
 
-type localcache struct {
-	dataMap sync.Map
+type inmemoryCache struct {
+	stash sync.Map
 }
 
-func NewCache() *localcache {
-	return &localcache{}
+func newCache() *inmemoryCache {
+	return &inmemoryCache{}
 }
 
-func (c *localcache) Store(key, value any) {
-	c.dataMap.Store(key, value)
+func (c *inmemoryCache) Store(key, value any) {
+	c.stash.Store(key, value)
 }
 
-func (c *localcache) Load(key, receiver any) (bool, error) {
+func (c *inmemoryCache) Load(key, receiver any) (bool, error) {
 	if receiver == nil {
-		return false, errors.New("receiver should not be nil")
+		return false, errs.ErrNilReceiver
 	}
 
-	v, ok := c.dataMap.Load(key)
+	v, ok := c.stash.Load(key)
 	if !ok {
 		return false, nil
 	}
 
 	if !util.CastTo(receiver, v) {
-		return false, errors.New("receiver and value has an incompatible type")
+		return false, errs.ErrIncompatibleReceiver
 	}
 
 	return true, nil

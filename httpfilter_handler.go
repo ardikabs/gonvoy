@@ -8,12 +8,28 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
+// HttpFilterHandler represents an interface for an HTTP filter handler.
+// In a typical HTTP flow, the sequence of events can be as follows:
+// OnRequestHeader -> OnRequestBody -> <Any number of intermediate Envoy processes> -> OnResponseHeader -> OnResponseBody
 type HttpFilterHandler interface {
+	// Disable disables the HTTP filter handler.
+	//
 	Disable() bool
 
+	// OnRequestHeader is called when processing the HTTP request header during the OnRequestBodyPhase.
+	//
 	OnRequestHeader(c Context, header http.Header) error
+
+	// OnRequestBody is called when processing the HTTP request body during the OnRequestBodyPhase.
+	//
 	OnRequestBody(c Context, body []byte) error
+
+	// OnResponseHeader is called when processing the HTTP response header during the OnResponseHeaderPhase.
+	//
 	OnResponseHeader(c Context, header http.Header) error
+
+	// OnResponseBody is called when processing the HTTP response body during the OnResponseBodyPhase.
+	//
 	OnResponseBody(c Context, body []byte) error
 }
 
@@ -27,7 +43,7 @@ var (
 
 type ErrorHandler func(Context, error) api.StatusType
 
-func DefaultHttpFilterErrorHandler(ctx Context, err error) api.StatusType {
+func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 	unwrapErr := errs.Unwrap(err)
 	if unwrapErr == nil {
 		return api.Continue

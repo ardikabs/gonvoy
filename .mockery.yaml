@@ -9,6 +9,7 @@ packages:
     interfaces:
       FilterCallbackHandler:
       ConfigCallbackHandler:
+      BufferInstance:
       RequestHeaderMap:
       ResponseHeaderMap:
       CounterMetric:
@@ -23,4 +24,4 @@ packages:
       Context:
       Configuration:
       HttpFilterHandler:
-      HttpFilterPhaseController:
+      HttpFilterPhaseStrategy:

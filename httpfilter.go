@@ -10,6 +10,16 @@ import (
 
 var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 
+// RunHttpFilter is an entrypoint for onboarding User's HTTP filters at runtime.
+// It must be declared inside `func init()` blocks in main package.
+// Example usage:
+//
+//	package main
+//	func init() {
+//		RunHttpFilter(new(UserHttpFilterInstance), ConfigOptions{
+//			BaseConfig: new(UserHttpFilterConfig),
+//		})
+//	}
 func RunHttpFilter(filter HttpFilter, options ConfigOptions) {
 	envoyhttp.RegisterHttpFilterConfigFactoryAndParser(
 		filter.Name(),
@@ -18,14 +28,34 @@ func RunHttpFilter(filter HttpFilter, options ConfigOptions) {
 	)
 }
 
+// HttpFilter defines an interface for an HTTP filter.
+// It provides methods for managing filter names, startup, and completion.
+// This interface is specifically designed as a mechanism for onboarding the user HTTP filters to Envoy.
 type HttpFilter interface {
+	// Name returns the filter name used in Envoy.
+	//
 	Name() string
-	OnStart(c Context) error
-	OnComplete(c Context) error
+
+	// OnBegin is executed during filter startup.
+	// If an error is returned, the filter will be ignored.
+	// This step can be used by the user for filter preparation tasks, such as (but not limited to):
+	// - Retrieving filter configuration (if provided)
+	// - Register filter handlers
+	// - Capture user-generated metrics
+	//
+	OnBegin(c RuntimeContext) error
+
+	// OnComplete is executed filter completion.
+	// If an error is returned, nothing happened.
+	// This step can be used by the user for filter completion tasks, such as (but not limited to):
+	// - Capture user-generated metrics
+	// - Resource cleanup
+	//
+	OnComplete(c RuntimeContext) error
 }
 
-func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
-	if util.IsNil(httpFilter) {
+func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
+	if util.IsNil(filter) {
 		panic("httpFilterFactory: httpFilter shouldn't be a nil")
 	}
 
@@ -35,29 +65,21 @@ func httpFilterFactory(httpFilter HttpFilter) api.StreamFilterConfigFactory {
 			panic(fmt.Sprintf("httpFilterFactory: unexpected config type '%T', expecting '%T'", cfg, config))
 		}
 
-		return func(callbacks api.FilterCallbackHandler) api.StreamFilter {
-			ctx, err := newContext(callbacks, config)
+		return func(cb api.FilterCallbackHandler) api.StreamFilter {
+			log := newLogger(cb)
+			opts := []ContextOption{
+				WithContextConfig(config),
+				WithContextLogger(log),
+				WithHttpFilter(filter),
+			}
+
+			ctx, err := newContext(cb, opts...)
 			if err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): filter context initialization failed; %v; filter ignored...", httpFilter.Name(), err))
+				log.Error(err, "initialization failed, filter ignored ...")
 				return NoOpHttpFilter
 			}
 
-			newHttpFilterIface, err := util.NewFrom(httpFilter)
-			if err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): filter instance initialization failed; %v; filter ignored...", httpFilter.Name(), err))
-				return NoOpHttpFilter
-			}
-
-			newHttpFilter := newHttpFilterIface.(HttpFilter)
-			if err := newHttpFilter.OnStart(ctx); err != nil {
-				callbacks.Log(api.Error, fmt.Sprintf("httpFilter(%s): caught an error during OnStart; %v; filter ignored...", httpFilter.Name(), err))
-				return NoOpHttpFilter
-			}
-
-			return &httpFilterInstance{
-				ctx:        ctx,
-				httpFilter: newHttpFilter,
-			}
+			return &httpFilterInstance{ctx: ctx}
 		}
 	}
 }
@@ -67,37 +89,33 @@ var _ api.StreamFilter = &httpFilterInstance{}
 type httpFilterInstance struct {
 	api.PassThroughStreamFilter
 
-	ctx        Context
-	httpFilter HttpFilter
+	ctx Context
 }
 
 func (f *httpFilterInstance) OnLog() {
-	if err := f.httpFilter.OnComplete(f.ctx); err != nil {
-		f.ctx.Log().Error(err, "httpFilter(%s): caught an error during OnComplete; %v", f.httpFilter.Name(), err)
-	}
+	runHttpFilterOnComplete(f.ctx)
 }
 
 func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	ctrl := newRequestHeaderController(header)
-	return f.ctx.ServeFilter(ctrl)
+	strategy := newRequestHeaderStrategy(header)
+	return f.ctx.ServeHTTPFilter(strategy)
 }
 
 func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	ctrl := newRequestBodyController(buffer, endStream)
-	return f.ctx.ServeFilter(ctrl)
+	strategy := newRequestBodyStrategy(buffer, endStream)
+	return f.ctx.ServeHTTPFilter(strategy)
 }
 
 func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	ctrl := newResponseHeaderController(header)
-	return f.ctx.ServeFilter(ctrl)
+	strategy := newResponseHeaderStrategy(header)
+	return f.ctx.ServeHTTPFilter(strategy)
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	ctrl := newResponseBodyController(buffer, endStream)
-	return f.ctx.ServeFilter(ctrl)
+	strategy := newResponseBodyStrategy(buffer, endStream)
+	return f.ctx.ServeHTTPFilter(strategy)
 }
 
 func (f *httpFilterInstance) OnDestroy(reason api.DestroyReason) {
 	f.ctx = nil
-	f.httpFilter = nil
 }

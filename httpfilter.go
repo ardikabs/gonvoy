@@ -108,8 +108,7 @@ func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream boo
 
 func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
 	strategy := newEncodeHeadersStrategy(header)
-	status := f.ctx.ServeHTTPFilter(strategy)
-	return status
+	return f.ctx.ServeHTTPFilter(strategy)
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {

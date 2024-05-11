@@ -205,12 +205,16 @@ func WithContextConfig(cfg *globalConfig) ContextOption {
 		}
 
 		c.filterConfig = cfg.filterConfig
-		c.manager = newHttpFilterManager(c, cfg)
-
 		c.globalCache = cfg.globalCache
 		c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
-		c.isStrictBodyRead = cfg.strictBodyRead
-		c.isStrictBodyWrite = cfg.strictBodyWrite
+
+		c.isStrictBodyAccess = cfg.strictBodyAccess
+		c.isRequestBodyReadable = cfg.allowRequestBodyRead
+		c.isRequestBodyWriteable = cfg.allowRequestBodyWrite
+		c.isResponseBodyReadable = cfg.allowResponseBodyRead
+		c.isResponseBodyWriteable = cfg.allowResponseBodyWrite
+
+		c.manager = newHttpFilterManager(c)
 		return nil
 	}
 }
@@ -250,13 +254,11 @@ type context struct {
 	reqBufferInstance  api.BufferInstance
 	respBufferInstance api.BufferInstance
 
-	isStrictBodyRead  bool
-	isStrictBodyWrite bool
-
+	isStrictBodyAccess      bool
 	isRequestBodyReadable   bool
 	isRequestBodyWriteable  bool
-	isResponseBodyWriteable bool
 	isResponseBodyReadable  bool
+	isResponseBodyWriteable bool
 
 	httpReq  *http.Request
 	httpResp *http.Response
@@ -366,7 +368,7 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 	c.httpReq = req
 	c.reqHeaderMap = header
 
-	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccessibility(c.isStrictBodyRead, c.isStrictBodyWrite, header)
+	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccessibility(c.isStrictBodyAccess, c.isRequestBodyReadable, c.isRequestBodyWriteable, header)
 }
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
@@ -386,7 +388,7 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	c.httpResp = resp
 	c.respHeaderMap = header
 
-	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccessibility(c.isStrictBodyRead, c.isStrictBodyWrite, header)
+	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccessibility(c.isStrictBodyAccess, c.isResponseBodyReadable, c.isResponseBodyWriteable, header)
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {
@@ -515,10 +517,6 @@ func (c *context) Log() logr.Logger {
 
 func (c *context) Metrics() Metrics {
 	return c.metrics
-}
-
-func (c *context) IsFilterPhaseDisabled(phase HttpFilterPhase) bool {
-	return c.manager.IsFilterPhaseDisabled(phase)
 }
 
 func (c *context) SetErrorHandler(e ErrorHandler) {

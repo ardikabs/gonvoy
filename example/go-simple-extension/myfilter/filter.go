@@ -12,9 +12,9 @@ func init() {
 		BaseConfig:   new(Config),
 		MetricPrefix: "myfilter_",
 
-		DisabledHttpFilterPhases: []gonvoy.HttpFilterPhase{gonvoy.OnResponseBodyPhase},
-		// DisableStrictBodyRead:  true,
-		DisableStrictBodyWrite: true,
+		DisableStrictBodyAccess: true,
+		// EnableRequestBodyRead:   true,
+		EnableResponseBodyRead: true,
 	})
 }
 

@@ -97,23 +97,25 @@ func (f *httpFilterInstance) OnLog() {
 }
 
 func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	strategy := newRequestHeaderStrategy(header)
+	strategy := newDecodeHeadersStrategy(header)
 	return f.ctx.ServeHTTPFilter(strategy)
 }
 
 func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	strategy := newRequestBodyStrategy(buffer, endStream)
+	strategy := newDecodeDataStrategy(buffer, endStream)
 	return f.ctx.ServeHTTPFilter(strategy)
 }
 
 func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	strategy := newResponseHeaderStrategy(header)
-	return f.ctx.ServeHTTPFilter(strategy)
+	strategy := newEncodeHeadersStrategy(header)
+	status := f.ctx.ServeHTTPFilter(strategy)
+	return status
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	strategy := newResponseBodyStrategy(buffer, endStream)
-	return f.ctx.ServeHTTPFilter(strategy)
+	// strategy := newEncodeDataStrategy(buffer, endStream)
+	// return f.ctx.ServeHTTPFilter(strategy)
+	return api.Continue
 }
 
 func (f *httpFilterInstance) OnDestroy(reason api.DestroyReason) {

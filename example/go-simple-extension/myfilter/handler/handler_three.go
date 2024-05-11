@@ -83,7 +83,7 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context, body []byte) error {
 	reqBody["handlerName"] = "HandlerThree"
 	reqBody["phase"] = "HTTPRequest"
 
-	if c.IsRequestBodyWriteable() {
+	if !c.IsRequestBodyWriteable() {
 		enc := json.NewEncoder(c.RequestBody())
 		return enc.Encode(reqBody)
 	}

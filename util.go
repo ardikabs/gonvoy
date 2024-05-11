@@ -41,16 +41,12 @@ func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	return bodyByte
 }
 
-func checkBodyAccessibility(strictRead, strictWrite bool, header api.HeaderMap) (read, write bool) {
+func checkBodyAccessibility(strict, allowRead, allowWrite bool, header api.HeaderMap) (read, write bool) {
 	access := isBodyAccessible(header)
 
-	if !strictRead {
-		read = access
-	}
-
-	if !strictWrite {
-		read = access
-		write = access
+	if !strict {
+		read = access && (allowRead || allowWrite)
+		write = access && allowWrite
 		return
 	}
 
@@ -60,13 +56,13 @@ func checkBodyAccessibility(strictRead, strictWrite bool, header api.HeaderMap) 
 	}
 
 	if util.In(operation, ContentOperationReadOnly, ContentOperationRO) {
-		read = access
+		read = access && (allowRead || allowWrite)
 		return
 	}
 
 	if util.In(operation, ContentOperationReadWrite, ContentOperationRW) {
-		read = access
-		write = access
+		read = access && (allowRead || allowWrite)
+		write = access && allowWrite
 		return
 	}
 

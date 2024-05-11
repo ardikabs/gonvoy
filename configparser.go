@@ -17,26 +17,54 @@ type ConfigOptions struct {
 	BaseConfig interface{}
 
 	// AlwaysUseChildConfig intend to disable merge behavior, ensuring that it always references the child filter configuration.
+	//
 	AlwaysUseChildConfig bool
 
 	// IgnoreMergeError specifies during a merge error, instead of panicking, it will fallback to the root configuration.
+	//
 	IgnoreMergeError bool
 
-	// DisabledHttpFilterPhases lists the HttpFilterPhase options disabled for the filter.
-	DisabledHttpFilterPhases []HttpFilterPhase
-
-	// DisableStrictBodyRead specifies whether HTTP body access follows strict rules.
-	// As its name goes, the default behavior is strict, which mean that HTTP body access and/or manipulation is only possible
+	// DisableStrictBodyAccess specifies whether HTTP body access follows strict rules.
+	// As its name goes, it defaults to strict, which mean that HTTP body access and manipulation is only possible
 	// with the presence of the `X-Content-Operation` header, with accepted values being `ReadOnly` and `ReadWrite`.
-	// However, when it is disabled, HTTP body access is allowed, but manipulation still requires the presence of `X-Content-Operation` with the `ReadWrite` value.
-	// See DisableStrictBodyWrite to allow HTTP request/response body manipulation.
-	DisableStrictBodyRead bool
+	// Even when disabled, users must explicitly enable body access, either for a Request or Response, to carry out operations.
+	// See EnableRequestRead, EnableRequestWrite, EnableResponseRead, EnableRequestWrite variables.
+	//
+	DisableStrictBodyAccess bool
 
-	// DisableStrictBodyWrite specifies whether HTTP body manipulation follows strict rules.
-	// As its name goes, the default behavior is strict, which mean that HTTP body access and/or manipulation is only possible
-	// with the presence of the `X-Content-Operation` header, with accepted values being `ReadWrite`.
-	// However, when it is disabled, HTTP body manipulation is allowed.
-	DisableStrictBodyWrite bool
+	// EnableRequestBodyRead specifies whether an HTTP Request Body can be accessed.
+	// It defaults to false, meaning any operation on OnRequestBody will be ignored.
+	// When enabled, operations on OnRequestBody are allowed,
+	// but attempts to modify the HTTP Request body will result in a panic, which returns with 502 (Bad Gateway).
+	//
+	// Warning! Use this option only when necessary, as enabling it is equivalent to granting access
+	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
+	EnableRequestBodyRead bool
+
+	// EnableRequestBodyWrite specifies whether an HTTP Request Body can be modified.
+	// It defaults to false, meaning any operation on OnRequestBody will be ignored.
+	// When enabled, operations on OnRequestBody, including modifications to the HTTP Request body, are permitted.
+	//
+	// Warning! Use this option only when necessary, as enabling it is equivalent to granting access
+	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
+	EnableRequestBodyWrite bool
+
+	// EnableResponseBodyRead specifies whether an HTTP Response Body can be accessed or not.
+	// It defaults to false, meaning any operation on OnResponseBody will be ignored.
+	// When enabled, operations on OnResponseBody are allowed,
+	// but attempts to modify the HTTP Response body will result in a panic, which returns with 502 (Bad Gateway).
+	//
+	// Warning! Use this option only when necessary, as enabling it is equivalent to granting access
+	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
+	EnableResponseBodyRead bool
+
+	// EnableResponseBodyWrite specifies whether an HTTP Response Body can be accessed or not
+	// It defaults to false, meaning any operation on OnResponseBody will be ignored.
+	// When enabled, operations on OnResponseBody, including modifications to the HTTP Response body, are permitted.
+	//
+	// Warning! Use this option only when necessary, as enabling it is equivalent to granting access
+	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
+	EnableResponseBodyWrite bool
 
 	// MetricPrefix specifies the prefix used for metrics.
 	MetricPrefix string

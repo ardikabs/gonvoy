@@ -9,12 +9,11 @@ import (
 
 func init() {
 	gonvoy.RunHttpFilter(Filter{}, gonvoy.ConfigOptions{
-		BaseConfig:   new(Config),
-		MetricPrefix: "myfilter_",
-
-		DisabledHttpFilterPhases: []gonvoy.HttpFilterPhase{gonvoy.OnResponseBodyPhase},
-		// DisableStrictBodyRead:  true,
-		DisableStrictBodyWrite: true,
+		BaseConfig:              new(Config),
+		MetricPrefix:            "myfilter_",
+		DisableStrictBodyAccess: true,
+		EnableRequestBodyRead:   true,
+		EnableResponseBodyRead:  true,
 	})
 }
 

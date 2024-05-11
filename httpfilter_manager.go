@@ -17,10 +17,6 @@ const (
 )
 
 type HttpFilterManager interface {
-	// IsFilterPhaseDisabled specifies whether given http filter phase is disabled or not
-	//
-	IsFilterPhaseDisabled(HttpFilterPhase) bool
-
 	// SetErrorHandler sets a custom error handler for an Http Filter
 	//
 	SetErrorHandler(ErrorHandler)
@@ -51,25 +47,18 @@ type HttpFilterManager interface {
 	ServeHTTPFilter(strategy HttpFilterPhaseStrategy) api.StatusType
 }
 
-func newHttpFilterManager(ctx Context, cfg *globalConfig) *httpFilterManager {
+func newHttpFilterManager(ctx Context) *httpFilterManager {
 	return &httpFilterManager{
-		ctx:           ctx,
-		disabledPhase: cfg.disabledHttpFilterPhases,
-		errorHandler:  DefaultErrorHandler,
+		ctx:          ctx,
+		errorHandler: DefaultErrorHandler,
 	}
 }
 
 type httpFilterManager struct {
-	ctx           Context
-	disabledPhase []HttpFilterPhase
-
+	ctx          Context
 	errorHandler ErrorHandler
 	first        HttpFilterProcessor
 	last         HttpFilterProcessor
-}
-
-func (h *httpFilterManager) IsFilterPhaseDisabled(phase HttpFilterPhase) bool {
-	return util.In(phase, h.disabledPhase...)
 }
 
 func (h *httpFilterManager) SetErrorHandler(handler ErrorHandler) {

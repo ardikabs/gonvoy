@@ -42,9 +42,9 @@ type HttpFilterManager interface {
 
 	// ServeHTTPFilter serves the Http Filter for the specified phase.
 	// This method is designed for internal use as it is directly invoked within each filter instance's phases.
-	// Refers to HttpFilterPhaseStrategy.
+	// Refers to HttpFilterPhaseFunc.
 	//
-	ServeHTTPFilter(strategy HttpFilterPhaseStrategy) api.StatusType
+	ServeHTTPFilter(HttpFilterPhaseFunc) api.StatusType
 }
 
 func newHttpFilterManager(ctx Context) *httpFilterManager {
@@ -86,7 +86,8 @@ func (h *httpFilterManager) RegisterHTTPFilterHandler(handler HttpFilterHandler)
 	h.last = proc
 }
 
-func (h *httpFilterManager) ServeHTTPFilter(strategy HttpFilterPhaseStrategy) (status api.StatusType) {
+func (h *httpFilterManager) ServeHTTPFilter(phase HttpFilterPhaseFunc) (status api.StatusType) {
+	// func (h *httpFilterManager) ServeHTTPFilter(strategy HttpFilterPhaseStrategy) (status api.StatusType) {
 	var (
 		action HttpFilterAction
 		err    error
@@ -116,6 +117,7 @@ func (h *httpFilterManager) ServeHTTPFilter(strategy HttpFilterPhaseStrategy) (s
 		return
 	}
 
-	action, err = strategy.Execute(h.ctx, h.first, h.last)
+	director := NewHttpFilterPhaseDirector(h.first, h.last)
+	action, err = phase(h.ctx, director)
 	return
 }

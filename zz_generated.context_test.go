@@ -846,13 +846,13 @@ func (_c *MockContext_ResponseHeader_Call) RunAndReturn(run func() Header) *Mock
 	return _c
 }
 
-// ServeHTTPFilter provides a mock function with given fields: strategy
-func (_m *MockContext) ServeHTTPFilter(strategy HttpFilterPhaseStrategy) api.StatusType {
-	ret := _m.Called(strategy)
+// ServeHTTPFilter provides a mock function with given fields: _a0
+func (_m *MockContext) ServeHTTPFilter(_a0 HttpFilterPhaseFunc) api.StatusType {
+	ret := _m.Called(_a0)
 
 	var r0 api.StatusType
-	if rf, ok := ret.Get(0).(func(HttpFilterPhaseStrategy) api.StatusType); ok {
-		r0 = rf(strategy)
+	if rf, ok := ret.Get(0).(func(HttpFilterPhaseFunc) api.StatusType); ok {
+		r0 = rf(_a0)
 	} else {
 		r0 = ret.Get(0).(api.StatusType)
 	}
@@ -866,14 +866,14 @@ type MockContext_ServeHTTPFilter_Call struct {
 }
 
 // ServeHTTPFilter is a helper method to define mock.On call
-//   - strategy HttpFilterPhaseStrategy
-func (_e *MockContext_Expecter) ServeHTTPFilter(strategy interface{}) *MockContext_ServeHTTPFilter_Call {
-	return &MockContext_ServeHTTPFilter_Call{Call: _e.mock.On("ServeHTTPFilter", strategy)}
+//   - _a0 HttpFilterPhaseFunc
+func (_e *MockContext_Expecter) ServeHTTPFilter(_a0 interface{}) *MockContext_ServeHTTPFilter_Call {
+	return &MockContext_ServeHTTPFilter_Call{Call: _e.mock.On("ServeHTTPFilter", _a0)}
 }
 
-func (_c *MockContext_ServeHTTPFilter_Call) Run(run func(strategy HttpFilterPhaseStrategy)) *MockContext_ServeHTTPFilter_Call {
+func (_c *MockContext_ServeHTTPFilter_Call) Run(run func(_a0 HttpFilterPhaseFunc)) *MockContext_ServeHTTPFilter_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(HttpFilterPhaseStrategy))
+		run(args[0].(HttpFilterPhaseFunc))
 	})
 	return _c
 }
@@ -883,7 +883,7 @@ func (_c *MockContext_ServeHTTPFilter_Call) Return(_a0 api.StatusType) *MockCont
 	return _c
 }
 
-func (_c *MockContext_ServeHTTPFilter_Call) RunAndReturn(run func(HttpFilterPhaseStrategy) api.StatusType) *MockContext_ServeHTTPFilter_Call {
+func (_c *MockContext_ServeHTTPFilter_Call) RunAndReturn(run func(HttpFilterPhaseFunc) api.StatusType) *MockContext_ServeHTTPFilter_Call {
 	_c.Call.Return(run)
 	return _c
 }

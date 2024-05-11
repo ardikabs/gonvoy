@@ -45,7 +45,7 @@ func checkBodyAccessibility(strict, allowRead, allowWrite bool, header api.Heade
 	access := isBodyAccessible(header)
 
 	if !strict {
-		read = access && allowRead
+		read = access && (allowRead || allowWrite)
 		write = access && allowWrite
 		return
 	}
@@ -56,12 +56,12 @@ func checkBodyAccessibility(strict, allowRead, allowWrite bool, header api.Heade
 	}
 
 	if util.In(operation, ContentOperationReadOnly, ContentOperationRO) {
-		read = access && allowRead
+		read = access && (allowRead || allowWrite)
 		return
 	}
 
 	if util.In(operation, ContentOperationReadWrite, ContentOperationRW) {
-		read = access && allowRead
+		read = access && (allowRead || allowWrite)
 		write = access && allowWrite
 		return
 	}

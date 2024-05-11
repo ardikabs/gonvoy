@@ -35,27 +35,35 @@ type ConfigOptions struct {
 	// EnableRequestBodyRead specifies whether an HTTP Request Body can be accessed.
 	// It defaults to false, meaning any operation on OnRequestBody will be ignored.
 	// When enabled, operations on OnRequestBody are allowed,
-	// but attempts to modify the HTTP Request body will result in a panic, which returns with 500.
+	// but attempts to modify the HTTP Request body will result in a panic, which returns with 502 (Bad Gateway).
 	//
+	// Warning! Use this option only when necessary, as enabling it is equivalent to granting access
+	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
 	EnableRequestBodyRead bool
 
 	// EnableRequestBodyWrite specifies whether an HTTP Request Body can be modified.
 	// It defaults to false, meaning any operation on OnRequestBody will be ignored.
 	// When enabled, operations on OnRequestBody, including modifications to the HTTP Request body, are permitted.
 	//
+	// Warning! Use this option only when necessary, as enabling it is equivalent to granting access
+	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
 	EnableRequestBodyWrite bool
 
 	// EnableResponseBodyRead specifies whether an HTTP Response Body can be accessed or not.
 	// It defaults to false, meaning any operation on OnResponseBody will be ignored.
 	// When enabled, operations on OnResponseBody are allowed,
-	// but attempts to modify the HTTP Response body will result in a panic, which returns with 500.
+	// but attempts to modify the HTTP Response body will result in a panic, which returns with 502 (Bad Gateway).
 	//
+	// Warning! Use this option only when necessary, as enabling it is equivalent to granting access
+	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
 	EnableResponseBodyRead bool
 
 	// EnableResponseBodyWrite specifies whether an HTTP Response Body can be accessed or not
 	// It defaults to false, meaning any operation on OnResponseBody will be ignored.
 	// When enabled, operations on OnResponseBody, including modifications to the HTTP Response body, are permitted.
 	//
+	// Warning! Use this option only when necessary, as enabling it is equivalent to granting access
+	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
 	EnableResponseBodyWrite bool
 
 	// MetricPrefix specifies the prefix used for metrics.

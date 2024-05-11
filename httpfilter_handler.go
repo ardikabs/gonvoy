@@ -64,6 +64,13 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 			NewGatewayHeaders(),
 			WithResponseCodeDetails(DefaultResponseCodeDetailAccessDenied.Wrap(err.Error())))
 
+	case errs.ErrOperationNotPermitted:
+		err = ctx.JSON(
+			http.StatusBadGateway,
+			NewMinimalJSONResponse("BAD_GATEWAY", "BAD_GATEWAY", err),
+			NewGatewayHeaders(),
+			WithResponseCodeDetails(DefaultResponseCodeDetailError.Wrap(err.Error())))
+
 	default:
 		log := ctx.Log().WithCallDepth(3)
 		if errors.Is(err, errs.ErrPanic) {

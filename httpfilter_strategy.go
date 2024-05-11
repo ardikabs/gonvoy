@@ -37,7 +37,7 @@ func (p *decodeHeadersStrategy) Execute(c Context, first, last HttpFilterProcess
 		return ActionContinue, err
 	}
 
-	if c.IsRequestBodyWriteable() {
+	if c.IsRequestBodyReadable() {
 		c.RequestHeader().Del(HeaderXContentOperation)
 		return ActionPause, nil
 	}
@@ -61,8 +61,8 @@ type decodeDataStrategy struct {
 }
 
 func (p *decodeDataStrategy) Execute(c Context, first, last HttpFilterProcessor) (HttpFilterAction, error) {
-	isBodyAccessible := c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
-	if !isBodyAccessible {
+	isRequestBodyAccessible := c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
+	if !isRequestBodyAccessible {
 		return ActionSkip, nil
 	}
 
@@ -97,8 +97,8 @@ func (p *encodeHeadersStrategy) Execute(c Context, first, last HttpFilterProcess
 		return ActionContinue, err
 	}
 
-	if c.IsResponseBodyWriteable() {
-		c.RequestHeader().Del(HeaderXContentOperation)
+	if c.IsResponseBodyReadable() {
+		c.ResponseHeader().Del(HeaderXContentOperation)
 		return ActionPause, nil
 	}
 
@@ -121,8 +121,8 @@ type encodeDataStrategy struct {
 }
 
 func (p *encodeDataStrategy) Execute(c Context, first, last HttpFilterProcessor) (HttpFilterAction, error) {
-	isBodyAccessible := c.IsResponseBodyReadable() || c.IsResponseBodyWriteable()
-	if !isBodyAccessible {
+	isResponseBodyAccessible := c.IsResponseBodyReadable() || c.IsResponseBodyWriteable()
+	if !isResponseBodyAccessible {
 		return ActionSkip, nil
 	}
 

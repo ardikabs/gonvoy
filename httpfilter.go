@@ -113,9 +113,8 @@ func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStre
 }
 
 func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	// strategy := newEncodeDataStrategy(buffer, endStream)
-	// return f.ctx.ServeHTTPFilter(strategy)
-	return api.Continue
+	strategy := newEncodeDataStrategy(buffer, endStream)
+	return f.ctx.ServeHTTPFilter(strategy)
 }
 
 func (f *httpFilterInstance) OnDestroy(reason api.DestroyReason) {

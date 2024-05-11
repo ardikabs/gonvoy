@@ -41,12 +41,12 @@ static_resources:
                       path: /dev/stdout
 
                 http_filters:
-                  # - name: envoy.filters.http.golang
-                  #   typed_config:
-                  #     "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
-                  #     library_id: go-simple-extension
-                  #     library_path: "lib/go_simple_extension.so"
-                  #     plugin_name: stats
+                  - name: envoy.filters.http.golang
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+                      library_id: go-simple-extension
+                      library_path: "lib/go_simple_extension.so"
+                      plugin_name: stats
                   - name: envoy.filters.http.jwt_authn
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication

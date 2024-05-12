@@ -94,7 +94,8 @@ static_resources:
                     - name: local_service
                       domains: ["*"]
                       routes:
-                        - match:
+                        - name: details-page
+                          match:
                             prefix: "/details"
                           route:
                             cluster: helloworld_service_cluster
@@ -111,11 +112,13 @@ static_resources:
                                     value:
                                       request_headers:
                                         x-foo: x-bar
-                        - match:
+                        - name: index-html-page
+                          match:
                             prefix: "/index.html"
                           route:
                             cluster: helloworld_service_cluster
-                        - match:
+                        - name: root
+                          match:
                             prefix: "/"
                           route:
                             cluster: podinfo_service_cluster

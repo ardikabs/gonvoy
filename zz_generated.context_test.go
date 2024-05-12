@@ -1053,6 +1053,47 @@ func (_c *MockContext_SetResponseHeader_Call) RunAndReturn(run func(api.Response
 	return _c
 }
 
+// SkipNextPhase provides a mock function with given fields:
+func (_m *MockContext) SkipNextPhase() error {
+	ret := _m.Called()
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func() error); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockContext_SkipNextPhase_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SkipNextPhase'
+type MockContext_SkipNextPhase_Call struct {
+	*mock.Call
+}
+
+// SkipNextPhase is a helper method to define mock.On call
+func (_e *MockContext_Expecter) SkipNextPhase() *MockContext_SkipNextPhase_Call {
+	return &MockContext_SkipNextPhase_Call{Call: _e.mock.On("SkipNextPhase")}
+}
+
+func (_c *MockContext_SkipNextPhase_Call) Run(run func()) *MockContext_SkipNextPhase_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockContext_SkipNextPhase_Call) Return(_a0 error) *MockContext_SkipNextPhase_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_SkipNextPhase_Call) RunAndReturn(run func() error) *MockContext_SkipNextPhase_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // StatusType provides a mock function with given fields:
 func (_m *MockContext) StatusType() api.StatusType {
 	ret := _m.Called()

@@ -47,28 +47,6 @@ func (h *HandlerThree) OnRequestHeader(c gonvoy.Context, header http.Header) err
 	return nil
 }
 
-func (h *HandlerThree) OnResponseHeader(c gonvoy.Context, header http.Header) error {
-	switch sc := c.Response().StatusCode; sc {
-	case http.StatusUnauthorized:
-		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
-	case http.StatusTooManyRequests:
-		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
-	case http.StatusServiceUnavailable:
-		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
-	}
-
-	return nil
-}
-
 func (h *HandlerThree) OnRequestBody(c gonvoy.Context, body []byte) error {
 	if ct := c.Request().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, "application/json") {
 		return nil
@@ -94,6 +72,28 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context, body []byte) error {
 	}
 
 	c.Log().Info("check request body", "payload", string(b))
+	return nil
+}
+
+func (h *HandlerThree) OnResponseHeader(c gonvoy.Context, header http.Header) error {
+	switch sc := c.Response().StatusCode; sc {
+	case http.StatusUnauthorized:
+		return c.JSON(sc,
+			gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
+			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
+			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+	case http.StatusTooManyRequests:
+		return c.JSON(sc,
+			gonvoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
+			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
+			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+	case http.StatusServiceUnavailable:
+		return c.JSON(sc,
+			gonvoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
+			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
+			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+	}
+
 	return nil
 }
 

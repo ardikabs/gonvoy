@@ -215,11 +215,11 @@ func WithContextConfig(cfg *globalConfig) ContextOption {
 		c.globalCache = cfg.globalCache
 		c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
 
-		c.isStrictBodyAccess = cfg.strictBodyAccess
-		c.isRequestBodyReadable = cfg.allowRequestBodyRead
-		c.isRequestBodyWriteable = cfg.allowRequestBodyWrite
-		c.isResponseBodyReadable = cfg.allowResponseBodyRead
-		c.isResponseBodyWriteable = cfg.allowResponseBodyWrite
+		c.strictBodyAccess = cfg.strictBodyAccess
+		c.requestBodyAccessRead = cfg.allowRequestBodyRead
+		c.requestBodyAccessWrite = cfg.allowRequestBodyWrite
+		c.responseBodyAccessRead = cfg.allowResponseBodyRead
+		c.responseBodyAccessWrite = cfg.allowResponseBodyWrite
 
 		c.manager = newHttpFilterManager(c)
 		return nil
@@ -261,11 +261,11 @@ type context struct {
 	reqBufferInstance  api.BufferInstance
 	respBufferInstance api.BufferInstance
 
-	isStrictBodyAccess      bool
-	isRequestBodyReadable   bool
-	isRequestBodyWriteable  bool
-	isResponseBodyReadable  bool
-	isResponseBodyWriteable bool
+	strictBodyAccess        bool
+	requestBodyAccessRead   bool
+	requestBodyAccessWrite  bool
+	responseBodyAccessRead  bool
+	responseBodyAccessWrite bool
 
 	httpReq  *http.Request
 	httpResp *http.Response
@@ -381,7 +381,12 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 	c.httpReq = req
 	c.reqHeaderMap = header
 
-	c.isRequestBodyReadable, c.isRequestBodyWriteable = checkBodyAccessibility(c.isStrictBodyAccess, c.isRequestBodyReadable, c.isRequestBodyWriteable, header)
+	c.requestBodyAccessRead, c.requestBodyAccessWrite = checkBodyAccessibility(c.strictBodyAccess, c.requestBodyAccessRead, c.requestBodyAccessWrite, header)
+
+	if off := req.Header.Get(HeaderXRequestBodyAccess) == ValueXRequestBodyAccessOff; off {
+		c.requestBodyAccessRead = !off && c.requestBodyAccessRead
+		c.requestBodyAccessWrite = !off && c.requestBodyAccessWrite
+	}
 }
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
@@ -401,7 +406,12 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	c.httpResp = resp
 	c.respHeaderMap = header
 
-	c.isResponseBodyReadable, c.isResponseBodyWriteable = checkBodyAccessibility(c.isStrictBodyAccess, c.isResponseBodyReadable, c.isResponseBodyWriteable, header)
+	c.responseBodyAccessRead, c.responseBodyAccessWrite = checkBodyAccessibility(c.strictBodyAccess, c.responseBodyAccessRead, c.responseBodyAccessWrite, header)
+
+	if off := resp.Header.Get(HeaderXResponseBodyAccess) == ValueXResponseBodyAccessOff; off {
+		c.responseBodyAccessRead = !off && c.responseBodyAccessRead
+		c.responseBodyAccessWrite = !off && c.responseBodyAccessWrite
+	}
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {
@@ -466,7 +476,7 @@ func (c *context) IsRequestBodyReadable() bool {
 		return false
 	}
 
-	return c.isRequestBodyReadable
+	return c.requestBodyAccessRead
 }
 
 func (c *context) IsRequestBodyWriteable() bool {
@@ -476,7 +486,7 @@ func (c *context) IsRequestBodyWriteable() bool {
 		return false
 	}
 
-	return c.isRequestBodyWriteable
+	return c.requestBodyAccessWrite
 }
 
 func (c *context) IsResponseBodyReadable() bool {
@@ -486,7 +496,7 @@ func (c *context) IsResponseBodyReadable() bool {
 		return false
 	}
 
-	return c.isResponseBodyReadable
+	return c.responseBodyAccessRead
 }
 
 func (c *context) IsResponseBodyWriteable() bool {
@@ -496,7 +506,7 @@ func (c *context) IsResponseBodyWriteable() bool {
 		return false
 	}
 
-	return c.isResponseBodyWriteable
+	return c.responseBodyAccessWrite
 }
 
 func (c *context) GetProperty(name, defaultVal string) (string, error) {

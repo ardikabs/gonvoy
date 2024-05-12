@@ -13,7 +13,9 @@ func init() {
 		MetricPrefix:            "myfilter_",
 		DisableStrictBodyAccess: true,
 		EnableRequestBodyRead:   true,
-		EnableResponseBodyRead:  true,
+		// EnableRequestBodyWrite: true,
+		EnableResponseBodyRead: true,
+		// EnableResponseBodyWrite: true,
 	})
 }
 

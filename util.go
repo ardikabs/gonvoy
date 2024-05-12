@@ -78,3 +78,11 @@ func isBodyAccessible(header api.HeaderMap) bool {
 	isEmpty := contentLength == "" || contentLength == "0"
 	return !isEmpty
 }
+
+func isRequestBodyAccessible(c Context) bool {
+	return c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
+}
+
+func isResponseBodyAccessible(c Context) bool {
+	return c.IsResponseBodyReadable() || c.IsResponseBodyWriteable()
+}

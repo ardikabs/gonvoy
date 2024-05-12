@@ -10,6 +10,11 @@ const (
 	HeaderContentLength = "Content-Length"
 	HeaderContentType   = "Content-Type"
 
+	HeaderXRequestBodyAccess    = "X-Request-Body-Access"
+	HeaderXResponseBodyAccess   = "X-Response-Body-Access"
+	ValueXRequestBodyAccessOff  = "Off"
+	ValueXResponseBodyAccessOff = "Off"
+
 	HeaderXContentOperation   = "X-Content-Operation"
 	ContentOperationReadOnly  = "ReadOnly"
 	ContentOperationRO        = "RO" // an initial from ReadOnly

@@ -30,8 +30,7 @@ func newDecodeHeadersPhase(header api.RequestHeaderMap) HttpFilterPhaseFunc {
 			return ActionContinue, err
 		}
 
-		if c.IsResponseBodyWriteable() {
-			c.RequestHeader().Del(HeaderXContentOperation)
+		if c.IsRequestBodyWriteable() {
 			return ActionPause, nil
 		}
 
@@ -77,7 +76,6 @@ func newEncodeHeadersPhase(header api.ResponseHeaderMap) HttpFilterPhaseFunc {
 		// This means that even if DecodeHeaders has returned with ActionContinue (Continue status),
 		// DecodeData is still under supervision within Envoy's filter-manager state.
 		if c.IsResponseBodyReadable() {
-			c.ResponseHeader().Del(HeaderXContentOperation)
 			return ActionPause, nil
 		}
 

@@ -98,6 +98,13 @@ type HttpFilterContext interface {
 	//
 	// This action halts the handler chaining and immediately returns back to Envoy.
 	String(code int, s string, header http.Header, opts ...ReplyOption) error
+
+	// SkipNextPhase immediately returns to the Envoy without further progressing to the next handler.
+	// This action also enables users to bypass the next phase.
+	// In HTTP request flows, invoking it from OnRequestHeader skips OnRequestBody phase.
+	// In HTTP response flows, invoking it from OnResponseHeader skips OnResponseBody phase.
+	//
+	SkipNextPhase() error
 }
 
 type RuntimeContext interface {
@@ -311,6 +318,12 @@ func (c *context) String(code int, s string, header http.Header, opts ...ReplyOp
 	return nil
 }
 
+func (c *context) SkipNextPhase() error {
+	c.statusType = api.Continue
+	c.committed = true
+	return nil
+}
+
 func (c *context) RequestHeader() Header {
 	if c.reqHeaderMap == nil {
 		panic("The Request Header is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
@@ -392,8 +405,6 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance) {
-	c.reset()
-
 	if c.reqBufferInstance == nil {
 		c.reqBufferInstance = buffer
 	}
@@ -407,8 +418,6 @@ func (c *context) SetRequestBody(buffer api.BufferInstance) {
 }
 
 func (c *context) SetResponseBody(buffer api.BufferInstance) {
-	c.reset()
-
 	if c.respBufferInstance == nil {
 		c.respBufferInstance = buffer
 	}
@@ -451,11 +460,17 @@ func (c *context) reset() {
 }
 
 func (c *context) IsRequestBodyReadable() bool {
+	// If the Request Body can be accessed, but the current phase has already been committed,
+	// then Request Body is no longer accessible
+	if c.committed {
+		return false
+	}
+
 	return c.isRequestBodyReadable
 }
 
 func (c *context) IsRequestBodyWriteable() bool {
-	// If the request body can be modified, but the current phase has already been committed,
+	// If the Request Body can be modified, but the current phase has already been committed,
 	// then Request Body is no longer modifiable
 	if c.committed {
 		return false
@@ -465,6 +480,12 @@ func (c *context) IsRequestBodyWriteable() bool {
 }
 
 func (c *context) IsResponseBodyReadable() bool {
+	// If the Response Body can be accessed, but the current phase has already been committed,
+	// then Response Body is no longer accessible
+	if c.committed {
+		return false
+	}
+
 	return c.isResponseBodyReadable
 }
 

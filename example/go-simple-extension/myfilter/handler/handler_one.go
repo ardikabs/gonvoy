@@ -40,6 +40,10 @@ func (h *HandlerOne) OnRequestHeader(c gonvoy.Context, header http.Header) error
 		}
 	}
 
+	if header.Get("x-skip-next-phase") == "true" {
+		return c.SkipNextPhase()
+	}
+
 	if c.Request().Header.Get("x-data") == "local" {
 		data := localdata{}
 		data.Name = "from-handler-one"

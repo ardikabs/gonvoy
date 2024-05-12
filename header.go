@@ -12,9 +12,9 @@ const (
 
 	HeaderXContentOperation   = "X-Content-Operation"
 	ContentOperationReadOnly  = "ReadOnly"
-	ContentOperationRO        = "RO" // initial ReadOnly
+	ContentOperationRO        = "RO" // an initial from ReadOnly
 	ContentOperationReadWrite = "ReadWrite"
-	ContentOperationRW        = "RW" // initial ReadWrite
+	ContentOperationRW        = "RW" // an initial from ReadWrite
 )
 
 type Header interface {

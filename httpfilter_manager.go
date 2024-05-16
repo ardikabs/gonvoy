@@ -30,105 +30,171 @@ const (
 	ActionPause
 )
 
-// HttpFilterManager represents an interface for managing HTTP filters.
-type HttpFilterManager interface {
-	// SetErrorHandler sets a custom error handler for an HTTP Filter.
-	SetErrorHandler(ErrorHandler)
+// HttpFilterDecoderFunc is a function type that represents a decoder for HTTP filters.
+// It is used during the decoder phases, which is when the filter processes the incoming request.
+type HttpFilterDecoderFunc func(Context, HttpFilterDecodeProcessor) (HttpFilterAction, error)
 
-	// RegisterHTTPFilterHandler adds an HTTP Filter Handler to the chain,
+// HttpFilterEncoderFunc is a function type that represents an encoder for HTTP filters.
+// It is used during the encoder phases, which is when the filter processes the upstream response.
+type HttpFilterEncoderFunc func(Context, HttpFilterEncodeProcessor) (HttpFilterAction, error)
+
+// HttpFilterController represents a controller for managing HTTP filters.
+type HttpFilterController interface {
+	// SetErrorHandler sets a custom error handler for an HTTP Filter.
+	// The error handler will be called when an error occurs during the execution of the HTTP filter.
+	//
+	SetErrorHandler(handler ErrorHandler)
+
+	// AddHandler adds an HTTP Filter Handler to the controller,
 	// which should be run during filter startup (HttpFilter.OnBegin).
-	// It's important to note the order when registering filter handlers.
+	// It's important to note the order when adding filter handlers.
 	// While HTTP requests follow FIFO sequences, HTTP responses follow LIFO sequences.
 	//
 	// Example usage:
-	//	func (f *UserFilter) OnBegin(c RuntimeContext) error {
+	//
+	//	func (f *UserFilter) OnBegin(c RuntimeContext, ctrl HttpFilterController) error {
 	//		...
-	//		c.RegisterHTTPFilterHandler(handlerA)
-	//		c.RegisterHTTPFilterHandler(handlerB)
-	//		c.RegisterHTTPFilterHandler(handlerC)
-	//		c.RegisterHTTPFilterHandler(handlerD)
+	//		ctrl.AddHandler(handlerA)
+	//		ctrl.AddHandler(handlerB)
+	//		ctrl.AddHandler(handlerC)
+	//		ctrl.AddHandler(handlerD)
 	//	}
 	//
 	// During HTTP requests, traffic flows from `handlerA -> handlerB -> handlerC -> handlerD`.
 	// During HTTP responses, traffic flows in reverse: `handlerD -> handlerC -> handlerB -> handlerA`.
-	RegisterHTTPFilterHandler(HttpFilterHandler)
-
-	// ServeHTTPFilter serves the HTTP Filter for the specified phase.
-	// This method is designed for internal use as it is directly invoked within each filter instance's phases.
-	// Refers to HttpFilterPhaseFunc.
-	ServeHTTPFilter(HttpFilterPhaseFunc) api.StatusType
+	//
+	AddHandler(handler HttpFilterHandler)
 }
 
-func newHttpFilterManager(ctx Context) *httpFilterManager {
+// HttpFilterServer is an HTTP filter server used for handling HTTP requests and responses.
+// It provides methods to serve decode and encode filters, as well as to finalize the processing of the HTTP filter server.
+type HttpFilterServer interface {
+	// ServeDecodeFilter serves decode phase of an HTTP filter.
+	// This method is designed for internal use as it is used during the decoding phase only.
+	// Decode phase is when the filter processes the incoming request, which consist of processing headers and body.
+	//
+	ServeDecodeFilter(HttpFilterDecoderFunc) *HttpFilterResult
+
+	// ServeEncodeFilter serves encode phase of an HTTP filter.
+	// This method is designed for internal use as it is used during the encoding phase only.
+	// Encode phase is when the filter processes the upstream response, which consist of processing headers and body.
+	//
+	ServeEncodeFilter(HttpFilterEncoderFunc) *HttpFilterResult
+
+	// Finalize is called when the HTTP filter server has finalized processing.
+	//
+	Finalize()
+}
+
+// HttpFilterCompletionFunc represents a function type for completing an HTTP filter.
+type HttpFilterCompletionFunc func()
+
+func newHttpFilterManager(c Context) *httpFilterManager {
 	return &httpFilterManager{
-		ctx:          ctx,
+		ctx:          c,
 		errorHandler: DefaultErrorHandler,
 	}
 }
 
+// httpFilterManager represents an HTTP filter manager used for managing HTTP filters.
+// It implements the HttpFilterController and HttpFilterServer interfaces.
 type httpFilterManager struct {
 	ctx          Context
 	errorHandler ErrorHandler
 	first        HttpFilterProcessor
 	last         HttpFilterProcessor
+	completer    HttpFilterCompletionFunc
 }
 
-func (h *httpFilterManager) SetErrorHandler(handler ErrorHandler) {
+func (m *httpFilterManager) SetErrorHandler(handler ErrorHandler) {
 	if util.IsNil(handler) {
 		return
 	}
 
-	h.errorHandler = handler
+	m.errorHandler = handler
 }
 
-func (h *httpFilterManager) RegisterHTTPFilterHandler(handler HttpFilterHandler) {
+func (m *httpFilterManager) AddHandler(handler HttpFilterHandler) {
 	if util.IsNil(handler) || handler.Disable() {
 		return
 	}
 
 	proc := newHttpFilterProcessor(handler)
-	if h.first == nil {
-		h.first = proc
-		h.last = proc
+	if m.first == nil {
+		m.first = proc
+		m.last = proc
 		return
 	}
 
-	proc.SetPrevious(h.last)
-	h.last.SetNext(proc)
-	h.last = proc
+	proc.SetPrevious(m.last)
+	m.last.SetNext(proc)
+	m.last = proc
 }
 
-func (h *httpFilterManager) ServeHTTPFilter(phase HttpFilterPhaseFunc) (status api.StatusType) {
-	var (
-		action HttpFilterAction
-		err    error
-	)
-
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%w; %v", errs.ErrPanic, r)
-		}
-
-		if err != nil {
-			status = h.errorHandler(h.ctx, err)
-			return
-		}
-
-		switch action {
-		case ActionContinue:
-			status = h.ctx.StatusType()
-		case ActionPause:
-			status = api.StopAndBuffer
-		default:
-			status = api.Continue
-		}
-	}()
-
-	if h.first == nil || h.last == nil {
+func (m *httpFilterManager) ServeDecodeFilter(fn HttpFilterDecoderFunc) (res *HttpFilterResult) {
+	res = initHttpFilterResult()
+	defer res.Finalize(m.ctx, m.errorHandler)
+	if m.first == nil {
 		return
 	}
 
-	director := newHttpFilterPhaseDirector(h.first, h.last)
-	action, err = phase(h.ctx, director)
+	res.Action, res.Err = fn(m.ctx, m.first)
 	return
+}
+
+func (m *httpFilterManager) ServeEncodeFilter(fn HttpFilterEncoderFunc) (res *HttpFilterResult) {
+	res = initHttpFilterResult()
+	defer res.Finalize(m.ctx, m.errorHandler)
+	if m.last == nil {
+		return
+	}
+
+	res.Action, res.Err = fn(m.ctx, m.last)
+	return
+}
+
+func (m *httpFilterManager) Finalize() {
+	if m.completer != nil {
+		m.completer()
+	}
+}
+
+func initHttpFilterResult() *HttpFilterResult {
+	return &HttpFilterResult{
+		Action: ActionSkip,
+		Status: api.Continue,
+	}
+}
+
+// HttpFilterResult represents the result of an HTTP filter operation.
+type HttpFilterResult struct {
+	// Action represents the action to be taken based on the filter result.
+	Action HttpFilterAction
+	// Err represents the error encountered during the filter operation, if any.
+	Err error
+	// Status represents the final status of the filter processing.
+	Status api.StatusType
+}
+
+// Finalize performs the finalization logic for the HttpFilterResult.
+// It recovers from any panics, sets the appropriate error and status,
+// and determines the action to be taken based on the result.
+func (res *HttpFilterResult) Finalize(c Context, errorHandler ErrorHandler) {
+	if r := recover(); r != nil {
+		res.Err = fmt.Errorf("%w; %v", errs.ErrPanic, r)
+	}
+
+	if res.Err != nil {
+		res.Status = errorHandler(c, res.Err)
+		return
+	}
+
+	switch res.Action {
+	case ActionContinue:
+		res.Status = c.StatusType()
+	case ActionPause:
+		res.Status = api.StopAndBuffer
+	default:
+		res.Status = api.Continue
+	}
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	_ "go-simple-extension/myfilter"
-	_ "go-simple-extension/stats"
+	_ "go-simple-extension/mystats"
 )
 
 func main() {}

@@ -72,6 +72,8 @@ func TestNewFrom(t *testing.T) {
 	assert.Zero(t, destPtr.(*dummyStruct).A)
 	assert.Zero(t, destPtr.(*dummyStruct).B)
 	assert.Zero(t, destPtr.(*dummyStruct).c)
+	assert.NotSame(t, src, dest)
+	assert.NotSame(t, srcPtr, destPtr)
 }
 
 func TestIsNil(t *testing.T) {

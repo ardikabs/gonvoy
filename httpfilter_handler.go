@@ -51,9 +51,11 @@ var (
 	ResponseServiceUnavailable  = NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE")
 )
 
+// ErrorHandler is a function type that handles errors in the HTTP filter.
 type ErrorHandler func(Context, error) api.StatusType
 
-func DefaultErrorHandler(ctx Context, err error) api.StatusType {
+// DefaultErrorHandler is a default error handler if no custom error handler is provided.
+func DefaultErrorHandler(c Context, err error) api.StatusType {
 	unwrapErr := errs.Unwrap(err)
 	if unwrapErr == nil {
 		return api.Continue
@@ -61,39 +63,39 @@ func DefaultErrorHandler(ctx Context, err error) api.StatusType {
 
 	switch unwrapErr {
 	case errs.ErrUnauthorized:
-		err = ctx.JSON(
+		err = c.JSON(
 			http.StatusUnauthorized,
 			ResponseUnauthorized,
 			NewGatewayHeaders(),
 			WithResponseCodeDetails(DefaultResponseCodeDetailUnauthorized.Wrap(err.Error())))
 
 	case errs.ErrAccessDenied:
-		err = ctx.JSON(
+		err = c.JSON(
 			http.StatusForbidden,
 			ResponseForbidden,
 			NewGatewayHeaders(),
 			WithResponseCodeDetails(DefaultResponseCodeDetailAccessDenied.Wrap(err.Error())))
 
 	case errs.ErrOperationNotPermitted:
-		err = ctx.JSON(
+		err = c.JSON(
 			http.StatusBadGateway,
 			NewMinimalJSONResponse("BAD_GATEWAY", "BAD_GATEWAY", err),
 			NewGatewayHeaders(),
 			WithResponseCodeDetails(DefaultResponseCodeDetailError.Wrap(err.Error())))
 
 	default:
-		log := ctx.Log().WithCallDepth(3)
+		log := c.Log().WithCallDepth(3)
 		if errors.Is(err, errs.ErrPanic) {
 			log = log.WithCallDepth(1)
 		}
 
 		// hide internal error to end user
 		// but printed out the error details to envoy log
-		host := MustGetProperty(ctx, "request.host", "-")
-		method := MustGetProperty(ctx, "request.method", "-")
-		path := MustGetProperty(ctx, "request.path", "-")
+		host := MustGetProperty(c, "request.host", "-")
+		method := MustGetProperty(c, "request.method", "-")
+		path := MustGetProperty(c, "request.path", "-")
 		log.Error(err, "unidentified error", "host", host, "method", method, "path", path)
-		err = ctx.JSON(
+		err = c.JSON(
 			http.StatusInternalServerError,
 			ResponseInternalServerError,
 			NewGatewayHeaders(),

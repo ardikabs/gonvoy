@@ -72,7 +72,7 @@ $ curl 127.0.0.1:10000/index.html
 $ curl 127.0.0.1:10000/index.html
 $ curl 127.0.0.1:10000/index.html
 
-$ curl -sSfL 127.0.0.1:8001/stats/prometheus | grep go_http_plugin
-# TYPE envoy_go_http_plugin counter
-envoy_go_http_plugin{host="127.0.0.1",status_code="200",method="GET"} 3
+$ curl -sSfL 127.0.0.1:8001/stats/prometheus | grep mystats
+# TYPE envoy_mystats_requests_total counter
+envoy_mystats_requests_total{host="127.0.0.1",status_code="200",method="get"} 3
 ```

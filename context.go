@@ -1,14 +1,10 @@
 package gonvoy
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"runtime"
 
-	"github.com/ardikabs/gonvoy/pkg/types"
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/go-logr/logr"
@@ -150,6 +146,8 @@ type RuntimeContext interface {
 	Metrics() Metrics
 }
 
+// Context represents the interface for a context within the filter.
+// It extends the RuntimeContext and HttpFilterContext interfaces.
 type Context interface {
 	RuntimeContext
 
@@ -157,47 +155,17 @@ type Context interface {
 
 	// StatusType is a low-level API used to specify the type of status to be communicated to Envoy.
 	//
+	// Returns the status type.
 	StatusType() api.StatusType
 
 	// Committed indicates whether the current context has already completed its processing
 	// within the filter and forwarded the result to Envoy.
 	//
+	// Returns true if the context has already committed, false otherwise.
 	Committed() bool
 }
 
 type ContextOption func(c *context) error
-
-func runHttpFilterOnComplete(c Context) {
-	ctx, ok := c.(*context)
-	if !ok {
-		return
-	}
-
-	if ctx.filter == nil {
-		return
-	}
-
-	if err := ctx.filter.OnComplete(c); err != nil {
-		c.Log().Error(err, "filter completion failed")
-	}
-}
-
-func WithHttpFilter(filter HttpFilter) ContextOption {
-	return func(c *context) error {
-		iface, err := util.NewFrom(filter)
-		if err != nil {
-			return fmt.Errorf("filter creation failed, %w", err)
-		}
-
-		newFilter := iface.(HttpFilter)
-		if err := newFilter.OnBegin(c); err != nil {
-			return fmt.Errorf("filter startup failed, %w", err)
-		}
-
-		c.filter = newFilter
-		return nil
-	}
-}
 
 func WithContextConfig(cfg *globalConfig) ContextOption {
 	return func(c *context) error {
@@ -278,286 +246,38 @@ type context struct {
 	statusType   api.StatusType
 	committed    bool
 
-	manager HttpFilterManager
-	filter  HttpFilter
+	manager *httpFilterManager
 }
 
-func (c *context) JSON(code int, body []byte, header http.Header, opts ...ReplyOption) error {
-	options := NewDefaultReplyOptions()
-	for _, opt := range opts {
-		opt(options)
-	}
+type CompleteFunc func()
 
-	if header == nil {
-		header = make(http.Header)
-	}
-
-	if body == nil {
-		body = []byte("{}")
-	}
-
-	header.Set("content-type", "application/json")
-	c.callback.SendLocalReply(code, string(body), header, options.grpcStatusCode, options.responseCodeDetails)
-	c.committed = true
-	c.statusType = options.statusType
-
-	runtime.GC()
-	return nil
-}
-
-func (c *context) String(code int, s string, header http.Header, opts ...ReplyOption) error {
-	options := NewDefaultReplyOptions()
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	c.callback.SendLocalReply(code, s, header, options.grpcStatusCode, options.responseCodeDetails)
-	c.committed = true
-	c.statusType = options.statusType
-
-	return nil
-}
-
-func (c *context) SkipNextPhase() error {
-	c.statusType = api.Continue
-	c.committed = true
-	return nil
-}
-
-func (c *context) RequestHeader() Header {
-	if c.reqHeaderMap == nil {
-		panic("The Request Header is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
-	}
-
-	return &header{c.reqHeaderMap}
-}
-
-func (c *context) ResponseHeader() Header {
-	if c.respHeaderMap == nil {
-		panic("The Response Header is not initialized yet and is only available during the OnRequestHeader, OnRequestBody, and OnResponseHeader phases")
-	}
-
-	return &header{c.respHeaderMap}
-}
-
-func (c *context) RequestBody() Body {
-	if c.reqBufferInstance == nil {
-		panic("The Request Body is not initialized yet and is only accessible during the OnRequestBody, OnResponseHeader, and OnResponseBody phases.")
-	}
-
-	return &bodyWriter{
-		writeable: c.IsRequestBodyWriteable(),
-		header:    c.reqHeaderMap,
-		buffer:    c.reqBufferInstance,
-	}
-}
-
-func (c *context) ResponseBody() Body {
-	if c.respBufferInstance == nil {
-		panic("The Response Body is not initialized yet and is only accessible during OnResponseBody phase.")
-	}
-
-	return &bodyWriter{
-		writeable: c.IsResponseBodyWriteable(),
-		header:    c.respHeaderMap,
-		buffer:    c.respBufferInstance,
-	}
-}
-
-func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
-	c.reset()
-
-	req, err := types.NewRequest(
-		header.Method(),
-		header.Host(),
-		types.WithRequestURI(header.Path()),
-		types.WithRequestHeaderRangeSetter(header),
-	)
+func renewHttpFilter(c Context, filter HttpFilter) (CompleteFunc, error) {
+	iface, err := util.NewFrom(filter)
 	if err != nil {
-		c.Log().Error(err, "while initialize Http Request")
-		return
+		return nil, fmt.Errorf("filter creation failed, %w", err)
 	}
 
-	c.httpReq = req
-	c.reqHeaderMap = header
+	newFilter := iface.(HttpFilter)
+	if err := newFilter.OnBegin(c); err != nil {
+		return nil, fmt.Errorf("filter startup failed, %w", err)
+	}
 
-	c.requestBodyAccessRead, c.requestBodyAccessWrite = checkBodyAccessibility(c.strictBodyAccess, c.requestBodyAccessRead, c.requestBodyAccessWrite, header)
+	completeFunc := func() { runOnComplete(newFilter, c) }
 
-	if off := req.Header.Get(HeaderXRequestBodyAccess) == ValueXRequestBodyAccessOff; off {
-		c.requestBodyAccessRead = !off && c.requestBodyAccessRead
-		c.requestBodyAccessWrite = !off && c.requestBodyAccessWrite
+	return completeFunc, nil
+}
+
+func runOnComplete(filter HttpFilter, ctx Context) {
+	if err := filter.OnComplete(ctx); err != nil {
+		ctx.Log().Error(err, "filter completion failed")
 	}
 }
 
-func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
-	c.reset()
-
-	code, ok := header.Status()
+func getHttpFilterServer(c Context) (HttpFilterServer, error) {
+	ctx, ok := c.(*context)
 	if !ok {
-		return
+		return nil, fmt.Errorf("invalid context type; %T", c)
 	}
 
-	resp, err := types.NewResponse(code, types.WithResponseHeaderRangeSetter(header))
-	if err != nil {
-		c.Log().Error(err, "while initialize Http Response")
-		return
-	}
-
-	c.httpResp = resp
-	c.respHeaderMap = header
-
-	c.responseBodyAccessRead, c.responseBodyAccessWrite = checkBodyAccessibility(c.strictBodyAccess, c.responseBodyAccessRead, c.responseBodyAccessWrite, header)
-
-	if off := resp.Header.Get(HeaderXResponseBodyAccess) == ValueXResponseBodyAccessOff; off {
-		c.responseBodyAccessRead = !off && c.responseBodyAccessRead
-		c.responseBodyAccessWrite = !off && c.responseBodyAccessWrite
-	}
-}
-
-func (c *context) SetRequestBody(buffer api.BufferInstance) {
-	if c.reqBufferInstance == nil {
-		c.reqBufferInstance = buffer
-	}
-
-	if buffer.Len() == 0 {
-		return
-	}
-
-	buf := bytes.NewBuffer(buffer.Bytes())
-	c.httpReq.Body = io.NopCloser(buf)
-}
-
-func (c *context) SetResponseBody(buffer api.BufferInstance) {
-	if c.respBufferInstance == nil {
-		c.respBufferInstance = buffer
-	}
-
-	if buffer.Len() == 0 {
-		return
-	}
-
-	buf := bytes.NewBuffer(buffer.Bytes())
-	c.httpResp.Body = io.NopCloser(buf)
-}
-
-func (c *context) Request() *http.Request {
-	if c.httpReq == nil {
-		panic("an HTTP Request is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
-	}
-
-	return c.httpReq
-}
-
-func (c *context) Response() *http.Response {
-	if c.httpResp == nil {
-		panic("an HTTP Response is not initialized yet, and is only available during the OnResponseHeader, and OnResponseBody phases.")
-	}
-
-	return c.httpResp
-}
-
-func (c *context) StatusType() api.StatusType {
-	return c.statusType
-}
-
-func (c *context) Committed() bool {
-	return c.committed
-}
-
-func (c *context) reset() {
-	c.statusType = api.Continue
-	c.committed = false
-}
-
-func (c *context) IsRequestBodyReadable() bool {
-	// If the Request Body can be accessed, but the current phase has already been committed,
-	// then Request Body is no longer accessible
-	if c.committed {
-		return false
-	}
-
-	return c.requestBodyAccessRead
-}
-
-func (c *context) IsRequestBodyWriteable() bool {
-	// If the Request Body can be modified, but the current phase has already been committed,
-	// then Request Body is no longer modifiable
-	if c.committed {
-		return false
-	}
-
-	return c.requestBodyAccessWrite
-}
-
-func (c *context) IsResponseBodyReadable() bool {
-	// If the Response Body can be accessed, but the current phase has already been committed,
-	// then Response Body is no longer accessible
-	if c.committed {
-		return false
-	}
-
-	return c.responseBodyAccessRead
-}
-
-func (c *context) IsResponseBodyWriteable() bool {
-	// If the response body can be modified, but the current phase has already been committed,
-	// then Response Body is no longer modifiable
-	if c.committed {
-		return false
-	}
-
-	return c.responseBodyAccessWrite
-}
-
-func (c *context) GetProperty(name, defaultVal string) (string, error) {
-	value, err := c.callback.GetProperty(name)
-	if err != nil {
-		if errors.Is(err, api.ErrValueNotFound) {
-			return defaultVal, nil
-		}
-
-		return value, err
-	}
-
-	if value == "" {
-		return defaultVal, nil
-	}
-
-	return value, nil
-}
-
-func (c *context) StreamInfo() api.StreamInfo {
-	return c.callback.StreamInfo()
-}
-
-func (c *context) GetFilterConfig() interface{} {
-	return c.filterConfig
-}
-
-func (c *context) GlobalCache() Cache {
-	return c.globalCache
-}
-
-func (c *context) LocalCache() Cache {
-	return c.localCache
-}
-
-func (c *context) Log() logr.Logger {
-	return c.logger
-}
-
-func (c *context) Metrics() Metrics {
-	return c.metrics
-}
-
-func (c *context) SetErrorHandler(e ErrorHandler) {
-	c.manager.SetErrorHandler(e)
-}
-
-func (c *context) RegisterHTTPFilterHandler(handler HttpFilterHandler) {
-	c.manager.RegisterHTTPFilterHandler(handler)
-}
-
-func (c *context) ServeHTTPFilter(phase HttpFilterPhaseFunc) api.StatusType {
-	return c.manager.ServeHTTPFilter(phase)
+	return ctx.manager, nil
 }

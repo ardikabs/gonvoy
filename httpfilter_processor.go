@@ -107,10 +107,10 @@ func (p *httpFilterProcessor) HandleOnResponseBody(c Context) error {
 	return nil
 }
 
-func (p *httpFilterProcessor) SetNext(hfp HttpFilterProcessor) {
-	p.next = hfp
+func (p *httpFilterProcessor) SetNext(next HttpFilterProcessor) {
+	p.next = next
 }
 
-func (p *httpFilterProcessor) SetPrevious(hfp HttpFilterProcessor) {
-	p.prev = hfp
+func (p *httpFilterProcessor) SetPrevious(previous HttpFilterProcessor) {
+	p.prev = previous
 }

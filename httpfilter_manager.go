@@ -8,20 +8,34 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
+// HttpFilterAction represents the action to be taken on each phase of an HTTP filter.
 type HttpFilterAction uint
 
 const (
+	// ActionSkip is basically a no-op action, which mean the filter phase will be skipped.
+	// From Envoy perspective, this is equivalent to a Continue status.
 	ActionSkip HttpFilterAction = iota
+	// ActionContinue is operation action that continues the current filter phase.
+	// From Envoy perspective, this is equivalent to a Continue status.
+	// Although the status is identical to ActionSkip, the purpose of ActionContinue
+	// is to indicate that the current phase is operating correctly and needs to advance to the subsequent filter phase.
 	ActionContinue
+	// ActionPause is an operation action that pause the current filter phase.
+	// This pause could be essential as future filter phases may rely on the processes of preceding phases.
+	// For example, the EncodeData phase may require header alterations, which are established in the EncodeHeaders phase.
+	// Therefore, EncodeHeaders should return with ActionPause, and the header changes may occur later in the EncodeData phase.
+	// From Envoy perspective, this is equivalent to a StopAndBuffer status.
+	// Be aware, when employing this action, the subsequent filter phase must return with ActionContinue,
+	// otherwise the filter chain will be hanging.
 	ActionPause
 )
 
+// HttpFilterManager represents an interface for managing HTTP filters.
 type HttpFilterManager interface {
-	// SetErrorHandler sets a custom error handler for an Http Filter
-	//
+	// SetErrorHandler sets a custom error handler for an HTTP Filter.
 	SetErrorHandler(ErrorHandler)
 
-	// RegisterHTTPFilterHandler adds an Http Filter Handler to the chain,
+	// RegisterHTTPFilterHandler adds an HTTP Filter Handler to the chain,
 	// which should be run during filter startup (HttpFilter.OnBegin).
 	// It's important to note the order when registering filter handlers.
 	// While HTTP requests follow FIFO sequences, HTTP responses follow LIFO sequences.
@@ -37,13 +51,11 @@ type HttpFilterManager interface {
 	//
 	// During HTTP requests, traffic flows from `handlerA -> handlerB -> handlerC -> handlerD`.
 	// During HTTP responses, traffic flows in reverse: `handlerD -> handlerC -> handlerB -> handlerA`.
-	//
 	RegisterHTTPFilterHandler(HttpFilterHandler)
 
-	// ServeHTTPFilter serves the Http Filter for the specified phase.
+	// ServeHTTPFilter serves the HTTP Filter for the specified phase.
 	// This method is designed for internal use as it is directly invoked within each filter instance's phases.
 	// Refers to HttpFilterPhaseFunc.
-	//
 	ServeHTTPFilter(HttpFilterPhaseFunc) api.StatusType
 }
 
@@ -87,7 +99,6 @@ func (h *httpFilterManager) RegisterHTTPFilterHandler(handler HttpFilterHandler)
 }
 
 func (h *httpFilterManager) ServeHTTPFilter(phase HttpFilterPhaseFunc) (status api.StatusType) {
-	// func (h *httpFilterManager) ServeHTTPFilter(strategy HttpFilterPhaseStrategy) (status api.StatusType) {
 	var (
 		action HttpFilterAction
 		err    error
@@ -117,7 +128,7 @@ func (h *httpFilterManager) ServeHTTPFilter(phase HttpFilterPhaseFunc) (status a
 		return
 	}
 
-	director := NewHttpFilterPhaseDirector(h.first, h.last)
+	director := newHttpFilterPhaseDirector(h.first, h.last)
 	action, err = phase(h.ctx, director)
 	return
 }

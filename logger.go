@@ -11,11 +11,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// logWriter is a custom implementation of io.Writer that writes log messages to a buffer.
 type logWriter struct {
 	mu  sync.Mutex
 	buf *bytes.Buffer
 }
 
+// Write writes the log message to the buffer.
 func (w *logWriter) Write(p []byte) (n int, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -28,6 +30,7 @@ func (w *logWriter) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// String returns the contents of the buffer as a string and resets the buffer.
 func (w *logWriter) String() string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -37,6 +40,9 @@ func (w *logWriter) String() string {
 	return strings.TrimSuffix(out, "\n")
 }
 
+var _ logr.LogSink = &logSink{}
+
+// logSink is a logr.LogSink implementation that sends log messages to the Envoy context via FilterCallbacks.
 type logSink struct {
 	callback api.FilterCallbacks
 
@@ -47,6 +53,7 @@ type logSink struct {
 	depth int
 }
 
+// newLogger creates a new logr.Logger implementation for Gonvoy.
 func newLogger(callback api.FilterCallbacks) logr.Logger {
 	out := &logWriter{buf: &bytes.Buffer{}}
 
@@ -72,8 +79,6 @@ func newLogger(callback api.FilterCallbacks) logr.Logger {
 	return logr.New(logSink)
 }
 
-var _ logr.LogSink = &logSink{}
-
 // Init receives runtime info about the logr library.
 func (ls *logSink) Init(ri logr.RuntimeInfo) {
 	ls.depth = ri.CallDepth + 2
@@ -96,6 +101,7 @@ func (ls *logSink) Info(level int, msg string, keysAndValues ...interface{}) {
 	ls.msg(levelToLogType(level), e, msg, keysAndValues)
 }
 
+// msg is a helper function that adds log fields, caller information, and sends the log message to the callback.
 func (ls *logSink) msg(level api.LogType, e *zerolog.Event, msg string, keysAndValues []interface{}) {
 	if e == nil {
 		return
@@ -134,7 +140,7 @@ func (ls logSink) WithCallDepth(depth int) logr.LogSink {
 	return &ls
 }
 
-// DefaultRender supports logr.Marshaler and fmt.Stringer.
+// DefaultRender is a default renderer for key-value zerolog fields that supports logr.Marshaler and fmt.Stringer.
 func DefaultRender(keysAndValues []interface{}) []interface{} {
 	for i, n := 1, len(keysAndValues); i < n; i += 2 {
 		value := keysAndValues[i]
@@ -148,6 +154,7 @@ func DefaultRender(keysAndValues []interface{}) []interface{} {
 	return keysAndValues
 }
 
+// levelToLogType converts the log level to the corresponding LogType.
 func levelToLogType(lvl int) api.LogType {
 	switch lvl {
 	case 0:

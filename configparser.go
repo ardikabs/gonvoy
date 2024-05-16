@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
+// ConfigOptions represents the configuration options for the filters.
 type ConfigOptions struct {
 	BaseConfig interface{}
 

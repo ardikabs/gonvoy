@@ -7,11 +7,15 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
+// Metrics is an interface for defining various types of metrics.
+// At presents, it only supports Gauge and Counter.
 type Metrics interface {
 	// Gauge sets gauge statistics that can record both increasing and decreasing metrics. E.g., current active requests.
 	Gauge(name string, labelKeyValues ...string) api.GaugeMetric
+
 	// Counter sets counter statistics that only record for increase, but never decrease metrics. E.g., total requests.
 	Counter(name string, labelKeyValues ...string) api.CounterMetric
+
 	// Histogram is still a WIP
 	Histogram(name string, labelKeyValues ...string) api.HistogramMetric
 }

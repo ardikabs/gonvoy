@@ -8,7 +8,8 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-// MustGetProperty is an extended of GetProperty, only panic if value is not in acceptable format.
+// MustGetProperty retrieves the value of a property with the given name from the provided RuntimeContext.
+// If the property is not found, it returns the default value. If an error occurs during retrieval, it panics.
 func MustGetProperty(c RuntimeContext, name, defaultVal string) string {
 	value, err := c.GetProperty(name, defaultVal)
 	if err != nil {
@@ -18,7 +19,8 @@ func MustGetProperty(c RuntimeContext, name, defaultVal string) string {
 	return value
 }
 
-// NewMinimalJSONResponse creates a minimal JSON body as a form of bytes.
+// NewMinimalJSONResponse creates a minimal JSON response with the given code, message, and optional errors.
+// It returns the JSON response as a byte slice.
 func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	bodyMap := make(map[string]interface{})
 	bodyMap["code"] = code
@@ -41,6 +43,11 @@ func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	return bodyByte
 }
 
+// checkBodyAccessibility checks the accessibility of the request/response body based on the provided parameters.
+// If strict is false, it determines the accessibility based on the allowRead and allowWrite flags.
+// If strict is true, it checks the accessibility based on the operation specified in the header.
+// The read and write flags indicate whether the body is readable and writable, respectively.
+// The header parameter contains the request/response header information.
 func checkBodyAccessibility(strict, allowRead, allowWrite bool, header api.HeaderMap) (read, write bool) {
 	access := isBodyAccessible(header)
 
@@ -69,6 +76,8 @@ func checkBodyAccessibility(strict, allowRead, allowWrite bool, header api.Heade
 	return
 }
 
+// isBodyAccessible checks if the body is accessible based on the provided header.
+// It returns true if the body is accessible, otherwise false.
 func isBodyAccessible(header api.HeaderMap) bool {
 	contentLength, ok := header.Get(HeaderContentLength)
 	if !ok {
@@ -79,10 +88,14 @@ func isBodyAccessible(header api.HeaderMap) bool {
 	return !isEmpty
 }
 
+// isRequestBodyAccessible checks if the request body is accessible for reading or writing.
+// It returns true if the request body is readable or writeable, otherwise it returns false.
 func isRequestBodyAccessible(c Context) bool {
 	return c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
 }
 
+// isResponseBodyAccessible checks if the response body is accessible.
+// It returns true if the response body is readable or writeable, otherwise false.
 func isResponseBodyAccessible(c Context) bool {
 	return c.IsResponseBodyReadable() || c.IsResponseBodyWriteable()
 }

@@ -9,11 +9,17 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
+// Body represents the body of an HTTP request or response.
 type Body interface {
 	io.Writer
 
+	// Bytes returns the body content as a byte slice.
 	Bytes() []byte
+
+	// WriteString writes a string to the body and returns the number of bytes written and any error encountered.
 	WriteString(s string) (n int, err error)
+
+	// String returns the body content as a string.
 	String() string
 }
 

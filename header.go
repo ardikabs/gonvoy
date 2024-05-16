@@ -22,9 +22,14 @@ const (
 	ContentOperationRW        = "RW" // an initial from ReadWrite
 )
 
+// Header represents an HTTP header. It extends the api.HeaderMap interface
+// and provides additional methods for working with headers.
 type Header interface {
 	api.HeaderMap
 
+	// AsMap returns the header as a map of string slices, where each key
+	// represents a header field name and the corresponding value is a slice
+	// of header field values.
 	AsMap() map[string][]string
 }
 

@@ -4,18 +4,20 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-// HttpFilterPhaseDirector is responsible for managing the Http Filter processor across different phases.
-// It oversees two distinct phases:
-// Decode, which handles HTTP Request flows, and
-// Encode, which manages HTTP Response flows.
+// HttpFilterPhaseDirector is responsible for managing the Http Filter processor during different phases.
+// It oversees two main phases:
+// - Decode: Handles HTTP Request flows.
+// - Encode: Manages HTTP Response flows.
 type HttpFilterPhaseDirector struct {
 	decode HttpFilterDecodeProcessor
 	encode HttpFilterEncodeProcessor
 }
 
+// HttpFilterPhaseFunc is a function type that is used during each phase of an HTTP filter.
+// It takes a `Context` and a `HttpFilterPhaseDirector` as parameters and returns an `HttpFilterAction` and an error.
 type HttpFilterPhaseFunc func(Context, HttpFilterPhaseDirector) (HttpFilterAction, error)
 
-func NewHttpFilterPhaseDirector(decode, encode HttpFilterProcessor) HttpFilterPhaseDirector {
+func newHttpFilterPhaseDirector(decode, encode HttpFilterProcessor) HttpFilterPhaseDirector {
 	return HttpFilterPhaseDirector{
 		decode: decode,
 		encode: encode,

@@ -71,30 +71,32 @@ func (c *globalConfig) metricHistogram(name string) api.HistogramMetric {
 	panic("NOT IMPLEMENTED")
 }
 
+// Cache is an interface that provides methods for accessing an internal cache.
+// There are two types of cache implementations supported by the framework:
+// - Local cache: A cache that is specific to each HTTP context flow and can be accessed using Context.LocalCache().
+// - Global cache: A cache that is shared across all HTTP contexts or throughout the lifespan of Envoy. It can be accessed using Context.GlobalCache().
 type Cache interface {
-	// Store allows you to save a value of any type under a key of any type,
-	// It designed for sharing data throughout Envoy's lifespan.
+	// Store allows you to save a value of any type under a key of any type.
 	//
-	// Please be cautious! The Store function overwrites any existing data.
+	// Please use caution! The Store function overwrites any existing data.
 	Store(key, value any)
 
 	// Load retrieves a value associated with a specific key and assigns it to the receiver.
-	// It designed for sharing data throughout Envoy's lifespan.
 	//
 	// It returns true if a compatible value is successfully loaded,
-	// and false if no value is found or an error occurs during the process.
+	// false if no value is found, or an error occurs during the process.
 	//
-	// If the receiver is not a pointer of the stored data type,
+	// If the receiver is not a pointer to the stored data type,
 	// Load will return an ErrIncompatibleReceiver.
 	//
 	// Example usage:
-	//	type mystruct struct{}
+	//   type mystruct struct{}
 	//
-	//	data := new(mystruct)
-	//	cache.Store("keyName", data)
+	//   data := new(mystruct)
+	//   cache.Store("keyName", data)
 	//
-	//	receiver := new(mystruct)
-	//	_, _ = cache.Load("keyName", &receiver)
+	//   receiver := new(mystruct)
+	//   _, _ = cache.Load("keyName", &receiver)
 	Load(key, receiver any) (ok bool, err error)
 }
 

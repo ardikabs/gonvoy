@@ -11,25 +11,35 @@ import (
 // HttpFilterHandler represents an interface for an HTTP filter handler.
 // In a typical HTTP flow, the sequence of events can be as follows:
 // OnRequestHeader -> OnRequestBody -> <Any number of intermediate Envoy processes> -> OnResponseHeader -> OnResponseBody
+// HttpFilterHandler is an interface that defines the methods to handle HTTP filter operations.
 type HttpFilterHandler interface {
 	// Disable disables the HTTP filter handler.
 	//
+	// It returns a boolean value indicating whether the HTTP filter handler is disabled.
 	Disable() bool
 
-	// OnRequestHeader is called when processing the HTTP request header during the OnRequestBodyPhase.
+	// OnRequestHeader is called when processing the HTTP request header during the OnRequestBody phase.
 	//
+	// It takes a Context object and the request header as parameters.
+	// It returns an error if there was an error processing the request header.
 	OnRequestHeader(c Context, header http.Header) error
 
-	// OnRequestBody is called when processing the HTTP request body during the OnRequestBodyPhase.
+	// OnRequestBody is called when processing the HTTP request body during the OnRequestBody phase.
 	//
+	// It takes a Context object and the request body as parameters.
+	// It returns an error if there was an error processing the request body.
 	OnRequestBody(c Context, body []byte) error
 
-	// OnResponseHeader is called when processing the HTTP response header during the OnResponseHeaderPhase.
+	// OnResponseHeader is called when processing the HTTP response header during the OnResponseHeader phase.
 	//
+	// It takes a Context object and the response header as parameters.
+	// It returns an error if there was an error processing the response header.
 	OnResponseHeader(c Context, header http.Header) error
 
-	// OnResponseBody is called when processing the HTTP response body during the OnResponseBodyPhase.
+	// OnResponseBody is called when processing the HTTP response body during the OnResponseBody phase.
 	//
+	// It takes a Context object and the response body as parameters.
+	// It returns an error if there was an error processing the response body.
 	OnResponseBody(c Context, body []byte) error
 }
 

@@ -17,6 +17,7 @@ var (
 	DefaultResponseCodeDetails = DefaultResponseCodeDetailInfo.Wrap("via_Go_extension")
 )
 
+// ResponseCodeDetailPrefix represents a prefix for response code details.
 type ResponseCodeDetailPrefix string
 
 // Wrap wraps message with given response code detail prefix
@@ -47,19 +48,24 @@ func NewDefaultReplyOptions() *ReplyOptions {
 }
 
 // WithResponseCodeDetails sets response code details for a request/response to the envoy context
-// It accepts a string, but commonly for convention purpose please check RespCodeDetails constants.
+// It accepts a string, but commonly for convention purpose please check ResponseCodeDetailPrefix.
 func WithResponseCodeDetails(detail string) ReplyOption {
 	return func(o *ReplyOptions) {
 		o.responseCodeDetails = detail
 	}
 }
 
+// WithGrpcStatus sets the gRPC status code for the reply options.
+// The status code is used to indicate the result of the gRPC operation.
 func WithGrpcStatus(status int64) ReplyOption {
 	return func(o *ReplyOptions) {
 		o.grpcStatusCode = status
 	}
 }
 
+// WithStatusType sets the status type for the reply options.
+// It takes a status of type api.StatusType and returns a ReplyOption.
+// The returned ReplyOption sets the status type of the ReplyOptions object.
 func WithStatusType(status api.StatusType) ReplyOption {
 	return func(o *ReplyOptions) {
 		o.statusType = status

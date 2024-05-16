@@ -28,29 +28,35 @@ func RunHttpFilter(filter HttpFilter, options ConfigOptions) {
 	)
 }
 
-// HttpFilter defines an interface for an HTTP filter.
+// HttpFilter defines an interface for an HTTP filter used in Envoy.
 // It provides methods for managing filter names, startup, and completion.
 // This interface is specifically designed as a mechanism for onboarding the user HTTP filters to Envoy.
 type HttpFilter interface {
-	// Name returns the filter name used in Envoy.
+	// Name returns the name of the filter used in Envoy.
 	//
+	// The Name method should return a unique name for the filter.
+	// This name is used to identify the filter in the Envoy configuration.
 	Name() string
 
 	// OnBegin is executed during filter startup.
-	// If an error is returned, the filter will be ignored.
-	// This step can be used by the user for filter preparation tasks, such as (but not limited to):
-	// - Retrieving filter configuration (if provided)
-	// - Register filter handlers
-	// - Capture user-generated metrics
 	//
+	// The OnBegin method is called when the filter is initialized.
+	// It can be used by the user to perform filter preparation tasks, such as:
+	// - Retrieving filter configuration (if provided)
+	// - Registering filter handlers
+	// - Capturing user-generated metrics
+	//
+	// If an error is returned, the filter will be ignored.
 	OnBegin(c RuntimeContext) error
 
-	// OnComplete is executed filter completion.
-	// If an error is returned, nothing happened.
-	// This step can be used by the user for filter completion tasks, such as (but not limited to):
-	// - Capture user-generated metrics
-	// - Resource cleanup
+	// OnComplete is executed when the filter is completed.
 	//
+	// The OnComplete method is called when the filter is about to be destroyed.
+	// It can be used by the user to perform filter completion tasks, such as:
+	// - Capturing user-generated metrics
+	// - Cleaning up resources
+	//
+	// If an error is returned, nothing happens.
 	OnComplete(c RuntimeContext) error
 }
 

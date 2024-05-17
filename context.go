@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/go-logr/logr"
 )
 
+// HttpFilterContext represents the context object for an HTTP filter.
+// It provides methods to access and modify various aspects of the HTTP request and response.
 type HttpFilterContext interface {
 	// RequestHeader provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
@@ -103,9 +104,9 @@ type HttpFilterContext interface {
 	SkipNextPhase() error
 }
 
+// RuntimeContext represents the runtime context for the filter in Envoy.
+// It provides various methods to interact with the Envoy proxy and retrieve information about the HTTP traffic.
 type RuntimeContext interface {
-	HttpFilterManager
-
 	// GetProperty is a helper function to fetch Envoy attributes based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
 	// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
 	//
@@ -188,8 +189,6 @@ func WithContextConfig(cfg *globalConfig) ContextOption {
 		c.requestBodyAccessWrite = cfg.allowRequestBodyWrite
 		c.responseBodyAccessRead = cfg.allowResponseBodyRead
 		c.responseBodyAccessWrite = cfg.allowResponseBodyWrite
-
-		c.manager = newHttpFilterManager(c)
 		return nil
 	}
 }
@@ -245,39 +244,4 @@ type context struct {
 	logger       logr.Logger
 	statusType   api.StatusType
 	committed    bool
-
-	manager *httpFilterManager
-}
-
-type CompleteFunc func()
-
-func renewHttpFilter(c Context, filter HttpFilter) (CompleteFunc, error) {
-	iface, err := util.NewFrom(filter)
-	if err != nil {
-		return nil, fmt.Errorf("filter creation failed, %w", err)
-	}
-
-	newFilter := iface.(HttpFilter)
-	if err := newFilter.OnBegin(c); err != nil {
-		return nil, fmt.Errorf("filter startup failed, %w", err)
-	}
-
-	completeFunc := func() { runOnComplete(newFilter, c) }
-
-	return completeFunc, nil
-}
-
-func runOnComplete(filter HttpFilter, ctx Context) {
-	if err := filter.OnComplete(ctx); err != nil {
-		ctx.Log().Error(err, "filter completion failed")
-	}
-}
-
-func getHttpFilterServer(c Context) (HttpFilterServer, error) {
-	ctx, ok := c.(*context)
-	if !ok {
-		return nil, fmt.Errorf("invalid context type; %T", c)
-	}
-
-	return ctx.manager, nil
 }

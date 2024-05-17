@@ -16,7 +16,7 @@ var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 //
 //	package main
 //	func init() {
-//		RunHttpFilter(new(UserHttpFilterInstance), ConfigOptions{
+//		RunHttpFilter(new(UserhttpFilter), ConfigOptions{
 //			BaseConfig: new(UserHttpFilterConfig),
 //		})
 //	}
@@ -48,7 +48,7 @@ type HttpFilter interface {
 	// - Capturing user-generated metrics
 	//
 	// If an error is returned, the filter will be ignored.
-	OnBegin(c RuntimeContext) error
+	OnBegin(c RuntimeContext, i *Instance) error
 
 	// OnComplete is executed when the filter is completed.
 	//
@@ -58,7 +58,7 @@ type HttpFilter interface {
 	// - Cleaning up resources
 	//
 	// If an error is returned, nothing happens.
-	OnComplete(c RuntimeContext) error
+	OnComplete(c Context) error
 }
 
 func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
@@ -81,151 +81,101 @@ func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
 				return NoOpHttpFilter
 			}
 
-			complete, err := renewHttpFilter(ctx, filter)
+			srv, err := createServer(ctx, filter)
 			if err != nil {
 				log.Error(err, "failed to start filter, ignoring filter ...")
 				return NoOpHttpFilter
 			}
 
-			server, err := getHttpFilterServer(ctx)
-			if err != nil {
-				log.Error(err, "failed to get filter server, ignoring filter ...")
-				return NoOpHttpFilter
-			}
-
-			return &httpFilterInstance{
-				srv:      server,
-				complete: complete,
-			}
+			return &httpFilter{srv}
 		}
 	}
 }
 
-var _ api.StreamFilter = &httpFilterInstance{}
-
-type httpFilterInstance struct {
-	api.PassThroughStreamFilter
-
-	srv      HttpFilterServer
-	complete CompleteFunc
-}
-
-func (f *httpFilterInstance) OnLog() {
-	if f.complete != nil {
-		f.complete()
+func newInstance() *Instance {
+	return &Instance{
+		errorHandler: DefaultErrorHandler,
 	}
 }
 
-func (f *httpFilterInstance) OnDestroy(reason api.DestroyReason) {
-	f.srv = nil
-	f.complete = nil
+// Instance represents an instance of an HTTP Filter.
+type Instance struct {
+	errorHandler ErrorHandler
+	first        HttpFilterProcessor
+	last         HttpFilterProcessor
 }
 
-func (f *httpFilterInstance) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	decoder := f.decodeHeaders(header)
-	results := f.srv.ServeDecodeFilter(decoder)
-	return results.Status
-}
-
-func (f *httpFilterInstance) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	decoder := f.decodeData(buffer, endStream)
-	results := f.srv.ServeDecodeFilter(decoder)
-	return results.Status
-}
-
-func (f *httpFilterInstance) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	encoder := f.encodeHeaders(header)
-	results := f.srv.ServeEncodeFilter(encoder)
-	return results.Status
-}
-
-func (f *httpFilterInstance) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	encoder := f.encodeData(buffer, endStream)
-	results := f.srv.ServeEncodeFilter(encoder)
-	return results.Status
-}
-
-func (f *httpFilterInstance) decodeHeaders(header api.RequestHeaderMap) HttpFilterDecoderFunc {
-	return func(c Context, p HttpFilterDecodeProcessor) (HttpFilterAction, error) {
-		c.SetRequestHeader(header)
-
-		if err := p.HandleOnRequestHeader(c); err != nil {
-			return ActionContinue, err
-		}
-
-		if c.IsRequestBodyWriteable() {
-			return ActionPause, nil
-		}
-
-		return ActionContinue, nil
+// SetErrorHandler sets a custom error handler for an HTTP Filter.
+func (i *Instance) SetErrorHandler(handler ErrorHandler) {
+	if util.IsNil(handler) {
+		return
 	}
+
+	i.errorHandler = handler
 }
 
-func (f *httpFilterInstance) decodeData(buffer api.BufferInstance, endStream bool) HttpFilterDecoderFunc {
-	return func(c Context, p HttpFilterDecodeProcessor) (HttpFilterAction, error) {
-		if !isRequestBodyAccessible(c) {
-			return ActionSkip, nil
-		}
-
-		if buffer.Len() > 0 {
-			c.SetRequestBody(buffer)
-		}
-
-		if endStream {
-			return ActionContinue, p.HandleOnRequestBody(c)
-		}
-
-		return ActionPause, nil
+// AddHandler adds an HTTP Filter Handler to the chain,
+// which should be run during filter startup (HttpFilter.OnBegin).
+// It's important to note the order when adding filter handlers.
+// While HTTP requests follow FIFO sequences, HTTP responses follow LIFO sequences.
+//
+// Example usage:
+//
+//	func (f *UserFilter) OnBegin(c RuntimeContext, i *Instance) error {
+//		...
+//		i.AddHandler(handlerA)
+//		i.AddHandler(handlerB)
+//		i.AddHandler(handlerC)
+//		i.AddHandler(handlerD)
+//	}
+//
+// During HTTP requests, traffic flows from `handlerA -> handlerB -> handlerC -> handlerD`.
+// During HTTP responses, traffic flows in reverse: `handlerD -> handlerC -> handlerB -> handlerA`.
+func (h *Instance) AddHandler(handler HttpFilterHandler) {
+	if util.IsNil(handler) || handler.Disable() {
+		return
 	}
-}
 
-func (f *httpFilterInstance) encodeHeaders(header api.ResponseHeaderMap) HttpFilterEncoderFunc {
-	return func(c Context, p HttpFilterEncodeProcessor) (HttpFilterAction, error) {
-		c.SetResponseHeader(header)
-
-		if err := p.HandleOnResponseHeader(c); err != nil {
-			return ActionContinue, err
-		}
-
-		// During the Encode phases or HTTP Response flows,
-		// if a user needs access to the HTTP Response Body, whether for reading or writing,
-		// the EncodeHeaders phase should return with ActionPause (StopAndBuffer status) status.
-		// This is necessary because the Response Header must be buffered in Envoy's filter-manager.
-		// If this buffering is not done, the Response Header might be sent to the downstream client prematurely,
-		// preventing the filter from returning a custom error response in case of unexpected events during processing.
-		//
-		// Hence, we opted for the IsResponseBodyReadable check instead of IsResponseBodyWritable.
-		// It's worth noting that the behavior differs in the Decode phase because the stream flow is directed towards the upstream.
-		// This means that even if DecodeHeaders has returned with ActionContinue (Continue status),
-		// DecodeData is still under supervision within Envoy's filter-manager state.
-		if c.IsResponseBodyReadable() {
-			return ActionPause, nil
-		}
-
-		return ActionContinue, nil
+	proc := newHttpFilterProcessor(handler)
+	if h.first == nil {
+		h.first = proc
+		h.last = proc
+		return
 	}
+
+	proc.SetPrevious(h.last)
+	h.last.SetNext(proc)
+	h.last = proc
 }
 
-// Attention! Please be mindful of the Listener or Cluster per_connection_buffer_limit_bytes value
-// when enabling the response body access on ConfigOptions (EnableResponseBodyRead or EnableResponseBodyWrite).
-// The default value set by Envoy is 1MB. If the response body size exceeds this limit, the process will be halted.
-// Although it's unclear whether this is considered a bug or a limitation at present,
-// the Envoy Golang HTTP Filter library currently returns a 413 status code with a PayloadTooLarge message in such cases.
-// Code references: https://github.com/envoyproxy/envoy/blob/v1.29.4/contrib/golang/filters/http/source/processor_state.cc#L362-L371.
-func (f *httpFilterInstance) encodeData(buffer api.BufferInstance, endStream bool) HttpFilterEncoderFunc {
-	return func(c Context, p HttpFilterEncodeProcessor) (HttpFilterAction, error) {
-		if !isResponseBodyAccessible(c) {
-			return ActionSkip, nil
-		}
+type CompleteFunc func()
 
-		if buffer.Len() > 0 {
-			c.SetResponseBody(buffer)
-		}
+func createServer(c Context, filter HttpFilter) (HttpFilterServer, error) {
+	ins := newInstance()
 
-		if endStream {
-			return ActionContinue, p.HandleOnResponseBody(c)
-		}
+	iface, err := util.NewFrom(filter)
+	if err != nil {
+		return nil, fmt.Errorf("filter server creation failed, %w", err)
+	}
 
-		return ActionPause, nil
+	newFilter := iface.(HttpFilter)
+	if err := newFilter.OnBegin(c, ins); err != nil {
+		return nil, fmt.Errorf("filter server startup failed, %w", err)
+	}
+
+	completeFunc := func() { runOnComplete(newFilter, c) }
+
+	return &httpFilterServer{
+		ctx:          c,
+		errorHandler: ins.errorHandler,
+		decoder:      ins.first,
+		encoder:      ins.last,
+		completer:    completeFunc,
+	}, nil
+}
+
+func runOnComplete(filter HttpFilter, ctx Context) {
+	if err := filter.OnComplete(ctx); err != nil {
+		ctx.Log().Error(err, "filter completion failed")
 	}
 }

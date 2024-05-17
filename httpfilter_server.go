@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/ardikabs/gonvoy/pkg/errs"
-	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -52,92 +51,45 @@ type HttpFilterServer interface {
 	// Encode phase is when the filter processes the upstream response, which consist of processing headers and body.
 	//
 	ServeEncodeFilter(HttpFilterEncoderFunc) *HttpFilterResult
+
+	// Finalize is called when the HTTP filter server has finalized processing.
+	//
+	Finalize()
 }
 
-// HttpFilterManager represents an interface for managing HTTP filters.
-type HttpFilterManager interface {
-	// SetErrorHandler sets a custom error handler for an HTTP Filter.
-	//
-	SetErrorHandler(ErrorHandler)
-
-	// AddHTTPFilterHandler adds an HTTP Filter Handler to the chain,
-	// which should be run during filter startup (HttpFilter.OnBegin).
-	// It's important to note the order when adding filter handlers.
-	// While HTTP requests follow FIFO sequences, HTTP responses follow LIFO sequences.
-	//
-	// Example usage:
-	//	func (f *UserFilter) OnBegin(c RuntimeContext) error {
-	//		...
-	//		c.AddHTTPFilterHandler(handlerA)
-	//		c.AddHTTPFilterHandler(handlerB)
-	//		c.AddHTTPFilterHandler(handlerC)
-	//		c.AddHTTPFilterHandler(handlerD)
-	//	}
-	//
-	// During HTTP requests, traffic flows from `handlerA -> handlerB -> handlerC -> handlerD`.
-	// During HTTP responses, traffic flows in reverse: `handlerD -> handlerC -> handlerB -> handlerA`.
-	//
-	AddHTTPFilterHandler(HttpFilterHandler)
-}
-
-func newHttpFilterManager(c Context) *httpFilterManager {
-	return &httpFilterManager{
-		ctx:          c,
-		errorHandler: DefaultErrorHandler,
-	}
-}
-
-type httpFilterManager struct {
+type httpFilterServer struct {
 	ctx          Context
 	errorHandler ErrorHandler
-	first        HttpFilterProcessor
-	last         HttpFilterProcessor
+	decoder      HttpFilterProcessor
+	encoder      HttpFilterProcessor
+	completer    CompleteFunc
 }
 
-func (h *httpFilterManager) SetErrorHandler(handler ErrorHandler) {
-	if util.IsNil(handler) {
-		return
+func (h *httpFilterServer) Finalize() {
+	if h.completer != nil {
+		h.completer()
 	}
-
-	h.errorHandler = handler
 }
 
-func (h *httpFilterManager) AddHTTPFilterHandler(handler HttpFilterHandler) {
-	if util.IsNil(handler) || handler.Disable() {
-		return
-	}
-
-	proc := newHttpFilterProcessor(handler)
-	if h.first == nil {
-		h.first = proc
-		h.last = proc
-		return
-	}
-
-	proc.SetPrevious(h.last)
-	h.last.SetNext(proc)
-	h.last = proc
-}
-
-func (h *httpFilterManager) ServeDecodeFilter(decoder HttpFilterDecoderFunc) (res *HttpFilterResult) {
+func (h *httpFilterServer) ServeDecodeFilter(fn HttpFilterDecoderFunc) (res *HttpFilterResult) {
 	res = initHttpFilterResult(h.ctx, h.errorHandler)
 	defer res.Finalize()
-	if h.first == nil {
+	if h.decoder == nil {
 		return
 	}
 
-	res.Action, res.Err = decoder(h.ctx, h.first)
+	res.Action, res.Err = fn(h.ctx, h.decoder)
 	return
 }
 
-func (h *httpFilterManager) ServeEncodeFilter(encoder HttpFilterEncoderFunc) (res *HttpFilterResult) {
+func (h *httpFilterServer) ServeEncodeFilter(fn HttpFilterEncoderFunc) (res *HttpFilterResult) {
 	res = initHttpFilterResult(h.ctx, h.errorHandler)
 	defer res.Finalize()
-	if h.last == nil {
+	if h.encoder == nil {
 		return
 	}
 
-	res.Action, res.Err = encoder(h.ctx, h.last)
+	res.Action, res.Err = fn(h.ctx, h.encoder)
 	return
 }
 

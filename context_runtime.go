@@ -47,11 +47,3 @@ func (c *context) Log() logr.Logger {
 func (c *context) Metrics() Metrics {
 	return c.metrics
 }
-
-func (c *context) SetErrorHandler(e ErrorHandler) {
-	c.manager.SetErrorHandler(e)
-}
-
-func (c *context) AddHTTPFilterHandler(handler HttpFilterHandler) {
-	c.manager.AddHTTPFilterHandler(handler)
-}

@@ -1,11 +1,12 @@
-GOLANGCI_VERSION = 1.57.2
-SHELL:=/bin/bash
+SHELL				:= /bin/bash
+GOLANGCI_VERSION	= 1.57.2
+GOLANG_FILES		= $(shell go list ./... | grep -vE '/vendor|/mock'|xargs echo)
 
 .PHONY: help
 help: ## Print this help message.
 	@echo -e "Usage:\n  make \033[36m[Target]\033[0m\n\nTargets:"
 	@awk 'BEGIN {FS = ":.*##"; printf ""} \
-			/^[a-zA-Z.]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 } \
+			/^[a-zA-Z0-9.]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 } \
 			/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' \
 			$(MAKEFILE_LIST)
 
@@ -15,7 +16,7 @@ audit: fmt mod lint vet test ## Doing full audit to the code such as formatting,
 .PHONY: fmt
 fmt: ## Formatting the code.
 	@echo 'Formatting code ...'
-	@go fmt $(shell go list ./... | grep -v /vendor/|xargs echo)
+	@go fmt $(GOLANG_FILES)
 
 .PHONY: mod
 mod: ## Tidying code dependencies.
@@ -27,13 +28,13 @@ mod: ## Tidying code dependencies.
 .PHONY: vet
 vet: ## Vetting the code.
 	@echo 'Vetting code ...'
-	@go vet $(shell go list ./... | grep -v /vendor/|xargs echo)
+	@go vet $(GOLANG_FILES)
 
 .PHONY: test
 test: ## Run unit test for the code.
 	@echo 'Running tests ...'
 	@mkdir -p output
-	@go test $(shell go list ./... | grep -v /vendor/|xargs echo) -cover -coverprofile=./output/coverage.out -race && \
+	@go test $(GOLANG_FILES) -cover -coverprofile=./output/coverage.out -race && \
 		go tool cover -html=./output/coverage.out -o ./output/coverage.html && \
 		go tool cover -func=./output/coverage.out
 
@@ -49,3 +50,14 @@ bin/golangci-lint-${GOLANGCI_VERSION}:
 lint: bin/golangci-lint # Linting the code with golangci-lint.
 	@echo 'Linting code ...'
 	bin/golangci-lint run
+
+.PHONY: e2e
+e2e: e2e.build e2e.go ## Run e2e tests.
+
+.PHONY: e2e.go
+e2e.go: ## Run direct e2e tests without building filters.
+	@go test -v -tags=e2e ./test/e2e
+
+.PHONY: e2e.build
+e2e.build: ## Build filters for e2e tests.
+	@docker compose -f docker-compose-e2e.yaml run --rm e2e_filters_compile

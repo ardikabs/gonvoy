@@ -15,7 +15,8 @@ import (
 
 // ConfigOptions represents the configuration options for the filters.
 type ConfigOptions struct {
-	BaseConfig interface{}
+	// FilterConfig represents the filter configuration.
+	FilterConfig interface{}
 
 	// AlwaysUseChildConfig intend to disable merge behavior, ensuring that it always references the child filter configuration.
 	//
@@ -84,7 +85,7 @@ func newConfigParser(options ConfigOptions) *configParser {
 }
 
 func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (interface{}, error) {
-	if util.IsNil(p.options.BaseConfig) {
+	if util.IsNil(p.options.FilterConfig) {
 		return newGlobalConfig(cc, p.options), nil
 	}
 
@@ -99,7 +100,7 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
 
-	filterCfg, err := util.NewFrom(p.options.BaseConfig)
+	filterCfg, err := util.NewFrom(p.options.FilterConfig)
 	if err != nil {
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
@@ -179,7 +180,7 @@ func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, erro
 
 		isValidField := v.IsValid() || v.CanSet()
 		isMergeable := strings.Contains(tags, "mergeable")
-		isPreserveable := strings.Contains(tags, "preserve") && v.IsZero()
+		isPreserveable := strings.Contains(tags, "preserve_root") && v.IsZero()
 		if !isValidField ||
 			!isMergeable ||
 			isPreserveable {

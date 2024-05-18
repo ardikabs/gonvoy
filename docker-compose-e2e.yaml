@@ -1,0 +1,13 @@
+services:
+  e2e_filters_compile:
+    build:
+      context: .
+      dockerfile: Dockerfile.example
+      target: golang-base
+    command: >
+      /app/hack/build-e2e.sh
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - GOFLAGS=-buildvcs=false

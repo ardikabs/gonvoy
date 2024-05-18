@@ -7,8 +7,11 @@ import (
 )
 
 const (
-	HeaderContentLength = "Content-Length"
-	HeaderContentType   = "Content-Type"
+	HeaderContentLength      = "Content-Length"
+	HeaderContentType        = "Content-Type"
+	MIMEApplicationJSON      = "application/json"
+	MIMETextPlain            = "text/plain"
+	MIMETextPlainCharsetUTF8 = "text/plain" + ";" + charsetUTF8
 
 	HeaderXRequestBodyAccess    = "X-Request-Body-Access"
 	HeaderXResponseBodyAccess   = "X-Response-Body-Access"
@@ -20,6 +23,8 @@ const (
 	ContentOperationRO        = "RO" // an initial from ReadOnly
 	ContentOperationReadWrite = "ReadWrite"
 	ContentOperationRW        = "RW" // an initial from ReadWrite
+
+	charsetUTF8 = "charset=utf-8"
 )
 
 // Header represents an HTTP header. It extends the api.HeaderMap interface

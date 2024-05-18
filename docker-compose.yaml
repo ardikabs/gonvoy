@@ -14,11 +14,6 @@ services:
       - --component-log-level http:info,golang:info,misc:error
     volumes:
       - ./example/go-simple-extension/envoy.yaml:/etc/envoy.yaml
-    # environment:
-    #   - GONVOY_ALLOW_REQUEST_HEADER_PHASE=0
-    #   - GONVOY_ALLOW_RESPONSE_HEADER_PHASE=0
-    #   - GONVOY_ALLOW_REQUEST_BODY_PHASE=0
-    #   - GONVOY_ALLOW_RESPONSE_BODY_PHASE=0
   helloworld_service:
     # image: registry.k8s.io/echoserver:1.10
     # if you are using Apple M1, use below image, otherwise above.

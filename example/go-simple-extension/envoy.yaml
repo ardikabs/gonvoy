@@ -3,10 +3,16 @@ stats_config:
   stats_tags:
     - tag_name: host
       regex: '(_host=([a-z0-9-\.]+)[:\d]*)'
-    - tag_name: status_code
-      regex: "(_status_code=([0-9]+))"
     - tag_name: method
       regex: "(_method=([a-zA-Z]+))"
+    - tag_name: response_code
+      regex: "(_response_code=([0-9]+))"
+    - tag_name: response_flags
+      regex: '(_response_flags=([\d]+)_upstream_name)'
+    - tag_name: upstream_name
+      regex: '(_upstream_name=([a-zA-Z0-9-_\/]+)_route_name)'
+    - tag_name: route_name
+      regex: '(_route_name=([a-zA-Z0-9-_\/]+))'
 
 admin:
   access_log_path: "/dev/null"
@@ -41,12 +47,12 @@ static_resources:
                             {"start_time":"%START_TIME%","method":"%REQ(:METHOD)%","path":"%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%","protocol":"%PROTOCOL%","response_code":"%RESPONSE_CODE%","response_flags":"%RESPONSE_FLAGS%","response_code_details":"%RESPONSE_CODE_DETAILS%","connection_termination_details":"%CONNECTION_TERMINATION_DETAILS%","upstream_transport_failure_reason":"%UPSTREAM_TRANSPORT_FAILURE_REASON%","bytes_received":"%BYTES_RECEIVED%","bytes_sent":"%BYTES_SENT%","duration":"%DURATION%","x-envoy-upstream-service-time":"%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%","x-forwarded-for":"%REQ(X-FORWARDED-FOR)%","user-agent":"%REQ(USER-AGENT)%","x-request-id":"%REQ(X-REQUEST-ID)%",":authority":"%REQ(:AUTHORITY)%","upstream_host":"%UPSTREAM_HOST%","upstream_cluster":"%UPSTREAM_CLUSTER%","upstream_local_address":"%UPSTREAM_LOCAL_ADDRESS%","downstream_local_address":"%DOWNSTREAM_LOCAL_ADDRESS%","downstream_remote_address":"%DOWNSTREAM_REMOTE_ADDRESS%","requested_server_name":"%REQUESTED_SERVER_NAME%","route_name":"%ROUTE_NAME%"}
                       path: /dev/stdout
                 http_filters:
-                  # - name: envoy.filters.http.golang
-                  #   typed_config:
-                  #     "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
-                  #     library_id: go-simple-extension
-                  #     library_path: "lib/go_simple_extension.so"
-                  #     plugin_name: mystats
+                  - name: envoy.filters.http.golang
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+                      library_id: go-simple-extension
+                      library_path: "lib/go_simple_extension.so"
+                      plugin_name: mystats
                   - name: envoy.filters.http.jwt_authn
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
@@ -117,6 +123,31 @@ static_resources:
                             prefix: "/index.html"
                           route:
                             cluster: helloworld_service_cluster
+                        - name: response-body-off
+                          match:
+                            prefix: "/response-body-off"
+                          direct_response:
+                            status: 200
+                            body:
+                              inline_string: '{"name":"John Doe"}'
+                          response_headers_to_add:
+                            - header:
+                                key: "x-response-body-access"
+                                value: "Off"
+                            - header:
+                                key: "content-type"
+                                value: "application/json"
+                        - name: response-body-on
+                          match:
+                            prefix: "/response-body"
+                          direct_response:
+                            status: 200
+                            body:
+                              inline_string: '{"name":"John Doe"}'
+                          response_headers_to_add:
+                            - header:
+                                key: "content-type"
+                                value: "application/json"
                         - name: root
                           match:
                             prefix: "/"

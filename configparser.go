@@ -180,7 +180,7 @@ func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, erro
 
 		isValidField := v.IsValid() || v.CanSet()
 		isMergeable := strings.Contains(tags, "mergeable")
-		isPreserveable := strings.Contains(tags, "preserveRoot") && v.IsZero()
+		isPreserveable := strings.Contains(tags, "preserve_root") && v.IsZero()
 		if !isValidField ||
 			!isMergeable ||
 			isPreserveable {

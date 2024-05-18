@@ -22,7 +22,7 @@ type dummyConfig struct {
 	C string `json:"c" envoy:"mergeable"`
 	S *foo   `json:"s" envoy:"mergeable"`
 
-	Arrays []string `json:"arrays" envoy:"mergeable,preserve"`
+	Arrays []string `json:"arrays" envoy:"mergeable,preserve_root"`
 
 	Any interface{} `json:"any" envoy:"mergeable"`
 	any interface{}

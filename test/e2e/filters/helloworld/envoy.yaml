@@ -23,7 +23,7 @@ static_resources:
                   - name: envoy.filters.http.golang
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
-                      library_id: heloworld
+                      library_id: helloworld
                       library_path: "/filter.so"
                       plugin_name: helloworld
                   - name: envoy.filters.http.router

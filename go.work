@@ -3,4 +3,6 @@ go 1.21.3
 use (
 	.
 	./example/go-simple-extension
+	./test/e2e/helloworld
+	./test/e2e/http_headers_modifier
 )

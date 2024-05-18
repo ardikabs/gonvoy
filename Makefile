@@ -49,3 +49,15 @@ bin/golangci-lint-${GOLANGCI_VERSION}:
 lint: bin/golangci-lint # Linting the code with golangci-lint.
 	@echo 'Linting code ...'
 	bin/golangci-lint run
+
+
+.PHONY: e2e
+e2e: e2e.build e2e.go
+
+.PHONY: e2e.go
+e2e.go:
+	go test -v -tags=e2e ./test/e2e
+
+.PHONY: e2e.build
+e2e.build:
+	docker compose -f docker-compose-e2e.yaml run --rm e2e_filters_compile

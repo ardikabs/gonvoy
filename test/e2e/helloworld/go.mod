@@ -1,4 +1,4 @@
-module go-simple-extension
+module helloworld
 
 go 1.21.3
 

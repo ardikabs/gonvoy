@@ -79,7 +79,7 @@ func TestConfigParser(t *testing.T) {
 
 	t.Run("with config | Parent only", func(t *testing.T) {
 		cp := newConfigParser(ConfigOptions{
-			BaseConfig: new(dummyConfig),
+			FilterConfig: new(dummyConfig),
 		})
 
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
@@ -96,7 +96,7 @@ func TestConfigParser(t *testing.T) {
 
 	t.Run("with config | Parent and Child", func(t *testing.T) {
 		cp := newConfigParser(ConfigOptions{
-			BaseConfig: new(dummyConfig),
+			FilterConfig: new(dummyConfig),
 		})
 
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
@@ -124,7 +124,7 @@ func TestConfigParser(t *testing.T) {
 
 	t.Run("with config | Always use Child config", func(t *testing.T) {
 		cp := newConfigParser(ConfigOptions{
-			BaseConfig:           new(dummyConfig),
+			FilterConfig:         new(dummyConfig),
 			AlwaysUseChildConfig: true,
 		})
 

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ardikabs/gonvoy/test/e2e/suite"
+	"github.com/ardikabs/gonvoy/pkg/suite"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,6 +19,7 @@ var HelloWorldTestCase = suite.TestCase{
 	Name:        "HelloWorldTest",
 	FilterName:  "helloworld",
 	Description: "Initial check to see framework working properly.",
+	Parallel:    true,
 	Test: func(t *testing.T, kit *suite.TestSuiteKit) {
 		kill := kit.StartEnvoy(t)
 		defer kill()

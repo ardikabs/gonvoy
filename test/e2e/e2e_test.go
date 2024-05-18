@@ -7,7 +7,7 @@ import (
 	"flag"
 	"testing"
 
-	"github.com/ardikabs/gonvoy/test/e2e/suite"
+	"github.com/ardikabs/gonvoy/pkg/suite"
 	"github.com/ardikabs/gonvoy/test/e2e/tests"
 )
 

@@ -1,6 +1,6 @@
-module helloworld
+module http_headers
 
-go 1.21.3
+go 1.22.1
 
 require github.com/ardikabs/gonvoy v0.3.0
 

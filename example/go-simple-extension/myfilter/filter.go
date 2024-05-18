@@ -9,7 +9,7 @@ import (
 
 func init() {
 	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
-		BaseConfig:              new(Config),
+		FilterConfig:            new(Config),
 		MetricPrefix:            "myfilter_",
 		DisableStrictBodyAccess: true,
 		EnableRequestBodyWrite:  true,

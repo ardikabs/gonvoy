@@ -1,4 +1,4 @@
-module go-simple-extension
+module http_headers
 
 go 1.22.1
 

@@ -1,6 +1,8 @@
-go 1.21.3
+go 1.22.1
 
 use (
 	.
 	./example/go-simple-extension
+	./test/e2e/filters/helloworld
+	./test/e2e/filters/http_headers_modifier
 )

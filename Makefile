@@ -61,3 +61,7 @@ e2e.go: ## Run direct e2e tests without building filters.
 .PHONY: e2e.build
 e2e.build: ## Build filters for e2e tests.
 	@docker compose -f docker-compose-e2e.yaml run --rm e2e_filters_compile
+
+.PHONY: e2e.cleanup
+e2e.cleanup: ## Clean up e2e filters.
+	@./hack/cleanup-e2e.sh

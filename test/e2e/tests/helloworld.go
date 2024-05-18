@@ -6,7 +6,6 @@ package tests
 import (
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/ardikabs/gonvoy/test/e2e/suite"
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,7 @@ var HelloWorldTestCase = suite.TestCase{
 		defer res.Body.Close()
 
 		require.Eventually(t, func() bool {
-			return kit.CheckEnvoyAccessLog("Hello World from the helloworld HTTP filter")
-		}, 5*time.Second, 100*time.Millisecond, "failed to find log message in access log")
+			return kit.CheckEnvoyLog("Hello World from the helloworld HTTP filter")
+		}, kit.DefaultWaitDuration, kit.DefaultTickDuration, "failed to find log message in envoy log")
 	},
 }

@@ -6,6 +6,7 @@ package suite
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -37,15 +39,16 @@ func NewTestSuite(opt TestSuiteOptions) *TestSuite {
 	}
 
 	if SkipTests != nil {
-		opt.SkipTests = append(opt.SkipTests, parseSkipTests(*SkipTests)...)
+		opt.SkipTests = append(opt.SkipTests, parseSkipTests(ptr.Deref(SkipTests, ""))...)
 	}
 
 	return &TestSuite{
 		EnvoyImageVersion: opt.EnvoyImageVersion,
 		EnvoyPort:         opt.EnvoyPortStartFrom,
 		AdminPort:         opt.AdminPortStartFrom,
-		RunTest:           *RunTest,
 		SkipTests:         sets.New(opt.SkipTests...),
+		RunTest:           ptr.Deref(RunTest, ""),
+		Parallel:          ptr.Deref(Parallel, false),
 	}
 }
 
@@ -54,6 +57,7 @@ type TestSuiteOptions struct {
 	EnvoyPortStartFrom int
 	AdminPortStartFrom int
 	SkipTests          []string
+	Parallel           bool
 }
 
 type TestSuite struct {
@@ -62,23 +66,33 @@ type TestSuite struct {
 	AdminPort         int
 	RunTest           string
 	SkipTests         sets.Set[string]
+	Parallel          bool
 }
 
 func (s *TestSuite) Run(t *testing.T, cases []TestCase) {
 	s.pullEnvoyImage(t)
 
 	for i, c := range cases {
+		suitekit := &TestSuiteKit{
+			DefaultWaitDuration: 5 * time.Second,
+			DefaultTickDuration: 100 * time.Millisecond,
+
+			filterName:        c.FilterName,
+			envoyImageVersion: s.EnvoyImageVersion,
+			adminPort:         s.AdminPort + i,
+			envoyPort:         s.EnvoyPort + i,
+		}
+
 		t.Run(c.Name, func(t *testing.T) {
 			if s.SkipTests.Has(c.Name) {
 				t.Skipf("Skipping %s: test explicitly skipped", c.Name)
 			}
 
-			c.Test(t, &TestSuiteKit{
-				filterName:        c.FilterName,
-				envoyImageVersion: s.EnvoyImageVersion,
-				adminPort:         s.AdminPort + i,
-				envoyPort:         s.EnvoyPort + i,
-			})
+			if s.Parallel {
+				t.Parallel()
+			}
+
+			c.Test(t, suitekit)
 		})
 
 		if s.RunTest == c.Name {
@@ -93,13 +107,14 @@ func (s *TestSuite) pullEnvoyImage(t *testing.T) {
 }
 
 type TestSuiteKit struct {
-	filterName string
+	DefaultWaitDuration time.Duration
+	DefaultTickDuration time.Duration
 
+	filterName        string
 	envoyImageVersion string
 	envoyPort         int
 	adminPort         int
-
-	accessLogBuffer *bytes.Buffer
+	envoyLogBuffer    *bytes.Buffer
 }
 
 func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
@@ -127,7 +142,7 @@ func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
 	cmd.Stderr = buf
 	require.NoError(t, cmd.Start())
 	if !assert.Eventually(t, func() bool {
-		res, err := http.Get(fmt.Sprintf("http://localhost:%d/listeners", s.adminPort))
+		res, err := http.Get(s.GetAdminHost() + "/listeners")
 		if err != nil {
 			return false
 		}
@@ -135,11 +150,22 @@ func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
 		defer res.Body.Close()
 
 		return res.StatusCode == http.StatusOK
-	}, 5*time.Second, 100*time.Millisecond, "Envoy failed to start") {
-		t.Fatalf("Envoy stderr: %s", buf.String())
+	}, s.DefaultWaitDuration, s.DefaultTickDuration, "Envoy failed to start") {
+		t.Fatalf("Envoy startup: %s", buf.String())
 	}
 
-	s.accessLogBuffer = buf
+	if !assert.Eventually(t, func() bool {
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", s.envoyPort), s.DefaultWaitDuration)
+		if err != nil {
+			return false
+		}
+		defer conn.Close()
+		return true
+	}, s.DefaultWaitDuration, s.DefaultTickDuration, "Envoy is not ready yet") {
+		t.Fatalf("Envoy unhealthy: %s", buf.String())
+	}
+
+	s.envoyLogBuffer = buf
 	return func() { require.NoError(t, cmd.Process.Signal(syscall.SIGINT)) }
 }
 
@@ -151,9 +177,9 @@ func (s *TestSuiteKit) GetAdminHost() string {
 	return fmt.Sprintf("http://localhost:%d", s.adminPort)
 }
 
-func (s *TestSuiteKit) CheckEnvoyAccessLog(expressions ...string) bool {
+func (s *TestSuiteKit) CheckEnvoyLog(expressions ...string) bool {
 	for _, exp := range expressions {
-		if strings.Contains(s.accessLogBuffer.String(), exp) {
+		if strings.Contains(s.envoyLogBuffer.String(), exp) {
 			return true
 		}
 	}

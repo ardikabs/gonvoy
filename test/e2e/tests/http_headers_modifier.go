@@ -6,7 +6,6 @@ package tests
 import (
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/ardikabs/gonvoy/test/e2e/suite"
 	"github.com/stretchr/testify/require"
@@ -34,8 +33,8 @@ var HttpHeadersModifierTestCase = suite.TestCase{
 
 			require.Equal(t, res.Header.Get("x-header-modified-at"), "parent")
 			require.Eventually(t, func() bool {
-				return kit.CheckEnvoyAccessLog("request header ---> X-Foo=[\"bar\"]")
-			}, 5*time.Second, 100*time.Millisecond, "failed to find log message in access log")
+				return kit.CheckEnvoyLog("request header ---> X-Foo=[\"bar\"]")
+			}, kit.DefaultWaitDuration, kit.DefaultTickDuration, "failed to find log message in envoy log")
 		})
 
 		t.Run("invoke to details route, expect to use child config", func(t *testing.T) {
@@ -48,8 +47,8 @@ var HttpHeadersModifierTestCase = suite.TestCase{
 
 			require.Equal(t, res.Header.Get("x-header-modified-at"), "child")
 			require.Eventually(t, func() bool {
-				return kit.CheckEnvoyAccessLog("request header ---> X-Boo=[\"far\"]")
-			}, 5*time.Second, 100*time.Millisecond, "failed to find log message in access log")
+				return kit.CheckEnvoyLog("request header ---> X-Boo=[\"far\"]")
+			}, kit.DefaultWaitDuration, kit.DefaultTickDuration, "failed to find log message in envoy log")
 		})
 	},
 }

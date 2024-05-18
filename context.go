@@ -245,3 +245,16 @@ type context struct {
 	statusType   api.StatusType
 	committed    bool
 }
+
+func (c *context) StatusType() api.StatusType {
+	return c.statusType
+}
+
+func (c *context) Committed() bool {
+	return c.committed
+}
+
+func (c *context) reset() {
+	c.statusType = api.Continue
+	c.committed = false
+}

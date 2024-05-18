@@ -10,48 +10,6 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-func (c *context) JSON(code int, body []byte, header http.Header, opts ...ReplyOption) error {
-	options := NewDefaultReplyOptions()
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	if header == nil {
-		header = make(http.Header)
-	}
-
-	if body == nil {
-		body = []byte("{}")
-	}
-
-	header.Set("content-type", "application/json")
-	c.callback.SendLocalReply(code, string(body), header, options.grpcStatusCode, options.responseCodeDetails)
-	c.committed = true
-	c.statusType = options.statusType
-
-	runtime.GC()
-	return nil
-}
-
-func (c *context) String(code int, s string, header http.Header, opts ...ReplyOption) error {
-	options := NewDefaultReplyOptions()
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	c.callback.SendLocalReply(code, s, header, options.grpcStatusCode, options.responseCodeDetails)
-	c.committed = true
-	c.statusType = options.statusType
-
-	return nil
-}
-
-func (c *context) SkipNextPhase() error {
-	c.statusType = api.Continue
-	c.committed = true
-	return nil
-}
-
 func (c *context) RequestHeader() Header {
 	if c.reqHeaderMap == nil {
 		panic("The Request Header is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
@@ -184,19 +142,6 @@ func (c *context) Response() *http.Response {
 	return c.httpResp
 }
 
-func (c *context) StatusType() api.StatusType {
-	return c.statusType
-}
-
-func (c *context) Committed() bool {
-	return c.committed
-}
-
-func (c *context) reset() {
-	c.statusType = api.Continue
-	c.committed = false
-}
-
 func (c *context) IsRequestBodyReadable() bool {
 	// If the Request Body can be accessed, but the current phase has already been committed,
 	// then Request Body is no longer accessible
@@ -235,4 +180,51 @@ func (c *context) IsResponseBodyWriteable() bool {
 	}
 
 	return c.responseBodyAccessWrite
+}
+
+func (c *context) JSON(code int, body []byte, header http.Header, opts ...ReplyOption) error {
+	options := NewDefaultReplyOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	if header == nil {
+		header = make(http.Header)
+	}
+
+	if body == nil {
+		body = []byte("{}")
+	}
+
+	header.Set(HeaderContentType, MIMEApplicationJSON)
+	c.callback.SendLocalReply(code, string(body), header, options.grpcStatusCode, options.responseCodeDetails)
+	c.committed = true
+	c.statusType = options.statusType
+
+	runtime.GC()
+	return nil
+}
+
+func (c *context) String(code int, s string, header http.Header, opts ...ReplyOption) error {
+	options := NewDefaultReplyOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	if header == nil {
+		header = make(http.Header)
+	}
+
+	header.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
+	c.callback.SendLocalReply(code, s, header, options.grpcStatusCode, options.responseCodeDetails)
+	c.committed = true
+	c.statusType = options.statusType
+
+	return nil
+}
+
+func (c *context) SkipNextPhase() error {
+	c.statusType = api.Continue
+	c.committed = true
+	return nil
 }

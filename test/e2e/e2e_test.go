@@ -15,7 +15,7 @@ func TestE2E(t *testing.T) {
 	flag.Parse()
 
 	tSuite := suite.NewTestSuite(suite.TestSuiteOptions{
-		EnvoyVersion:       "envoyproxy/envoy:contrib-v1.29-latest",
+		EnvoyImageVersion:  suite.DefaultEnvoyImageVersion,
 		EnvoyPortStartFrom: 10000,
 		AdminPortStartFrom: 8000,
 	})

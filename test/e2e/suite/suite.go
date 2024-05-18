@@ -19,9 +19,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+const (
+	DefaultEnvoyImageVersion = "envoyproxy/envoy:contrib-v1.29-latest"
+)
+
 func NewTestSuite(opt TestSuiteOptions) *TestSuite {
-	if opt.EnvoyVersion == "" {
-		opt.EnvoyVersion = "envoyproxy/envoy:contrib-v1.29-latest"
+	if opt.EnvoyImageVersion == "" {
+		opt.EnvoyImageVersion = DefaultEnvoyImageVersion
 	}
 
 	if opt.EnvoyPortStartFrom == 0 {
@@ -37,30 +41,32 @@ func NewTestSuite(opt TestSuiteOptions) *TestSuite {
 	}
 
 	return &TestSuite{
-		EnvoyVersion: opt.EnvoyVersion,
-		EnvoyPort:    opt.EnvoyPortStartFrom,
-		AdminPort:    opt.AdminPortStartFrom,
-		RunTest:      *RunTest,
-		SkipTests:    sets.New(opt.SkipTests...),
+		EnvoyImageVersion: opt.EnvoyImageVersion,
+		EnvoyPort:         opt.EnvoyPortStartFrom,
+		AdminPort:         opt.AdminPortStartFrom,
+		RunTest:           *RunTest,
+		SkipTests:         sets.New(opt.SkipTests...),
 	}
 }
 
 type TestSuiteOptions struct {
-	EnvoyVersion       string
+	EnvoyImageVersion  string
 	EnvoyPortStartFrom int
 	AdminPortStartFrom int
 	SkipTests          []string
 }
 
 type TestSuite struct {
-	EnvoyVersion string
-	EnvoyPort    int
-	AdminPort    int
-	RunTest      string
-	SkipTests    sets.Set[string]
+	EnvoyImageVersion string
+	EnvoyPort         int
+	AdminPort         int
+	RunTest           string
+	SkipTests         sets.Set[string]
 }
 
 func (s *TestSuite) Run(t *testing.T, cases []TestCase) {
+	s.pullEnvoyImage(t)
+
 	for i, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
 			if s.SkipTests.Has(c.Name) {
@@ -68,10 +74,10 @@ func (s *TestSuite) Run(t *testing.T, cases []TestCase) {
 			}
 
 			c.Test(t, &TestSuiteKit{
-				filterName:   c.FilterName,
-				envoyVersion: s.EnvoyVersion,
-				adminPort:    s.AdminPort + i,
-				envoyPort:    s.EnvoyPort + i,
+				filterName:        c.FilterName,
+				envoyImageVersion: s.EnvoyImageVersion,
+				adminPort:         s.AdminPort + i,
+				envoyPort:         s.EnvoyPort + i,
 			})
 		})
 
@@ -81,12 +87,17 @@ func (s *TestSuite) Run(t *testing.T, cases []TestCase) {
 	}
 }
 
+func (s *TestSuite) pullEnvoyImage(t *testing.T) {
+	cmd := exec.Command("docker", "pull", s.EnvoyImageVersion)
+	require.NoError(t, cmd.Run())
+}
+
 type TestSuiteKit struct {
 	filterName string
 
-	envoyVersion string
-	envoyPort    int
-	adminPort    int
+	envoyImageVersion string
+	envoyPort         int
+	adminPort         int
 
 	accessLogBuffer *bytes.Buffer
 }
@@ -104,7 +115,7 @@ func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
 		"-p", fmt.Sprintf("%d:10000", s.envoyPort),
 		"-v", filterdir+"/envoy.yaml:/etc/envoy.yaml",
 		"-v", filterdir+"/filter.so:/filter.so",
-		s.envoyVersion,
+		s.envoyImageVersion,
 		"/usr/local/bin/envoy",
 		"-c", "/etc/envoy.yaml",
 		"--log-level", "warn",

@@ -44,7 +44,7 @@ func newHttpFilterProcessor(hf HttpFilterHandler) *httpFilterProcessor {
 }
 
 func (p *httpFilterProcessor) HandleOnRequestHeader(c Context) error {
-	if err := p.OnRequestHeader(c, c.Request().Header); err != nil {
+	if err := p.OnRequestHeader(c); err != nil {
 		return err
 	}
 
@@ -60,7 +60,7 @@ func (p *httpFilterProcessor) HandleOnRequestHeader(c Context) error {
 }
 
 func (p *httpFilterProcessor) HandleOnRequestBody(c Context) error {
-	if err := p.OnRequestBody(c, c.RequestBody().Bytes()); err != nil {
+	if err := p.OnRequestBody(c); err != nil {
 		return err
 	}
 
@@ -76,7 +76,7 @@ func (p *httpFilterProcessor) HandleOnRequestBody(c Context) error {
 }
 
 func (p *httpFilterProcessor) HandleOnResponseHeader(c Context) error {
-	if err := p.OnResponseHeader(c, c.Response().Header); err != nil {
+	if err := p.OnResponseHeader(c); err != nil {
 		return err
 	}
 
@@ -92,7 +92,7 @@ func (p *httpFilterProcessor) HandleOnResponseHeader(c Context) error {
 }
 
 func (p *httpFilterProcessor) HandleOnResponseBody(c Context) error {
-	if err := p.OnResponseBody(c, c.ResponseBody().Bytes()); err != nil {
+	if err := p.OnResponseBody(c); err != nil {
 		return err
 	}
 

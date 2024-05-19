@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -134,15 +132,4 @@ func ensureRequiredFileExists(absPaths ...string) error {
 	}
 
 	return nil
-}
-
-// GetAbsPathFromCaller returns the absolute path of the file that calls this function.
-func GetAbsPathFromCaller(t *testing.T) string {
-	_, file, _, ok := runtime.Caller(1)
-	require.True(t, ok)
-
-	absPath, err := filepath.Abs(file)
-	require.NoError(t, err)
-
-	return filepath.Dir(absPath)
 }

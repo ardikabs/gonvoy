@@ -16,44 +16,31 @@ type HandlerThree struct {
 	RequestHeaders map[string]string
 }
 
-func (h *HandlerThree) OnRequestHeader(c gonvoy.Context, header http.Header) error {
+func (h *HandlerThree) OnRequestHeader(c gonvoy.Context) error {
 	log := c.Log().WithName("handlerThree")
 
 	for k, v := range h.RequestHeaders {
 		c.RequestHeader().Set(k, v)
 	}
 
-	localdata := localdata{}
-	if ok, err := c.LocalCache().Load(LocalKey, &localdata); ok && err == nil {
-		if localdata.Name != "from-handler-one" {
-			return errs.ErrUnauthorized
-		}
-
-		if localdata.Foo.Name != "from-handler-two" {
-			return errs.ErrUnauthorized
-		}
-
-		log.Info("localdata looks good", "data", localdata, "pointer", fmt.Sprintf("%p", localdata.Foo))
-	}
-
 	data := new(globaldata)
-	if ok, err := c.GlobalCache().Load(GLOBAL, &data); ok && err == nil {
+	if ok, err := c.GetCache().Load(GLOBAL, &data); ok && err == nil {
 		data.Time3 = time.Now()
 		log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
-		c.GlobalCache().Store(GLOBAL, data)
+		c.GetCache().Store(GLOBAL, data)
 	}
 
 	log.Info("handling request", "request", c.RequestHeader().AsMap())
 	return nil
 }
 
-func (h *HandlerThree) OnRequestBody(c gonvoy.Context, body []byte) error {
+func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 	if ct := c.Request().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, "application/json") {
 		return nil
 	}
 
 	reqBody := make(map[string]interface{})
-	if err := json.Unmarshal(body, &reqBody); err != nil {
+	if err := json.Unmarshal(c.RequestBody().Bytes(), &reqBody); err != nil {
 		return errs.ErrBadRequest
 	}
 
@@ -75,7 +62,7 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context, body []byte) error {
 	return nil
 }
 
-func (h *HandlerThree) OnResponseHeader(c gonvoy.Context, header http.Header) error {
+func (h *HandlerThree) OnResponseHeader(c gonvoy.Context) error {
 	switch sc := c.Response().StatusCode; sc {
 	case http.StatusUnauthorized:
 		return c.JSON(sc,
@@ -97,14 +84,14 @@ func (h *HandlerThree) OnResponseHeader(c gonvoy.Context, header http.Header) er
 	return nil
 }
 
-func (h *HandlerThree) OnResponseBody(c gonvoy.Context, body []byte) error {
+func (h *HandlerThree) OnResponseBody(c gonvoy.Context) error {
 	if ct := c.Response().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, "application/json") {
 		return nil
 	}
 
 	respBody := make(map[string]interface{})
-	if err := json.Unmarshal(body, &respBody); err != nil {
-		c.Log().Error(err, fmt.Sprintf("expecting data type %T, got %v", respBody, string(body)))
+	if err := json.Unmarshal(c.ResponseBody().Bytes(), &respBody); err != nil {
+		c.Log().Error(err, fmt.Sprintf("expecting data type %T, got %v", respBody, string(c.ResponseBody().Bytes())))
 		c.Log().Info("skipping response body manipulation ...")
 		return nil
 	}

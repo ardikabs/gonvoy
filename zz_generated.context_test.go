@@ -25,39 +25,6 @@ func (_m *MockContext) EXPECT() *MockContext_Expecter {
 	return &MockContext_Expecter{mock: &_m.Mock}
 }
 
-// AddHTTPFilterHandler provides a mock function with given fields: _a0
-func (_m *MockContext) AddHTTPFilterHandler(_a0 HttpFilterHandler) {
-	_m.Called(_a0)
-}
-
-// MockContext_AddHTTPFilterHandler_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddHTTPFilterHandler'
-type MockContext_AddHTTPFilterHandler_Call struct {
-	*mock.Call
-}
-
-// AddHTTPFilterHandler is a helper method to define mock.On call
-//   - _a0 HttpFilterHandler
-func (_e *MockContext_Expecter) AddHTTPFilterHandler(_a0 interface{}) *MockContext_AddHTTPFilterHandler_Call {
-	return &MockContext_AddHTTPFilterHandler_Call{Call: _e.mock.On("AddHTTPFilterHandler", _a0)}
-}
-
-func (_c *MockContext_AddHTTPFilterHandler_Call) Run(run func(_a0 HttpFilterHandler)) *MockContext_AddHTTPFilterHandler_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(HttpFilterHandler))
-	})
-	return _c
-}
-
-func (_c *MockContext_AddHTTPFilterHandler_Call) Return() *MockContext_AddHTTPFilterHandler_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockContext_AddHTTPFilterHandler_Call) RunAndReturn(run func(HttpFilterHandler)) *MockContext_AddHTTPFilterHandler_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Committed provides a mock function with given fields:
 func (_m *MockContext) Committed() bool {
 	ret := _m.Called()
@@ -95,6 +62,49 @@ func (_c *MockContext_Committed_Call) Return(_a0 bool) *MockContext_Committed_Ca
 }
 
 func (_c *MockContext_Committed_Call) RunAndReturn(run func() bool) *MockContext_Committed_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetCache provides a mock function with given fields:
+func (_m *MockContext) GetCache() Cache {
+	ret := _m.Called()
+
+	var r0 Cache
+	if rf, ok := ret.Get(0).(func() Cache); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(Cache)
+		}
+	}
+
+	return r0
+}
+
+// MockContext_GetCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetCache'
+type MockContext_GetCache_Call struct {
+	*mock.Call
+}
+
+// GetCache is a helper method to define mock.On call
+func (_e *MockContext_Expecter) GetCache() *MockContext_GetCache_Call {
+	return &MockContext_GetCache_Call{Call: _e.mock.On("GetCache")}
+}
+
+func (_c *MockContext_GetCache_Call) Run(run func()) *MockContext_GetCache_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockContext_GetCache_Call) Return(_a0 Cache) *MockContext_GetCache_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_GetCache_Call) RunAndReturn(run func() Cache) *MockContext_GetCache_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -191,49 +201,6 @@ func (_c *MockContext_GetProperty_Call) Return(_a0 string, _a1 error) *MockConte
 }
 
 func (_c *MockContext_GetProperty_Call) RunAndReturn(run func(string, string) (string, error)) *MockContext_GetProperty_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GlobalCache provides a mock function with given fields:
-func (_m *MockContext) GlobalCache() Cache {
-	ret := _m.Called()
-
-	var r0 Cache
-	if rf, ok := ret.Get(0).(func() Cache); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(Cache)
-		}
-	}
-
-	return r0
-}
-
-// MockContext_GlobalCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GlobalCache'
-type MockContext_GlobalCache_Call struct {
-	*mock.Call
-}
-
-// GlobalCache is a helper method to define mock.On call
-func (_e *MockContext_Expecter) GlobalCache() *MockContext_GlobalCache_Call {
-	return &MockContext_GlobalCache_Call{Call: _e.mock.On("GlobalCache")}
-}
-
-func (_c *MockContext_GlobalCache_Call) Run(run func()) *MockContext_GlobalCache_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *MockContext_GlobalCache_Call) Return(_a0 Cache) *MockContext_GlobalCache_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockContext_GlobalCache_Call) RunAndReturn(run func() Cache) *MockContext_GlobalCache_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -457,49 +424,6 @@ func (_c *MockContext_JSON_Call) Return(_a0 error) *MockContext_JSON_Call {
 }
 
 func (_c *MockContext_JSON_Call) RunAndReturn(run func(int, []byte, http.Header, ...ReplyOption) error) *MockContext_JSON_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// LocalCache provides a mock function with given fields:
-func (_m *MockContext) LocalCache() Cache {
-	ret := _m.Called()
-
-	var r0 Cache
-	if rf, ok := ret.Get(0).(func() Cache); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(Cache)
-		}
-	}
-
-	return r0
-}
-
-// MockContext_LocalCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LocalCache'
-type MockContext_LocalCache_Call struct {
-	*mock.Call
-}
-
-// LocalCache is a helper method to define mock.On call
-func (_e *MockContext_Expecter) LocalCache() *MockContext_LocalCache_Call {
-	return &MockContext_LocalCache_Call{Call: _e.mock.On("LocalCache")}
-}
-
-func (_c *MockContext_LocalCache_Call) Run(run func()) *MockContext_LocalCache_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *MockContext_LocalCache_Call) Return(_a0 Cache) *MockContext_LocalCache_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockContext_LocalCache_Call) RunAndReturn(run func() Cache) *MockContext_LocalCache_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -842,39 +766,6 @@ func (_c *MockContext_ResponseHeader_Call) Return(_a0 Header) *MockContext_Respo
 }
 
 func (_c *MockContext_ResponseHeader_Call) RunAndReturn(run func() Header) *MockContext_ResponseHeader_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// SetErrorHandler provides a mock function with given fields: _a0
-func (_m *MockContext) SetErrorHandler(_a0 ErrorHandler) {
-	_m.Called(_a0)
-}
-
-// MockContext_SetErrorHandler_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetErrorHandler'
-type MockContext_SetErrorHandler_Call struct {
-	*mock.Call
-}
-
-// SetErrorHandler is a helper method to define mock.On call
-//   - _a0 ErrorHandler
-func (_e *MockContext_Expecter) SetErrorHandler(_a0 interface{}) *MockContext_SetErrorHandler_Call {
-	return &MockContext_SetErrorHandler_Call{Call: _e.mock.On("SetErrorHandler", _a0)}
-}
-
-func (_c *MockContext_SetErrorHandler_Call) Run(run func(_a0 ErrorHandler)) *MockContext_SetErrorHandler_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(ErrorHandler))
-	})
-	return _c
-}
-
-func (_c *MockContext_SetErrorHandler_Call) Return() *MockContext_SetErrorHandler_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockContext_SetErrorHandler_Call) RunAndReturn(run func(ErrorHandler)) *MockContext_SetErrorHandler_Call {
 	_c.Call.Return(run)
 	return _c
 }

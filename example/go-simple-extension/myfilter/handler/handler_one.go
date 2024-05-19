@@ -14,7 +14,7 @@ type HandlerOne struct {
 	gonvoy.PassthroughHttpFilterHandler
 }
 
-func (h *HandlerOne) OnRequestHeader(c gonvoy.Context, header http.Header) error {
+func (h *HandlerOne) OnRequestHeader(c gonvoy.Context) error {
 	log := c.Log().WithName("handlerOne").WithName("outer").WithName("inner")
 
 	c.RequestHeader().Add("x-key-id", "0")
@@ -40,34 +40,20 @@ func (h *HandlerOne) OnRequestHeader(c gonvoy.Context, header http.Header) error
 		}
 	}
 
-	if header.Get("x-skip-next-phase") == "true" {
+	if c.Request().Header.Get("x-skip-next-phase") == "true" {
 		return c.SkipNextPhase()
-	}
-
-	if c.Request().Header.Get("x-data") == "local" {
-		data := localdata{}
-		data.Name = "from-handler-one"
-		data.Foo = &foo{}
-
-		if ok, _ := c.LocalCache().Load(LocalKey, &data); ok {
-			panic("MUST PANIC IF ANY DATA EXISTS, as the local cache will be cleaned up on every HTTP context")
-		}
-
-		c.LocalCache().Store(LocalKey, data)
-		log.Info("localdata looks good", "data", data, "pointer", fmt.Sprintf("%p", data.Foo))
-
 	}
 
 	if c.Request().Header.Get("x-data") == "global" {
 		data := new(globaldata)
 		data.Name = "from-handler-one"
 
-		if ok, err := c.GlobalCache().Load(GLOBAL, &data); ok && err == nil {
+		if ok, err := c.GetCache().Load(GLOBAL, &data); ok && err == nil {
 			data.Time = time.Now()
 			log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
 		}
 
-		c.GlobalCache().Store(GLOBAL, data)
+		c.GetCache().Store(GLOBAL, data)
 	}
 
 	if c.Request().Header.Get("x-error") == "panick" {
@@ -78,7 +64,7 @@ func (h *HandlerOne) OnRequestHeader(c gonvoy.Context, header http.Header) error
 	return nil
 }
 
-func (h *HandlerOne) OnResponseHeader(c gonvoy.Context, header http.Header) error {
+func (h *HandlerOne) OnResponseHeader(c gonvoy.Context) error {
 	c.ResponseHeader().Set("via", "gateway.ardikabs.com")
 	return nil
 }

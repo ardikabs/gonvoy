@@ -12,8 +12,8 @@ import (
 type globalConfig struct {
 	filterConfig interface{}
 
-	callbacks   api.ConfigCallbacks
-	globalCache Cache
+	callbacks     api.ConfigCallbacks
+	internalCache Cache
 
 	metricPrefix string
 	gaugeMap     map[string]api.GaugeMetric
@@ -29,12 +29,12 @@ type globalConfig struct {
 
 func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfig {
 	gc := &globalConfig{
-		callbacks:    cc,
-		globalCache:  newCache(),
-		gaugeMap:     make(map[string]api.GaugeMetric),
-		counterMap:   make(map[string]api.CounterMetric),
-		histogramMap: make(map[string]api.HistogramMetric),
-		metricPrefix: options.MetricPrefix,
+		callbacks:     cc,
+		internalCache: newCache(),
+		gaugeMap:      make(map[string]api.GaugeMetric),
+		counterMap:    make(map[string]api.CounterMetric),
+		histogramMap:  make(map[string]api.HistogramMetric),
+		metricPrefix:  options.MetricPrefix,
 
 		strictBodyAccess:       !options.DisableStrictBodyAccess,
 		allowRequestBodyRead:   options.EnableRequestBodyRead,
@@ -71,10 +71,8 @@ func (c *globalConfig) metricHistogram(name string) api.HistogramMetric {
 	panic("NOT IMPLEMENTED")
 }
 
-// Cache is an interface that provides methods for accessing an internal cache.
-// There are two types of cache implementations supported by the framework:
-// - Local cache: A cache that is specific to each HTTP context flow and can be accessed using Context.LocalCache().
-// - Global cache: A cache that is shared across all HTTP contexts or throughout the lifespan of Envoy. It can be accessed using Context.GlobalCache().
+// Cache is an interface that defines methods for storing and retrieving data in an internal cache.
+// It is designed to maintain data persistently throughout Envoy's lifespan.
 type Cache interface {
 	// Store allows you to save a value of any type under a key of any type.
 	//

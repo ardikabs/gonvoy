@@ -14,10 +14,13 @@ import (
 func TestE2E(t *testing.T) {
 	flag.Parse()
 
+	currentDir := suite.GetCurrentDirectory(t)
+
 	tSuite := suite.NewTestSuite(suite.TestSuiteOptions{
-		EnvoyImageVersion:  suite.DefaultEnvoyImageVersion,
-		EnvoyPortStartFrom: 10000,
-		AdminPortStartFrom: 8000,
+		FilterDirectoryPattern: currentDir + "/filters/{filter}",
+		EnvoyImageVersion:      suite.DefaultEnvoyImageVersion,
+		EnvoyPortStartFrom:     10000,
+		AdminPortStartFrom:     8000,
 	})
 
 	tSuite.Run(t, tests.TestCases)

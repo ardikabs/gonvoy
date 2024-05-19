@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -16,30 +15,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestSuiteKit represents a test suite kit that contains various configuration options.
 type TestSuiteKit struct {
+	// DefaultWaitDuration is the default duration to wait for certain operations.
 	DefaultWaitDuration time.Duration
+	// DefaultTickDuration is the default duration between ticks.
 	DefaultTickDuration time.Duration
 
-	filterName        string
+	// envoyConfigAbsPath is the absolute path to the Envoy configuration file.
+	envoyConfigAbsPath string
+	// envoyFilterAbsPath is the absolute path to the Envoy filter file.
+	envoyFilterAbsPath string
+	// envoyImageVersion is the version of the Envoy image to use.
 	envoyImageVersion string
-	envoyPort         int
-	adminPort         int
-	envoyLogBuffer    *bytes.Buffer
+	// envoyPort is the port number on which Envoy listens.
+	envoyPort int
+	// adminPort is the port number for Envoy's admin interface.
+	adminPort int
+	// envoyLogBuffer is a buffer to store Envoy's log output.
+	envoyLogBuffer *bytes.Buffer
 }
 
 func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-
-	filterdir := fmt.Sprintf("%s/filters/%s", cwd, s.filterName)
-
 	cmd := exec.Command("docker",
 		"run",
 		"--rm",
 		"-p", fmt.Sprintf("%d:8000", s.adminPort),
 		"-p", fmt.Sprintf("%d:10000", s.envoyPort),
-		"-v", filterdir+"/envoy.yaml:/etc/envoy.yaml",
-		"-v", filterdir+"/filter.so:/filter.so",
+		"-v", s.envoyConfigAbsPath+":/etc/envoy.yaml",
+		"-v", s.envoyFilterAbsPath+":/filter.so",
 		s.envoyImageVersion,
 		"/usr/local/bin/envoy",
 		"-c", "/etc/envoy.yaml",

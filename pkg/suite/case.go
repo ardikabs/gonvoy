@@ -24,4 +24,54 @@ type TestCase struct {
 	Skip bool
 	// Test function for the test case.
 	Test func(t *testing.T, kit *TestSuiteKit)
+
+	// portSuffix is the suffix to be added to the Envoy Host and Admin Host port number.
+	portSuffix int
+}
+
+func (tc *TestCase) Run(t *testing.T, suite *TestSuite) {
+	if suite.SkipTests.Has(tc.Name) || tc.Skip || (suite.RunTest != "" && suite.RunTest != tc.Name) {
+		t.Skipf("Skipping %s: test explicitly skipped", tc.Name)
+	}
+
+	if tc.Parallel {
+		t.Parallel()
+	}
+
+	kit := &TestSuiteKit{
+		WaitDuration:      DefaultWaitDuration,
+		TickDuration:      DefaultTickDuration,
+		envoyImageVersion: suite.EnvoyImageVersion,
+		adminPort:         suite.AdminPort + tc.portSuffix,
+		envoyPort:         suite.EnvoyPort + tc.portSuffix,
+	}
+
+	if tc.EnvoyConfigName == "" {
+		tc.EnvoyConfigName = "envoy.yaml"
+	}
+
+	if tc.EnvoyFilterName == "" {
+		tc.EnvoyFilterName = "filter.so"
+	}
+
+	if suite.FilterLocation != "" {
+		kit.envoyConfigAbsPath = formatPath(suite.FilterLocation, "{filter}", tc.FilterName, "{filename}", tc.EnvoyConfigName)
+		kit.envoyFilterAbsPath = formatPath(suite.FilterLocation, "{filter}", tc.FilterName, "{filename}", tc.EnvoyFilterName)
+	}
+
+	if tc.EnvoyConfigAbsDir != "" {
+		kit.envoyConfigAbsPath = formatPath(trimLastSlash(tc.EnvoyConfigAbsDir)+"/{filename}", "{filename}", tc.EnvoyConfigName)
+	}
+
+	if tc.EnvoyFilterAbsDir != "" {
+		kit.envoyFilterAbsPath = formatPath(trimLastSlash(tc.EnvoyFilterAbsDir)+"/{filename}", "{filename}", tc.EnvoyFilterName)
+	}
+
+	if err := ensureRequiredFileExists(kit.envoyConfigAbsPath, kit.envoyFilterAbsPath); err != nil {
+		t.Logf("Test case '%s' failed with error: %v", tc.Name, err)
+		t.Log("Please ensure you have built the filter and have the envoy configuration file in the filter directory.")
+		t.FailNow()
+	}
+
+	tc.Test(t, kit)
 }

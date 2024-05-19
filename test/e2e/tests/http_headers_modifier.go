@@ -35,7 +35,7 @@ var HttpHeadersModifierTestCase = suite.TestCase{
 			require.Equal(t, res.Header.Get("x-header-modified-at"), "parent")
 			require.Eventually(t, func() bool {
 				return kit.CheckEnvoyLog("request header ---> X-Foo=[\"bar\"]")
-			}, kit.DefaultWaitDuration, kit.DefaultTickDuration, "failed to find log message in envoy log")
+			}, kit.WaitDuration, kit.TickDuration, "failed to find log message in envoy log")
 		})
 
 		t.Run("invoke to details route, expect to use child config", func(t *testing.T) {
@@ -49,7 +49,7 @@ var HttpHeadersModifierTestCase = suite.TestCase{
 			require.Equal(t, res.Header.Get("x-header-modified-at"), "child")
 			require.Eventually(t, func() bool {
 				return kit.CheckEnvoyLog("request header ---> X-Boo=[\"far\"]")
-			}, kit.DefaultWaitDuration, kit.DefaultTickDuration, "failed to find log message in envoy log")
+			}, kit.WaitDuration, kit.TickDuration, "failed to find log message in envoy log")
 		})
 	},
 }

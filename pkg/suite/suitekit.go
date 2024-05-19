@@ -17,10 +17,10 @@ import (
 
 // TestSuiteKit represents a test suite kit that contains various configuration options.
 type TestSuiteKit struct {
-	// DefaultWaitDuration is the default duration to wait for certain operations.
-	DefaultWaitDuration time.Duration
-	// DefaultTickDuration is the default duration between ticks.
-	DefaultTickDuration time.Duration
+	// WaitDuration is the duration to wait for certain operations.
+	WaitDuration time.Duration
+	// TickDuration is the duration between ticks.
+	TickDuration time.Duration
 
 	// envoyConfigAbsPath is the absolute path to the Envoy configuration file.
 	envoyConfigAbsPath string
@@ -64,18 +64,18 @@ func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
 		defer res.Body.Close()
 
 		return res.StatusCode == http.StatusOK
-	}, s.DefaultWaitDuration, s.DefaultTickDuration, "Envoy failed to start") {
+	}, s.WaitDuration, s.TickDuration, "Envoy failed to start") {
 		t.Fatalf("Envoy startup: %s", buf.String())
 	}
 
 	if !assert.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", s.envoyPort), s.DefaultWaitDuration)
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", s.envoyPort), s.WaitDuration)
 		if err != nil {
 			return false
 		}
 		defer conn.Close()
 		return true
-	}, s.DefaultWaitDuration, s.DefaultTickDuration, "Envoy is not ready yet") {
+	}, s.WaitDuration, s.TickDuration, "Envoy is not ready yet") {
 		t.Fatalf("Envoy unhealthy: %s", buf.String())
 	}
 

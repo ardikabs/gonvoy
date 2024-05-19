@@ -33,6 +33,6 @@ var HelloWorldTestCase = suite.TestCase{
 
 		require.Eventually(t, func() bool {
 			return kit.CheckEnvoyLog("Hello World from the helloworld HTTP filter")
-		}, kit.DefaultWaitDuration, kit.DefaultTickDuration, "failed to find log message in envoy log")
+		}, kit.WaitDuration, kit.TickDuration, "failed to find log message in envoy log")
 	},
 }

@@ -1,6 +1,8 @@
 package suite
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -14,6 +16,8 @@ import (
 
 const (
 	DefaultEnvoyImageVersion = "envoyproxy/envoy:contrib-v1.29-latest"
+	DefaultWaitDuration      = 5 * time.Second
+	DefaultTickDuration      = 100 * time.Millisecond
 )
 
 // TestSuiteOptions represents the options for configuring a test suite.
@@ -27,15 +31,17 @@ type TestSuiteOptions struct {
 	// SkipTests is a list of test names to skip.
 	SkipTests []string
 
-	// FilterDirectoryPattern defines the pattern for locating the filter directory.
+	// FilterLocation defines the pattern for locating the filter directory.
+	// If it is not provided, the default pattern would be "$PWD/filters/{filter}/{filename}".
 	// Available substitutions:
 	// - {filter} -> filter name
+	// - {filename} -> file name, which are envoy.yaml and filter.so. Both can be overriden through the TestCase.
 	// Example usage:
-	//   FilterDirectoryPattern: "/path/to/PROJECT/e2e/filters/{filter}" ->
-	//       1. Given 'filter' as the filter name, for a filter named 'helloworld', it translates to /path/to/PROJECT/e2e/filters/helloworld
-	//       2. For the envoy.yaml file, it translates to /path/to/PROJECT/e2e/filters/helloworld/envoy.yaml
-	//       3. For the filter.so file, it translates to /path/to/PROJECT/e2e/filters/helloworld/filter.so
-	FilterDirectoryPattern string
+	//   FilterLocation: "/home/ardikabs/Workspaces/gonvoy/e2e/filters/{filter}/{filename}" ->
+	//       1. Given 'filter' as the filter name, for a filter named 'helloworld', it translates to /home/ardikabs/Workspaces/gonvoy/e2e/filters/helloworld
+	//       2. For the envoy.yaml file, it translates to /home/ardikabs/Workspaces/gonvoy/e2e/filters/helloworld/envoy.yaml
+	//       3. For the filter.so file, it translates to /home/ardikabs/Workspaces/gonvoy/e2e/filters/helloworld/filter.so
+	FilterLocation string
 }
 
 func NewTestSuite(opts TestSuiteOptions) *TestSuite {
@@ -56,20 +62,20 @@ func NewTestSuite(opts TestSuiteOptions) *TestSuite {
 	}
 
 	return &TestSuite{
+		FilterLocation:    opts.FilterLocation,
 		EnvoyImageVersion: opts.EnvoyImageVersion,
 		EnvoyPort:         opts.EnvoyPortStartFrom,
 		AdminPort:         opts.AdminPortStartFrom,
 		SkipTests:         sets.New(opts.SkipTests...),
 		RunTest:           *RunTest,
-
-		FilterDirectoryPattern: opts.FilterDirectoryPattern,
 	}
 }
 
 // TestSuite represents a test suite configuration.
 type TestSuite struct {
-	// FilterDirectoryPattern specifies the pattern for locating the filter directory.
-	FilterDirectoryPattern string
+	// FilterLocation defines the pattern for locating the filter directory.
+	// It defaults to "$PWD/filters/{filter}/{filename}".
+	FilterLocation string
 	// EnvoyImageVersion specifies the version of the Envoy image to be used.
 	EnvoyImageVersion string
 	// EnvoyPort specifies the port number on which Envoy will listen.
@@ -82,60 +88,27 @@ type TestSuite struct {
 	SkipTests sets.Set[string]
 }
 
-func (s *TestSuite) Run(t *testing.T, cases []TestCase) {
-	s.pullEnvoyImage(t)
+func (suite *TestSuite) Run(t *testing.T, cases []TestCase) {
+	if suite.FilterLocation == "" {
+		curdir, err := os.Getwd()
+		require.NoError(t, err)
+		suite.FilterLocation = fmt.Sprintf("%s/filters/{filter}/{filename}", curdir)
+	}
+
+	suite.pullEnvoyImage(t)
 
 	for i, c := range cases {
 		c := c
-		suitekit := &TestSuiteKit{
-			DefaultWaitDuration: 5 * time.Second,
-			DefaultTickDuration: 100 * time.Millisecond,
-			envoyImageVersion:   s.EnvoyImageVersion,
-			adminPort:           s.AdminPort + i,
-			envoyPort:           s.EnvoyPort + i,
-		}
-
-		if c.EnvoyConfigName == "" {
-			c.EnvoyConfigName = "envoy.yaml"
-		}
-
-		if c.EnvoyFilterName == "" {
-			c.EnvoyFilterName = "filter.so"
-		}
-
-		if s.FilterDirectoryPattern != "" {
-			suitekit.envoyConfigAbsPath = formatPath(s.FilterDirectoryPattern+"/{filename}", "{filter}", c.FilterName, "{filename}", c.EnvoyConfigName)
-			suitekit.envoyFilterAbsPath = formatPath(s.FilterDirectoryPattern+"/{filename}", "{filter}", c.FilterName, "{filename}", c.EnvoyFilterName)
-		}
-
-		if c.EnvoyConfigAbsDir != "" {
-			suitekit.envoyConfigAbsPath = formatPath(c.EnvoyConfigAbsDir+"/{filename}", "{filename}", c.EnvoyConfigName)
-		}
-
-		if c.EnvoyFilterAbsDir != "" {
-			suitekit.envoyFilterAbsPath = formatPath(c.EnvoyFilterAbsDir+"/{filename}", "{filename}", c.EnvoyFilterName)
-		}
+		c.portSuffix = i
 
 		t.Run(c.Name, func(t *testing.T) {
-			if s.SkipTests.Has(c.Name) || c.Skip {
-				t.Skipf("Skipping %s: test explicitly skipped", c.Name)
-			}
-
-			if c.Parallel {
-				t.Parallel()
-			}
-
-			c.Test(t, suitekit)
+			c.Run(t, suite)
 		})
-
-		if s.RunTest == c.Name {
-			break
-		}
 	}
 }
 
-func (s *TestSuite) pullEnvoyImage(t *testing.T) {
-	cmd := exec.Command("docker", "pull", s.EnvoyImageVersion)
+func (suite *TestSuite) pullEnvoyImage(t *testing.T) {
+	cmd := exec.Command("docker", "pull", suite.EnvoyImageVersion)
 	require.NoError(t, cmd.Run())
 }
 
@@ -144,8 +117,27 @@ func formatPath(base string, args ...string) string {
 	return replacer.Replace(base)
 }
 
-// GetCurrentDirectory returns the current directory of the file that calls this function.
-func GetCurrentDirectory(t *testing.T) string {
+func trimLastSlash(s string) string {
+	return strings.TrimSuffix(s, "/")
+}
+
+func ensureRequiredFileExists(absPaths ...string) error {
+	for _, path := range absPaths {
+		_, err := os.Stat(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("file %s does not exist", path)
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// GetAbsPathFromCaller returns the absolute path of the file that calls this function.
+func GetAbsPathFromCaller(t *testing.T) string {
 	_, file, _, ok := runtime.Caller(1)
 	require.True(t, ok)
 

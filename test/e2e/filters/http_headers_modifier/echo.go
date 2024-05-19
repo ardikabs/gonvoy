@@ -1,8 +1,6 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/ardikabs/gonvoy"
 )
 
@@ -25,8 +23,8 @@ type EchoHandler struct {
 	gonvoy.PassthroughHttpFilterHandler
 }
 
-func (EchoHandler) OnRequestHeader(c gonvoy.Context, header http.Header) error {
-	for k, v := range header {
+func (EchoHandler) OnRequestHeader(c gonvoy.Context) error {
+	for k, v := range c.Request().Header {
 		c.Log().Info("request header --->", k, v)
 	}
 

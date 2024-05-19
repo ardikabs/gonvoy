@@ -1,8 +1,6 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/ardikabs/gonvoy"
 )
 
@@ -31,16 +29,16 @@ type Handler struct {
 	gonvoy.PassthroughHttpFilterHandler
 }
 
-func (h Handler) OnRequestHeader(c gonvoy.Context, header http.Header) error {
-	if header.Get("x-panic-at") == "header" {
+func (h Handler) OnRequestHeader(c gonvoy.Context) error {
+	if c.Request().Header.Get("x-panic-at") == "header" {
 		panic("panic during request header handling")
 	}
 
 	return nil
 }
 
-func (h Handler) OnResponseHeader(c gonvoy.Context, header http.Header) error {
-	if header.Get("x-panic-at") == "header" {
+func (h Handler) OnResponseHeader(c gonvoy.Context) error {
+	if c.Response().Header.Get("x-panic-at") == "header" {
 		panic("panic during response header handling")
 	}
 

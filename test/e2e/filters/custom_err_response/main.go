@@ -31,7 +31,7 @@ type Handler struct {
 	gonvoy.PassthroughHttpFilterHandler
 }
 
-func (h Handler) OnResponseHeader(c gonvoy.Context, header http.Header) error {
+func (h Handler) OnResponseHeader(c gonvoy.Context) error {
 	switch sc := c.Response().StatusCode; sc {
 	case http.StatusUnauthorized:
 		return c.JSON(sc,

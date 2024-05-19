@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/ardikabs/gonvoy"
 )
@@ -48,7 +47,7 @@ type Handler struct {
 	ResponseHeaders map[string]string
 }
 
-func (h *Handler) OnRequestHeader(c gonvoy.Context, header http.Header) error {
+func (h *Handler) OnRequestHeader(c gonvoy.Context) error {
 	for k, v := range h.RequestHeaders {
 		c.RequestHeader().Set(k, v)
 	}
@@ -56,7 +55,7 @@ func (h *Handler) OnRequestHeader(c gonvoy.Context, header http.Header) error {
 	return nil
 }
 
-func (h *Handler) OnResponseHeader(c gonvoy.Context, header http.Header) error {
+func (h *Handler) OnResponseHeader(c gonvoy.Context) error {
 	for k, v := range h.ResponseHeaders {
 		c.ResponseHeader().Set(k, v)
 	}

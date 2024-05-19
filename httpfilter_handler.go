@@ -20,27 +20,19 @@ type HttpFilterHandler interface {
 
 	// OnRequestHeader is called when processing the HTTP request header during the OnRequestBody phase.
 	//
-	// It takes a Context object and the request header as parameters.
-	// It returns an error if there was an error processing the request header.
-	OnRequestHeader(c Context, header http.Header) error
+	OnRequestHeader(c Context) error
 
 	// OnRequestBody is called when processing the HTTP request body during the OnRequestBody phase.
 	//
-	// It takes a Context object and the request body as parameters.
-	// It returns an error if there was an error processing the request body.
-	OnRequestBody(c Context, body []byte) error
+	OnRequestBody(c Context) error
 
 	// OnResponseHeader is called when processing the HTTP response header during the OnResponseHeader phase.
 	//
-	// It takes a Context object and the response header as parameters.
-	// It returns an error if there was an error processing the response header.
-	OnResponseHeader(c Context, header http.Header) error
+	OnResponseHeader(c Context) error
 
 	// OnResponseBody is called when processing the HTTP response body during the OnResponseBody phase.
 	//
-	// It takes a Context object and the response body as parameters.
-	// It returns an error if there was an error processing the response body.
-	OnResponseBody(c Context, body []byte) error
+	OnResponseBody(c Context) error
 }
 
 var (
@@ -116,8 +108,8 @@ var _ HttpFilterHandler = PassthroughHttpFilterHandler{}
 
 type PassthroughHttpFilterHandler struct{}
 
-func (PassthroughHttpFilterHandler) Disable() bool                                        { return false }
-func (PassthroughHttpFilterHandler) OnRequestHeader(c Context, header http.Header) error  { return nil }
-func (PassthroughHttpFilterHandler) OnRequestBody(c Context, body []byte) error           { return nil }
-func (PassthroughHttpFilterHandler) OnResponseHeader(c Context, header http.Header) error { return nil }
-func (PassthroughHttpFilterHandler) OnResponseBody(c Context, body []byte) error          { return nil }
+func (PassthroughHttpFilterHandler) Disable() bool                    { return false }
+func (PassthroughHttpFilterHandler) OnRequestHeader(c Context) error  { return nil }
+func (PassthroughHttpFilterHandler) OnRequestBody(c Context) error    { return nil }
+func (PassthroughHttpFilterHandler) OnResponseHeader(c Context) error { return nil }
+func (PassthroughHttpFilterHandler) OnResponseBody(c Context) error   { return nil }

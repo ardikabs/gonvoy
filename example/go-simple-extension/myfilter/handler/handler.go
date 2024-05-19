@@ -23,6 +23,5 @@ type globaldata struct {
 type dataKey string
 
 const (
-	LocalKey = dataKey("LOCAL")
-	GLOBAL   = dataKey("GLOBAL")
+	GLOBAL = dataKey("GLOBAL")
 )

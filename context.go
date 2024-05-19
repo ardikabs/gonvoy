@@ -125,16 +125,10 @@ type RuntimeContext interface {
 	//
 	GetFilterConfig() interface{}
 
-	// GlobalCache provides a global cache, that persists throughout Envoy's lifespan.
-	// Use this cache when variable initialization is expensive or requires a statefulness.
+	// GetCache returns a Cache.
+	// Use this Cache when variable initialization is expensive or requires a statefulness.
 	//
-	GlobalCache() Cache
-
-	// LocalCache provides a cache associated to a HTTP Context.
-	// It is designed for sharing or moving data within an HTTP Context.
-	// If you wish to share data throughout Envoy's lifespan, use GlobalCache instead.
-	//
-	LocalCache() Cache
+	GetCache() Cache
 
 	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` and/or `golang` component.
 	// Additionally, only debug, info, and error log levels are being taken into account.
@@ -181,7 +175,7 @@ func WithContextConfig(cfg *globalConfig) ContextOption {
 		}
 
 		c.filterConfig = cfg.filterConfig
-		c.globalCache = cfg.globalCache
+		c.cache = cfg.internalCache
 		c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
 
 		c.strictBodyAccess = cfg.strictBodyAccess
@@ -208,7 +202,6 @@ func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 	c := &context{
 		callback:   cb,
 		statusType: api.Continue,
-		localCache: newCache(),
 	}
 
 	for _, opt := range opts {
@@ -238,8 +231,7 @@ type context struct {
 	httpResp *http.Response
 
 	filterConfig interface{}
-	globalCache  Cache
-	localCache   Cache
+	cache        Cache
 	metrics      Metrics
 	logger       logr.Logger
 	statusType   api.StatusType

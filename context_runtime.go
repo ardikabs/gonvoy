@@ -7,6 +7,10 @@ import (
 	"github.com/go-logr/logr"
 )
 
+func (c *context) StreamInfo() api.StreamInfo {
+	return c.callback.StreamInfo()
+}
+
 func (c *context) GetProperty(name, defaultVal string) (string, error) {
 	value, err := c.callback.GetProperty(name)
 	if err != nil {
@@ -24,20 +28,12 @@ func (c *context) GetProperty(name, defaultVal string) (string, error) {
 	return value, nil
 }
 
-func (c *context) StreamInfo() api.StreamInfo {
-	return c.callback.StreamInfo()
-}
-
 func (c *context) GetFilterConfig() interface{} {
 	return c.filterConfig
 }
 
-func (c *context) GlobalCache() Cache {
-	return c.globalCache
-}
-
-func (c *context) LocalCache() Cache {
-	return c.localCache
+func (c *context) GetCache() Cache {
+	return c.cache
 }
 
 func (c *context) Log() logr.Logger {

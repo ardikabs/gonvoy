@@ -74,15 +74,14 @@ func TestHttpFilterManager(t *testing.T) {
 		mockHandlerThird.EXPECT().Disable().Return(false)
 
 		t.Run("within OnRequestHeader use FIFO sequences", func(t *testing.T) {
-			firstHandlerOnRequestHeader := mockHandlerFirst.EXPECT().OnRequestHeader(mock.Anything, mock.Anything).Return(nil)
-			secondHandlerOnRequestHeader := mockHandlerSecond.EXPECT().OnRequestHeader(mock.Anything, mock.Anything).Return(nil)
-			thirdHandlerOnRequestHeader := mockHandlerThird.EXPECT().OnRequestHeader(mock.Anything, mock.Anything).Return(nil)
+			firstHandlerOnRequestHeader := mockHandlerFirst.EXPECT().OnRequestHeader(mock.Anything).Return(nil)
+			secondHandlerOnRequestHeader := mockHandlerSecond.EXPECT().OnRequestHeader(mock.Anything).Return(nil)
+			thirdHandlerOnRequestHeader := mockHandlerThird.EXPECT().OnRequestHeader(mock.Anything).Return(nil)
 
 			secondHandlerOnRequestHeader.NotBefore(firstHandlerOnRequestHeader.Call)
 			thirdHandlerOnRequestHeader.NotBefore(firstHandlerOnRequestHeader.Call, secondHandlerOnRequestHeader.Call)
 
 			mockContext := NewMockContext(t)
-			mockContext.EXPECT().Request().Return(&http.Request{})
 			mockContext.EXPECT().Committed().Return(false)
 			mockContext.EXPECT().StatusType().Return(api.Continue)
 
@@ -96,15 +95,14 @@ func TestHttpFilterManager(t *testing.T) {
 		})
 
 		t.Run("within OnRequestBody use FIFO sequences", func(t *testing.T) {
-			firstHandlerOnRequestBody := mockHandlerFirst.EXPECT().OnRequestBody(mock.Anything, mock.Anything).Return(nil)
-			secondHandlerOnRequestBody := mockHandlerSecond.EXPECT().OnRequestBody(mock.Anything, mock.Anything).Return(nil)
-			thirdHandlerOnRequestBody := mockHandlerThird.EXPECT().OnRequestBody(mock.Anything, mock.Anything).Return(nil)
+			firstHandlerOnRequestBody := mockHandlerFirst.EXPECT().OnRequestBody(mock.Anything).Return(nil)
+			secondHandlerOnRequestBody := mockHandlerSecond.EXPECT().OnRequestBody(mock.Anything).Return(nil)
+			thirdHandlerOnRequestBody := mockHandlerThird.EXPECT().OnRequestBody(mock.Anything).Return(nil)
 
 			secondHandlerOnRequestBody.NotBefore(firstHandlerOnRequestBody.Call)
 			thirdHandlerOnRequestBody.NotBefore(firstHandlerOnRequestBody.Call, secondHandlerOnRequestBody.Call)
 
 			mockContext := NewMockContext(t)
-			mockContext.EXPECT().RequestBody().Return(&bodyWriter{})
 			mockContext.EXPECT().Committed().Return(false)
 
 			mgr := newHttpFilterManager(mockContext)
@@ -117,15 +115,14 @@ func TestHttpFilterManager(t *testing.T) {
 		})
 
 		t.Run("within OnResponseHeader use LIFO sequences", func(t *testing.T) {
-			firstHandlerOnResponseHeader := mockHandlerFirst.EXPECT().OnResponseHeader(mock.Anything, mock.Anything).Return(nil)
-			secondHandlerOnResponseHeader := mockHandlerSecond.EXPECT().OnResponseHeader(mock.Anything, mock.Anything).Return(nil)
-			thirdHandlerOnResponseHeader := mockHandlerThird.EXPECT().OnResponseHeader(mock.Anything, mock.Anything).Return(nil)
+			firstHandlerOnResponseHeader := mockHandlerFirst.EXPECT().OnResponseHeader(mock.Anything).Return(nil)
+			secondHandlerOnResponseHeader := mockHandlerSecond.EXPECT().OnResponseHeader(mock.Anything).Return(nil)
+			thirdHandlerOnResponseHeader := mockHandlerThird.EXPECT().OnResponseHeader(mock.Anything).Return(nil)
 
 			firstHandlerOnResponseHeader.NotBefore(secondHandlerOnResponseHeader.Call, thirdHandlerOnResponseHeader.Call)
 			secondHandlerOnResponseHeader.NotBefore(thirdHandlerOnResponseHeader.Call)
 
 			mockContext := NewMockContext(t)
-			mockContext.EXPECT().Response().Return(&http.Response{})
 			mockContext.EXPECT().Committed().Return(false)
 			mockContext.EXPECT().StatusType().Return(api.Continue)
 
@@ -139,15 +136,14 @@ func TestHttpFilterManager(t *testing.T) {
 		})
 
 		t.Run("within OnResponseBody use LIFO sequences", func(t *testing.T) {
-			firstHandlerOnResponseBody := mockHandlerFirst.EXPECT().OnResponseBody(mock.Anything, mock.Anything).Return(nil)
-			secondHandlerOnResponseBody := mockHandlerSecond.EXPECT().OnResponseBody(mock.Anything, mock.Anything).Return(nil)
-			thirdHandlerOnResponseBody := mockHandlerThird.EXPECT().OnResponseBody(mock.Anything, mock.Anything).Return(nil)
+			firstHandlerOnResponseBody := mockHandlerFirst.EXPECT().OnResponseBody(mock.Anything).Return(nil)
+			secondHandlerOnResponseBody := mockHandlerSecond.EXPECT().OnResponseBody(mock.Anything).Return(nil)
+			thirdHandlerOnResponseBody := mockHandlerThird.EXPECT().OnResponseBody(mock.Anything).Return(nil)
 
 			firstHandlerOnResponseBody.NotBefore(secondHandlerOnResponseBody.Call, thirdHandlerOnResponseBody.Call)
 			secondHandlerOnResponseBody.NotBefore(thirdHandlerOnResponseBody.Call)
 
 			mockContext := NewMockContext(t)
-			mockContext.EXPECT().ResponseBody().Return(&bodyWriter{}).Maybe()
 			mockContext.EXPECT().Committed().Return(false).Maybe()
 
 			mgr := newHttpFilterManager(mockContext)

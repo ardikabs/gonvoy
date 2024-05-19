@@ -2,6 +2,8 @@ package util_test
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/ardikabs/gonvoy/pkg/util"
@@ -108,4 +110,14 @@ func TestIn(t *testing.T) {
 		val := util.In(5, 1, 2, 3, 4)
 		assert.False(t, val)
 	})
+}
+
+func TestGetAbsPathFromCaller(t *testing.T) {
+	path, err := util.GetAbsPathFromCaller(0)
+	assert.NoError(t, err)
+
+	wd, err := os.Getwd()
+	fmt.Println(path, wd)
+	assert.NoError(t, err)
+	assert.Equal(t, wd, path)
 }

@@ -2,7 +2,10 @@ package util
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 )
 
@@ -74,4 +77,23 @@ func In[T comparable](value T, list ...T) bool {
 		}
 	}
 	return false
+}
+
+// GetAbsPathFromCaller returns the absolute path of the file that calls this function.
+func GetAbsPathFromCaller(skip int) (string, error) {
+	if skip < 0 {
+		skip = 0
+	}
+
+	_, file, _, ok := runtime.Caller(skip)
+	if !ok {
+		return "", os.ErrNotExist
+	}
+
+	absPath, err := filepath.Abs(file)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Dir(absPath), nil
 }

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ardikabs/gonvoy/test/e2e/suite"
+	"github.com/ardikabs/gonvoy/pkg/suite"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,6 +19,7 @@ var HttpHeadersModifierTestCase = suite.TestCase{
 	Name:        "HTTPHeadersModifierTest",
 	FilterName:  "http_headers_modifier",
 	Description: "Running test to simulate HTTP headers modification both Request and Response, while also showing how to use child config for a specific route.",
+	Parallel:    true,
 	Test: func(t *testing.T, kit *suite.TestSuiteKit) {
 		kill := kit.StartEnvoy(t)
 		defer kill()

@@ -3,7 +3,7 @@
 git config --global --add safe.directory /app
 
 basedir="$(git rev-parse --show-toplevel)"
-e2edir="${basedir}/test/e2e"
+e2edir="${basedir}/test/e2e/filters"
 
 find "${e2edir}" -name "main.go" -exec dirname {} \; | while read -r dir; do
   echo "Building e2e filter in ${dir}"

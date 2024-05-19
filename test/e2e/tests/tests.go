@@ -3,6 +3,6 @@
 
 package tests
 
-import suites "github.com/ardikabs/gonvoy/test/e2e/suite"
+import "github.com/ardikabs/gonvoy/pkg/suite"
 
-var TestCases = []suites.TestCase{}
+var TestCases = []suite.TestCase{}

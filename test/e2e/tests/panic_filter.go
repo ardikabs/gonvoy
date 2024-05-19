@@ -48,7 +48,7 @@ var PanicFilterTestCase = suite.TestCase{
 
 			require.Eventually(t, func() bool {
 				return kit.CheckEnvoyLog("panic during request header handling")
-			}, kit.DefaultWaitDuration, kit.DefaultTickDuration, "failed to find log message in envoy log")
+			}, kit.WaitDuration, kit.TickDuration, "failed to find log message in envoy log")
 		})
 
 		t.Run("panic on response", func(t *testing.T) {
@@ -68,7 +68,7 @@ var PanicFilterTestCase = suite.TestCase{
 
 			require.Eventually(t, func() bool {
 				return kit.CheckEnvoyLog("panic during response header handling")
-			}, kit.DefaultWaitDuration, kit.DefaultTickDuration, "failed to find log message in envoy log")
+			}, kit.WaitDuration, kit.TickDuration, "failed to find log message in envoy log")
 
 		})
 	},

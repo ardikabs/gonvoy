@@ -64,11 +64,11 @@ type HttpFilterContext interface {
 
 	// SetRequestBody is a low-level API, it set request body from BufferInstance interface during DecodeData phase
 	//
-	SetRequestBody(api.BufferInstance)
+	SetRequestBody(buffer api.BufferInstance, endStream bool)
 
 	// SetResponseBody is a low-level API, it set response body from BufferInstance interface during EncodeData phase
 	//
-	SetResponseBody(api.BufferInstance)
+	SetResponseBody(buffer api.BufferInstance, endStream bool)
 
 	// IsRequestBodyReadable specifies whether an HTTP Request body is readable or not.
 	//
@@ -160,33 +160,46 @@ type Context interface {
 	Committed() bool
 }
 
+// ContextOption is a function type that sets the configuration for the context.
 type ContextOption func(c *context) error
 
+// WithContextConfig sets the configuration for the context.
 func WithContextConfig(cfg *globalConfig) ContextOption {
 	return func(c *context) error {
-		type validator interface {
-			Validate() error
+		if err := validateFilterConfig(cfg.filterConfig); err != nil {
+			return fmt.Errorf("invalid filter config; %w", err)
 		}
 
-		if validate, ok := cfg.filterConfig.(validator); ok {
-			if err := validate.Validate(); err != nil {
-				return fmt.Errorf("invalid filter config; %w", err)
-			}
-		}
-
-		c.filterConfig = cfg.filterConfig
-		c.cache = cfg.internalCache
-		c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
-
-		c.strictBodyAccess = cfg.strictBodyAccess
-		c.requestBodyAccessRead = cfg.allowRequestBodyRead
-		c.requestBodyAccessWrite = cfg.allowRequestBodyWrite
-		c.responseBodyAccessRead = cfg.allowResponseBodyRead
-		c.responseBodyAccessWrite = cfg.allowResponseBodyWrite
+		applyConfig(c, cfg)
 		return nil
 	}
 }
 
+func validateFilterConfig(filterConfig interface{}) error {
+	type validator interface {
+		Validate() error
+	}
+
+	if validate, ok := filterConfig.(validator); ok {
+		return validate.Validate()
+	}
+
+	return nil
+}
+
+func applyConfig(c *context, cfg *globalConfig) {
+	c.filterConfig = cfg.filterConfig
+	c.cache = cfg.internalCache
+	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
+
+	c.strictBodyAccess = cfg.strictBodyAccess
+	c.requestBodyAccessRead = cfg.allowRequestBodyRead
+	c.requestBodyAccessWrite = cfg.allowRequestBodyWrite
+	c.responseBodyAccessRead = cfg.allowResponseBodyRead
+	c.responseBodyAccessWrite = cfg.allowResponseBodyWrite
+}
+
+// WithContextLogger sets the logger for the context.
 func WithContextLogger(logger logr.Logger) ContextOption {
 	return func(c *context) error {
 		c.logger = logger
@@ -194,7 +207,8 @@ func WithContextLogger(logger logr.Logger) ContextOption {
 	}
 }
 
-func newContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) {
+// NewContext creates a new context object for the filter.
+func NewContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
@@ -220,6 +234,8 @@ type context struct {
 	respHeaderMap      api.ResponseHeaderMap
 	reqBufferInstance  api.BufferInstance
 	respBufferInstance api.BufferInstance
+	reqBufferBytes     []byte
+	respBufferBytes    []byte
 
 	strictBodyAccess        bool
 	requestBodyAccessRead   bool

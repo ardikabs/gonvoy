@@ -74,16 +74,15 @@ func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
 
 		return func(cb api.FilterCallbackHandler) api.StreamFilter {
 			log := newLogger(cb)
-			opts := []ContextOption{WithContextConfig(config), WithContextLogger(log)}
-			ctx, err := newContext(cb, opts...)
+			ctx, err := NewContext(cb, WithContextConfig(config), WithContextLogger(log))
 			if err != nil {
-				log.Error(err, "failed to initialize filter, ignoring filter ...")
+				log.Error(err, "failed to initialize context for filter, ignoring filter ...")
 				return NoOpHttpFilter
 			}
 
 			manager, err := buildHttpFilterManager(ctx, filter)
 			if err != nil {
-				log.Error(err, "failed to start filter, ignoring filter ...")
+				log.Error(err, "failed to build HTTP filter manager, ignoring filter ...")
 				return NoOpHttpFilter
 			}
 
@@ -95,22 +94,30 @@ func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
 func buildHttpFilterManager(c Context, filter HttpFilter) (*httpFilterManager, error) {
 	manager := newHttpFilterManager(c)
 
-	iface, err := util.NewFrom(filter)
+	newFilter, err := createHttpFilter(filter)
 	if err != nil {
-		return nil, fmt.Errorf("filter server creation failed, %w", err)
+		return nil, fmt.Errorf("failed to create HTTP filter, %w", err)
 	}
 
-	newFilter := iface.(HttpFilter)
 	if err := newFilter.OnBegin(c, manager); err != nil {
-		return nil, fmt.Errorf("filter server startup failed, %w", err)
+		return nil, fmt.Errorf("failed to start HTTP filter, %w", err)
 	}
 
-	manager.completer = func() { runOnComplete(c, newFilter) }
+	manager.completer = func() { httpFilterOnComplete(c, newFilter) }
 	return manager, nil
 }
 
-func runOnComplete(ctx Context, filter HttpFilter) {
+func createHttpFilter(filter HttpFilter) (HttpFilter, error) {
+	iface, err := util.NewFrom(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return iface.(HttpFilter), nil
+}
+
+func httpFilterOnComplete(ctx Context, filter HttpFilter) {
 	if err := filter.OnComplete(ctx); err != nil {
-		ctx.Log().Error(err, "filter completion failed")
+		ctx.Log().Error(err, "failed to complete HTTP filter execution")
 	}
 }

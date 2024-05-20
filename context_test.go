@@ -9,7 +9,7 @@ import (
 
 func fakeDummyContext(t *testing.T) Context {
 	fc := mock_envoy.NewFilterCallbackHandler(t)
-	c, err := newContext(fc)
+	c, err := NewContext(fc)
 	require.NoError(t, err)
 	return c
 }

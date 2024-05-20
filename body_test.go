@@ -32,6 +32,7 @@ func TestBody_Write(t *testing.T) {
 
 	t.Run("body writer is writeable, returns no error", func(t *testing.T) {
 		headerMock := mock_envoy.NewRequestHeaderMap(t)
+		headerMock.EXPECT().Get(HeaderContentLength).Return("", true)
 		headerMock.EXPECT().Set(HeaderContentLength, strconv.Itoa(len(input)))
 
 		bufferMock := mock_envoy.NewBufferInstance(t)
@@ -68,6 +69,7 @@ func TestBody_WriteString(t *testing.T) {
 
 	t.Run("body writer is writeable, returns no error", func(t *testing.T) {
 		headerMock := mock_envoy.NewRequestHeaderMap(t)
+		headerMock.EXPECT().Get(HeaderContentLength).Return("", true)
 		headerMock.EXPECT().Set(HeaderContentLength, strconv.Itoa(len(input)))
 
 		bufferMock := mock_envoy.NewBufferInstance(t)

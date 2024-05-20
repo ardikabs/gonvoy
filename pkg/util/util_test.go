@@ -2,7 +2,6 @@ package util_test
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"testing"
 
@@ -117,7 +116,6 @@ func TestGetAbsPathFromCaller(t *testing.T) {
 	assert.NoError(t, err)
 
 	wd, err := os.Getwd()
-	fmt.Println(path, wd)
 	assert.NoError(t, err)
 	assert.Equal(t, wd, path)
 }

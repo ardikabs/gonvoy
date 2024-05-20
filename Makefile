@@ -65,3 +65,7 @@ e2e.build: ## Build filters for e2e tests.
 .PHONY: e2e.cleanup
 e2e.cleanup: ## Clean up e2e filters.
 	@./hack/cleanup-e2e.sh
+
+.PHONE: run.example
+run.example:
+	@docker compose up --build --remove-orphans

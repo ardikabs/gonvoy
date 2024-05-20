@@ -69,7 +69,7 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 
 	c.requestBodyAccessRead, c.requestBodyAccessWrite = checkBodyAccessibility(c.strictBodyAccess, c.requestBodyAccessRead, c.requestBodyAccessWrite, header)
 
-	if off := req.Header.Get(HeaderXRequestBodyAccess) == ValueXRequestBodyAccessOff; off {
+	if off := req.Header.Get(HeaderXRequestBodyAccess) == XRequestBodyAccessOff; off {
 		c.requestBodyAccessRead = !off && c.requestBodyAccessRead
 		c.requestBodyAccessWrite = !off && c.requestBodyAccessWrite
 	}
@@ -94,36 +94,54 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 
 	c.responseBodyAccessRead, c.responseBodyAccessWrite = checkBodyAccessibility(c.strictBodyAccess, c.responseBodyAccessRead, c.responseBodyAccessWrite, header)
 
-	if off := resp.Header.Get(HeaderXResponseBodyAccess) == ValueXResponseBodyAccessOff; off {
+	if off := resp.Header.Get(HeaderXResponseBodyAccess) == XResponseBodyAccessOff; off {
 		c.responseBodyAccessRead = !off && c.responseBodyAccessRead
 		c.responseBodyAccessWrite = !off && c.responseBodyAccessWrite
 	}
 }
 
-func (c *context) SetRequestBody(buffer api.BufferInstance) {
-	if c.reqBufferInstance == nil {
-		c.reqBufferInstance = buffer
-	}
-
-	if buffer.Len() == 0 {
+func (c *context) SetRequestBody(buffer api.BufferInstance, endStream bool) {
+	if endStream {
+		c.setRequestBody(buffer)
 		return
 	}
 
-	buf := bytes.NewBuffer(buffer.Bytes())
-	c.httpReq.Body = io.NopCloser(buf)
+	if buffer.Len() > 0 {
+		c.reqBufferBytes = append(c.reqBufferBytes, buffer.Bytes()...)
+		buffer.Reset()
+	}
 }
 
-func (c *context) SetResponseBody(buffer api.BufferInstance) {
-	if c.respBufferInstance == nil {
-		c.respBufferInstance = buffer
+func (c *context) setRequestBody(buffer api.BufferInstance) {
+	if c.reqBufferBytes != nil {
+		_ = buffer.Set(c.reqBufferBytes)
 	}
 
-	if buffer.Len() == 0 {
+	bytes := bytes.NewBuffer(buffer.Bytes())
+	c.httpReq.Body = io.NopCloser(bytes)
+	c.reqBufferInstance = buffer
+}
+
+func (c *context) SetResponseBody(buffer api.BufferInstance, endStream bool) {
+	if endStream {
+		c.setResponseBody(buffer)
 		return
+	}
+
+	if buffer.Len() > 0 {
+		c.respBufferBytes = append(c.respBufferBytes, buffer.Bytes()...)
+		buffer.Reset()
+	}
+}
+
+func (c *context) setResponseBody(buffer api.BufferInstance) {
+	if c.respBufferBytes != nil {
+		_ = buffer.Set(c.respBufferBytes)
 	}
 
 	buf := bytes.NewBuffer(buffer.Bytes())
 	c.httpResp.Body = io.NopCloser(buf)
+	c.respBufferInstance = buffer
 }
 
 func (c *context) Request() *http.Request {
@@ -183,10 +201,7 @@ func (c *context) IsResponseBodyWriteable() bool {
 }
 
 func (c *context) JSON(code int, body []byte, header http.Header, opts ...ReplyOption) error {
-	options := NewDefaultReplyOptions()
-	for _, opt := range opts {
-		opt(options)
-	}
+	options := NewDefaultReplyOptions(opts...)
 
 	if header == nil {
 		header = make(http.Header)
@@ -206,10 +221,7 @@ func (c *context) JSON(code int, body []byte, header http.Header, opts ...ReplyO
 }
 
 func (c *context) String(code int, s string, header http.Header, opts ...ReplyOption) error {
-	options := NewDefaultReplyOptions()
-	for _, opt := range opts {
-		opt(options)
-	}
+	options := NewDefaultReplyOptions(opts...)
 
 	if header == nil {
 		header = make(http.Header)

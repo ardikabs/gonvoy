@@ -1,6 +1,8 @@
 package gonvoy
 
-import "github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+import (
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+)
 
 var _ api.StreamFilter = &httpFilterImpl{}
 
@@ -11,33 +13,31 @@ type httpFilterImpl struct {
 
 func (f *httpFilterImpl) OnLog() { f.srv.Finalize() }
 
-func (f *httpFilterImpl) OnDestroy(reason api.DestroyReason) { f.srv = nil }
+func (f *httpFilterImpl) OnDestroy(reason api.DestroyReason) {
+	f.srv = nil
+}
 
 func (f *httpFilterImpl) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
-	decoder := f.decodeHeaders(header)
-	res := f.srv.ServeDecodeFilter(decoder)
-	return res.Status
+	result := f.srv.ServeDecodeFilter(f.handleRequestHeader(header))
+	return result.Status
 }
 
 func (f *httpFilterImpl) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	decoder := f.decodeData(buffer, endStream)
-	res := f.srv.ServeDecodeFilter(decoder)
-	return res.Status
+	result := f.srv.ServeDecodeFilter(f.handleRequestBody(buffer, endStream))
+	return result.Status
 }
 
 func (f *httpFilterImpl) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
-	encoder := f.encodeHeaders(header)
-	res := f.srv.ServeEncodeFilter(encoder)
-	return res.Status
+	result := f.srv.ServeEncodeFilter(f.handleResponseHeader(header))
+	return result.Status
 }
 
 func (f *httpFilterImpl) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	encoder := f.encodeData(buffer, endStream)
-	res := f.srv.ServeEncodeFilter(encoder)
-	return res.Status
+	result := f.srv.ServeEncodeFilter(f.handleResponseBody(buffer, endStream))
+	return result.Status
 }
 
-func (f *httpFilterImpl) decodeHeaders(header api.RequestHeaderMap) HttpFilterDecoderFunc {
+func (f *httpFilterImpl) handleRequestHeader(header api.RequestHeaderMap) HttpFilterDecoderFunc {
 	return func(c Context, p HttpFilterDecodeProcessor) (HttpFilterAction, error) {
 		c.SetRequestHeader(header)
 
@@ -53,25 +53,23 @@ func (f *httpFilterImpl) decodeHeaders(header api.RequestHeaderMap) HttpFilterDe
 	}
 }
 
-func (f *httpFilterImpl) decodeData(buffer api.BufferInstance, endStream bool) HttpFilterDecoderFunc {
+func (f *httpFilterImpl) handleRequestBody(buffer api.BufferInstance, endStream bool) HttpFilterDecoderFunc {
 	return func(c Context, p HttpFilterDecodeProcessor) (HttpFilterAction, error) {
 		if !isRequestBodyAccessible(c) {
 			return ActionSkip, nil
 		}
 
-		if buffer.Len() > 0 {
-			c.SetRequestBody(buffer)
-		}
+		c.SetRequestBody(buffer, endStream)
 
 		if endStream {
 			return ActionContinue, p.HandleOnRequestBody(c)
 		}
 
-		return ActionPause, nil
+		return ActionContinue, nil
 	}
 }
 
-func (f *httpFilterImpl) encodeHeaders(header api.ResponseHeaderMap) HttpFilterEncoderFunc {
+func (f *httpFilterImpl) handleResponseHeader(header api.ResponseHeaderMap) HttpFilterEncoderFunc {
 	return func(c Context, p HttpFilterEncodeProcessor) (HttpFilterAction, error) {
 		c.SetResponseHeader(header)
 
@@ -104,21 +102,19 @@ func (f *httpFilterImpl) encodeHeaders(header api.ResponseHeaderMap) HttpFilterE
 // Although it's unclear whether this is considered a bug or a limitation at present,
 // the Envoy Golang HTTP Filter library currently returns a 413 status code with a PayloadTooLarge message in such cases.
 // Code references: https://github.com/envoyproxy/envoy/blob/v1.29.4/contrib/golang/filters/http/source/processor_state.cc#L362-L371.
-func (f *httpFilterImpl) encodeData(buffer api.BufferInstance, endStream bool) HttpFilterEncoderFunc {
+func (f *httpFilterImpl) handleResponseBody(buffer api.BufferInstance, endStream bool) HttpFilterEncoderFunc {
 	return func(c Context, p HttpFilterEncodeProcessor) (HttpFilterAction, error) {
 		if !isResponseBodyAccessible(c) {
 			return ActionSkip, nil
 		}
 
-		if buffer.Len() > 0 {
-			c.SetResponseBody(buffer)
-		}
+		c.SetResponseBody(buffer, endStream)
 
 		if endStream {
 			return ActionContinue, p.HandleOnResponseBody(c)
 		}
 
-		return ActionPause, nil
+		return ActionContinue, nil
 	}
 }
 

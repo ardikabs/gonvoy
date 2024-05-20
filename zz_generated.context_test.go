@@ -770,9 +770,9 @@ func (_c *MockContext_ResponseHeader_Call) RunAndReturn(run func() Header) *Mock
 	return _c
 }
 
-// SetRequestBody provides a mock function with given fields: _a0
-func (_m *MockContext) SetRequestBody(_a0 api.BufferInstance) {
-	_m.Called(_a0)
+// SetRequestBody provides a mock function with given fields: buffer, endStream
+func (_m *MockContext) SetRequestBody(buffer api.BufferInstance, endStream bool) {
+	_m.Called(buffer, endStream)
 }
 
 // MockContext_SetRequestBody_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetRequestBody'
@@ -781,14 +781,15 @@ type MockContext_SetRequestBody_Call struct {
 }
 
 // SetRequestBody is a helper method to define mock.On call
-//   - _a0 api.BufferInstance
-func (_e *MockContext_Expecter) SetRequestBody(_a0 interface{}) *MockContext_SetRequestBody_Call {
-	return &MockContext_SetRequestBody_Call{Call: _e.mock.On("SetRequestBody", _a0)}
+//   - buffer api.BufferInstance
+//   - endStream bool
+func (_e *MockContext_Expecter) SetRequestBody(buffer interface{}, endStream interface{}) *MockContext_SetRequestBody_Call {
+	return &MockContext_SetRequestBody_Call{Call: _e.mock.On("SetRequestBody", buffer, endStream)}
 }
 
-func (_c *MockContext_SetRequestBody_Call) Run(run func(_a0 api.BufferInstance)) *MockContext_SetRequestBody_Call {
+func (_c *MockContext_SetRequestBody_Call) Run(run func(buffer api.BufferInstance, endStream bool)) *MockContext_SetRequestBody_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(api.BufferInstance))
+		run(args[0].(api.BufferInstance), args[1].(bool))
 	})
 	return _c
 }
@@ -798,7 +799,7 @@ func (_c *MockContext_SetRequestBody_Call) Return() *MockContext_SetRequestBody_
 	return _c
 }
 
-func (_c *MockContext_SetRequestBody_Call) RunAndReturn(run func(api.BufferInstance)) *MockContext_SetRequestBody_Call {
+func (_c *MockContext_SetRequestBody_Call) RunAndReturn(run func(api.BufferInstance, bool)) *MockContext_SetRequestBody_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -836,9 +837,9 @@ func (_c *MockContext_SetRequestHeader_Call) RunAndReturn(run func(api.RequestHe
 	return _c
 }
 
-// SetResponseBody provides a mock function with given fields: _a0
-func (_m *MockContext) SetResponseBody(_a0 api.BufferInstance) {
-	_m.Called(_a0)
+// SetResponseBody provides a mock function with given fields: buffer, endStream
+func (_m *MockContext) SetResponseBody(buffer api.BufferInstance, endStream bool) {
+	_m.Called(buffer, endStream)
 }
 
 // MockContext_SetResponseBody_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetResponseBody'
@@ -847,14 +848,15 @@ type MockContext_SetResponseBody_Call struct {
 }
 
 // SetResponseBody is a helper method to define mock.On call
-//   - _a0 api.BufferInstance
-func (_e *MockContext_Expecter) SetResponseBody(_a0 interface{}) *MockContext_SetResponseBody_Call {
-	return &MockContext_SetResponseBody_Call{Call: _e.mock.On("SetResponseBody", _a0)}
+//   - buffer api.BufferInstance
+//   - endStream bool
+func (_e *MockContext_Expecter) SetResponseBody(buffer interface{}, endStream interface{}) *MockContext_SetResponseBody_Call {
+	return &MockContext_SetResponseBody_Call{Call: _e.mock.On("SetResponseBody", buffer, endStream)}
 }
 
-func (_c *MockContext_SetResponseBody_Call) Run(run func(_a0 api.BufferInstance)) *MockContext_SetResponseBody_Call {
+func (_c *MockContext_SetResponseBody_Call) Run(run func(buffer api.BufferInstance, endStream bool)) *MockContext_SetResponseBody_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(api.BufferInstance))
+		run(args[0].(api.BufferInstance), args[1].(bool))
 	})
 	return _c
 }
@@ -864,7 +866,7 @@ func (_c *MockContext_SetResponseBody_Call) Return() *MockContext_SetResponseBod
 	return _c
 }
 
-func (_c *MockContext_SetResponseBody_Call) RunAndReturn(run func(api.BufferInstance)) *MockContext_SetResponseBody_Call {
+func (_c *MockContext_SetResponseBody_Call) RunAndReturn(run func(api.BufferInstance, bool)) *MockContext_SetResponseBody_Call {
 	_c.Call.Return(run)
 	return _c
 }

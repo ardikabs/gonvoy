@@ -39,12 +39,18 @@ type ReplyOptions struct {
 
 type ReplyOption func(o *ReplyOptions)
 
-func NewDefaultReplyOptions() *ReplyOptions {
-	return &ReplyOptions{
+func NewDefaultReplyOptions(opts ...ReplyOption) *ReplyOptions {
+	ro := &ReplyOptions{
 		statusType:          api.LocalReply,
 		grpcStatusCode:      -1,
 		responseCodeDetails: DefaultResponseCodeDetails,
 	}
+
+	for _, opt := range opts {
+		opt(ro)
+	}
+
+	return ro
 }
 
 // WithResponseCodeDetails sets response code details for a request/response to the envoy context

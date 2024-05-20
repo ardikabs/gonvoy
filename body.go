@@ -38,7 +38,8 @@ func (b *bodyWriter) Write(p []byte) (n int, err error) {
 
 	err = b.buffer.Set(p)
 	n = b.buffer.Len()
-	b.header.Set(HeaderContentLength, strconv.Itoa(n))
+
+	b.resetContentLength()
 	return
 }
 
@@ -49,7 +50,8 @@ func (b *bodyWriter) WriteString(s string) (n int, err error) {
 
 	err = b.buffer.SetString(s)
 	n = b.buffer.Len()
-	b.header.Set(HeaderContentLength, strconv.Itoa(n))
+
+	b.resetContentLength()
 	return
 }
 
@@ -67,4 +69,10 @@ func (b *bodyWriter) Bytes() []byte {
 	}
 
 	return b.buffer.Bytes()
+}
+
+func (b *bodyWriter) resetContentLength() {
+	if _, ok := b.header.Get(HeaderContentLength); ok {
+		b.header.Set(HeaderContentLength, strconv.Itoa(b.buffer.Len()))
+	}
 }

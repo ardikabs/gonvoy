@@ -79,13 +79,33 @@ func checkBodyAccessibility(strict, allowRead, allowWrite bool, header api.Heade
 // isBodyAccessible checks if the body is accessible based on the provided header.
 // It returns true if the body is accessible, otherwise false.
 func isBodyAccessible(header api.HeaderMap) bool {
-	contentLength, ok := header.Get(HeaderContentLength)
+	cType, ok := header.Get(HeaderContentType)
 	if !ok {
 		return false
 	}
 
-	isEmpty := contentLength == "" || contentLength == "0"
-	return !isEmpty
+	switch cType {
+	case
+		MIMEApplicationJSON,
+		MIMEApplicationXML,
+		MIMEApplicationForm,
+		MIMEApplicationProtobuf,
+		MIMEApplicationMsgpack,
+		MIMETextXML,
+		MIMEMultipartForm,
+		MIMEOctetStream:
+
+		// Content types that are supported and considered accessible, including data sent in chunks.
+		return true
+	default:
+		// For other content types, data is considered accessible only when Content-Length is neither empty nor zero.
+		// Consequently, chunked data of these content types is regarded as inaccessible.
+		if cLength, ok := header.Get(HeaderContentLength); ok {
+			return cLength != "0"
+		}
+
+		return false
+	}
 }
 
 // isRequestBodyAccessible checks if the request body is accessible for reading or writing.

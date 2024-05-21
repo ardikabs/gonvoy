@@ -21,7 +21,7 @@ var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 //		})
 //	}
 func RunHttpFilter(filter HttpFilter, options ConfigOptions) {
-	envoy.RegisterHttpFilterConfigFactoryAndParser(
+	envoy.RegisterHttpFilterFactoryAndConfigParser(
 		filter.Name(),
 		httpFilterFactory(filter),
 		newConfigParser(options),
@@ -61,33 +61,31 @@ type HttpFilter interface {
 	OnComplete(c Context) error
 }
 
-func httpFilterFactory(filter HttpFilter) api.StreamFilterConfigFactory {
+func httpFilterFactory(filter HttpFilter) api.StreamFilterFactory {
 	if util.IsNil(filter) {
 		panic("httpFilterFactory: httpFilter shouldn't be a nil")
 	}
 
-	return func(cfg interface{}) api.StreamFilterFactory {
+	return func(cfg interface{}, cb api.FilterCallbackHandler) api.StreamFilter {
 		config, ok := cfg.(*globalConfig)
 		if !ok {
 			panic(fmt.Sprintf("httpFilterFactory: unexpected config type '%T', expecting '%T'", cfg, config))
 		}
 
-		return func(cb api.FilterCallbackHandler) api.StreamFilter {
-			log := newLogger(cb)
-			ctx, err := NewContext(cb, WithContextConfig(config), WithContextLogger(log))
-			if err != nil {
-				log.Error(err, "failed to initialize context for filter, ignoring filter ...")
-				return NoOpHttpFilter
-			}
-
-			manager, err := buildHttpFilterManager(ctx, filter)
-			if err != nil {
-				log.Error(err, "failed to build HTTP filter manager, ignoring filter ...")
-				return NoOpHttpFilter
-			}
-
-			return &httpFilterImpl{manager}
+		log := newLogger(cb)
+		ctx, err := NewContext(cb, WithContextConfig(config), WithContextLogger(log))
+		if err != nil {
+			log.Error(err, "failed to initialize context for filter, ignoring filter ...")
+			return NoOpHttpFilter
 		}
+
+		manager, err := buildHttpFilterManager(ctx, filter)
+		if err != nil {
+			log.Error(err, "failed to build HTTP filter manager, ignoring filter ...")
+			return NoOpHttpFilter
+		}
+
+		return &httpFilterImpl{manager}
 	}
 }
 

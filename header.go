@@ -58,6 +58,32 @@ var _ Header = &header{}
 
 type header struct {
 	api.HeaderMap
+
+	clearRouteCache func()
+}
+
+func (h *header) Add(key, value string) {
+	h.HeaderMap.Add(key, value)
+
+	if h.clearRouteCache != nil {
+		h.clearRouteCache()
+	}
+}
+
+func (h *header) Set(key, value string) {
+	h.HeaderMap.Set(key, value)
+
+	if h.clearRouteCache != nil {
+		h.clearRouteCache()
+	}
+}
+
+func (h *header) Del(key string) {
+	h.HeaderMap.Del(key)
+
+	if h.clearRouteCache != nil {
+		h.clearRouteCache()
+	}
 }
 
 func (h *header) AsMap() map[string][]string {

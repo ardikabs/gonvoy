@@ -54,6 +54,27 @@ type HttpFilterContext interface {
 	//
 	Response() *http.Response
 
+	// SetRequestHost sets the host of the request.
+	// This can be used to dynamically change the request host based on specific conditions for routing.
+	// However, to re-evaluate routing decisions, the filter must explicitly trigger ReloadRoute,
+	// or the ReloadRouteOnRequestHeaderChange option must be enabled in the ConfigOptions.
+	//
+	SetRequestHost(host string)
+
+	// SetRequestMethod sets the method of the request (GET, POST, etc.).
+	// This can be used to dynamically change the request host based on specific conditions for routing.
+	// However, to re-evaluate routing decisions, the filter must explicitly trigger ReloadRoute,
+	// or the ReloadRouteOnRequestHeaderChange option must be enabled in the ConfigOptions.
+	//
+	SetRequestMethod(method string)
+
+	// SetRequestPath sets the path of the request.
+	// This can be used to dynamically change the request host based on specific conditions for routing.
+	// However, to re-evaluate routing decisions, the filter must explicitly trigger ReloadRoute,
+	// or the ReloadRouteOnRequestHeaderChange option must be enabled in the ConfigOptions.
+	//
+	SetRequestPath(path string)
+
 	// SetRequestHeader is a low-level API, it set request header from RequestHeaderMap interface during DecodeHeaders phase
 	//
 	SetRequestHeader(api.RequestHeaderMap)
@@ -102,6 +123,14 @@ type HttpFilterContext interface {
 	// In HTTP response flows, invoking it from OnResponseHeader skips OnResponseBody phase.
 	//
 	SkipNextPhase() error
+
+	// ReloadRoute reloads the route configuration, which basically re-evaluates the routing decisions.
+	// You can enable this feature by setting the `RouteReloadable` field in the ConfigOptions.
+	// Example use cases:
+	// - When user wants to modify headers based on certain conditions, then later decides whether the request should be routed to a different cluster or upstream.
+	// - When user wants to modify the routing decision based on the request body.
+	//
+	ReloadRoute()
 }
 
 // RuntimeContext represents the runtime context for the filter in Envoy.
@@ -192,6 +221,7 @@ func applyConfig(c *context, cfg *globalConfig) {
 	c.cache = cfg.internalCache
 	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
 
+	c.reloadRouteOnRequestHeader = cfg.reloadRouteOnRequestHeader
 	c.strictBodyAccess = cfg.strictBodyAccess
 	c.requestBodyAccessRead = cfg.allowRequestBodyRead
 	c.requestBodyAccessWrite = cfg.allowRequestBodyWrite
@@ -237,11 +267,12 @@ type context struct {
 	reqBufferBytes     []byte
 	respBufferBytes    []byte
 
-	strictBodyAccess        bool
-	requestBodyAccessRead   bool
-	requestBodyAccessWrite  bool
-	responseBodyAccessRead  bool
-	responseBodyAccessWrite bool
+	reloadRouteOnRequestHeader bool
+	strictBodyAccess           bool
+	requestBodyAccessRead      bool
+	requestBodyAccessWrite     bool
+	responseBodyAccessRead     bool
+	responseBodyAccessWrite    bool
 
 	httpReq  *http.Request
 	httpResp *http.Response

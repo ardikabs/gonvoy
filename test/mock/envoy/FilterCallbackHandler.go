@@ -20,6 +20,38 @@ func (_m *FilterCallbackHandler) EXPECT() *FilterCallbackHandler_Expecter {
 	return &FilterCallbackHandler_Expecter{mock: &_m.Mock}
 }
 
+// ClearRouteCache provides a mock function with given fields:
+func (_m *FilterCallbackHandler) ClearRouteCache() {
+	_m.Called()
+}
+
+// FilterCallbackHandler_ClearRouteCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearRouteCache'
+type FilterCallbackHandler_ClearRouteCache_Call struct {
+	*mock.Call
+}
+
+// ClearRouteCache is a helper method to define mock.On call
+func (_e *FilterCallbackHandler_Expecter) ClearRouteCache() *FilterCallbackHandler_ClearRouteCache_Call {
+	return &FilterCallbackHandler_ClearRouteCache_Call{Call: _e.mock.On("ClearRouteCache")}
+}
+
+func (_c *FilterCallbackHandler_ClearRouteCache_Call) Run(run func()) *FilterCallbackHandler_ClearRouteCache_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *FilterCallbackHandler_ClearRouteCache_Call) Return() *FilterCallbackHandler_ClearRouteCache_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *FilterCallbackHandler_ClearRouteCache_Call) RunAndReturn(run func()) *FilterCallbackHandler_ClearRouteCache_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Continue provides a mock function with given fields: _a0
 func (_m *FilterCallbackHandler) Continue(_a0 api.StatusType) {
 	_m.Called(_a0)

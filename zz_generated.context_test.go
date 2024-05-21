@@ -512,6 +512,38 @@ func (_c *MockContext_Metrics_Call) RunAndReturn(run func() Metrics) *MockContex
 	return _c
 }
 
+// ReloadRoute provides a mock function with given fields:
+func (_m *MockContext) ReloadRoute() {
+	_m.Called()
+}
+
+// MockContext_ReloadRoute_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReloadRoute'
+type MockContext_ReloadRoute_Call struct {
+	*mock.Call
+}
+
+// ReloadRoute is a helper method to define mock.On call
+func (_e *MockContext_Expecter) ReloadRoute() *MockContext_ReloadRoute_Call {
+	return &MockContext_ReloadRoute_Call{Call: _e.mock.On("ReloadRoute")}
+}
+
+func (_c *MockContext_ReloadRoute_Call) Run(run func()) *MockContext_ReloadRoute_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockContext_ReloadRoute_Call) Return() *MockContext_ReloadRoute_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_ReloadRoute_Call) RunAndReturn(run func()) *MockContext_ReloadRoute_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Request provides a mock function with given fields:
 func (_m *MockContext) Request() *http.Request {
 	ret := _m.Called()
@@ -833,6 +865,105 @@ func (_c *MockContext_SetRequestHeader_Call) Return() *MockContext_SetRequestHea
 }
 
 func (_c *MockContext_SetRequestHeader_Call) RunAndReturn(run func(api.RequestHeaderMap)) *MockContext_SetRequestHeader_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetRequestHost provides a mock function with given fields: host
+func (_m *MockContext) SetRequestHost(host string) {
+	_m.Called(host)
+}
+
+// MockContext_SetRequestHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetRequestHost'
+type MockContext_SetRequestHost_Call struct {
+	*mock.Call
+}
+
+// SetRequestHost is a helper method to define mock.On call
+//   - host string
+func (_e *MockContext_Expecter) SetRequestHost(host interface{}) *MockContext_SetRequestHost_Call {
+	return &MockContext_SetRequestHost_Call{Call: _e.mock.On("SetRequestHost", host)}
+}
+
+func (_c *MockContext_SetRequestHost_Call) Run(run func(host string)) *MockContext_SetRequestHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockContext_SetRequestHost_Call) Return() *MockContext_SetRequestHost_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_SetRequestHost_Call) RunAndReturn(run func(string)) *MockContext_SetRequestHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetRequestMethod provides a mock function with given fields: method
+func (_m *MockContext) SetRequestMethod(method string) {
+	_m.Called(method)
+}
+
+// MockContext_SetRequestMethod_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetRequestMethod'
+type MockContext_SetRequestMethod_Call struct {
+	*mock.Call
+}
+
+// SetRequestMethod is a helper method to define mock.On call
+//   - method string
+func (_e *MockContext_Expecter) SetRequestMethod(method interface{}) *MockContext_SetRequestMethod_Call {
+	return &MockContext_SetRequestMethod_Call{Call: _e.mock.On("SetRequestMethod", method)}
+}
+
+func (_c *MockContext_SetRequestMethod_Call) Run(run func(method string)) *MockContext_SetRequestMethod_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockContext_SetRequestMethod_Call) Return() *MockContext_SetRequestMethod_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_SetRequestMethod_Call) RunAndReturn(run func(string)) *MockContext_SetRequestMethod_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetRequestPath provides a mock function with given fields: path
+func (_m *MockContext) SetRequestPath(path string) {
+	_m.Called(path)
+}
+
+// MockContext_SetRequestPath_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetRequestPath'
+type MockContext_SetRequestPath_Call struct {
+	*mock.Call
+}
+
+// SetRequestPath is a helper method to define mock.On call
+//   - path string
+func (_e *MockContext_Expecter) SetRequestPath(path interface{}) *MockContext_SetRequestPath_Call {
+	return &MockContext_SetRequestPath_Call{Call: _e.mock.On("SetRequestPath", path)}
+}
+
+func (_c *MockContext_SetRequestPath_Call) Run(run func(path string)) *MockContext_SetRequestPath_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockContext_SetRequestPath_Call) Return() *MockContext_SetRequestPath_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_SetRequestPath_Call) RunAndReturn(run func(string)) *MockContext_SetRequestPath_Call {
 	_c.Call.Return(run)
 	return _c
 }

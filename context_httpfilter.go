@@ -15,7 +15,12 @@ func (c *context) RequestHeader() Header {
 		panic("The Request Header is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
 	}
 
-	return &header{c.reqHeaderMap}
+	h := &header{HeaderMap: c.reqHeaderMap}
+	if c.reloadRouteOnRequestHeader {
+		h.clearRouteCache = c.callback.ClearRouteCache
+	}
+
+	return h
 }
 
 func (c *context) ResponseHeader() Header {
@@ -23,7 +28,7 @@ func (c *context) ResponseHeader() Header {
 		panic("The Response Header is not initialized yet and is only available during the OnRequestHeader, OnRequestBody, and OnResponseHeader phases")
 	}
 
-	return &header{c.respHeaderMap}
+	return &header{HeaderMap: c.respHeaderMap}
 }
 
 func (c *context) RequestBody() Body {
@@ -47,6 +52,30 @@ func (c *context) ResponseBody() Body {
 		writeable: c.IsResponseBodyWriteable(),
 		header:    c.respHeaderMap,
 		buffer:    c.respBufferInstance,
+	}
+}
+
+func (c *context) SetRequestHost(host string) {
+	c.reqHeaderMap.SetHost(host)
+
+	if c.reloadRouteOnRequestHeader {
+		c.callback.ClearRouteCache()
+	}
+}
+
+func (c *context) SetRequestMethod(method string) {
+	c.reqHeaderMap.SetMethod(method)
+
+	if c.reloadRouteOnRequestHeader {
+		c.callback.ClearRouteCache()
+	}
+}
+
+func (c *context) SetRequestPath(path string) {
+	c.reqHeaderMap.SetPath(path)
+
+	if c.reloadRouteOnRequestHeader {
+		c.callback.ClearRouteCache()
 	}
 }
 
@@ -239,4 +268,8 @@ func (c *context) SkipNextPhase() error {
 	c.statusType = api.Continue
 	c.committed = true
 	return nil
+}
+
+func (c *context) ReloadRoute() {
+	c.callback.ClearRouteCache()
 }

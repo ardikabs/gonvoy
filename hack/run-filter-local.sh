@@ -1,7 +1,7 @@
 #!/bin/bash
 
 filter=$1
-defaultEnvoyImageVersion=envoyproxy/envoy:contrib-v1.29-latest
+defaultEnvoyImageVersion=envoyproxy/envoy:contrib-v1.30-latest
 
 docker run --rm \
   -p 8001:8000 -p 10001:10000 \

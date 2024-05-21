@@ -70,6 +70,9 @@ type ConfigOptions struct {
 
 	// MetricPrefix specifies the prefix used for metrics.
 	MetricPrefix string
+
+	// ReloadRouteOnRequestHeaderChange specifies whether the route should be reloaded when the request header changes.
+	ReloadRouteOnRequestHeaderChange bool
 }
 
 type configParser struct {

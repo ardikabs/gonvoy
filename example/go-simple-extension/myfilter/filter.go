@@ -15,6 +15,8 @@ func init() {
 		EnableRequestBodyWrite:  true,
 		// EnableResponseBodyRead: true,
 		// EnableResponseBodyWrite: true,
+
+		// ReloadRouteOnRequestHeaderChange: true,
 	})
 }
 

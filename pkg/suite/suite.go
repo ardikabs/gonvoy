@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	DefaultEnvoyImageVersion = "envoyproxy/envoy:contrib-v1.29-latest"
+	DefaultEnvoyImageVersion = "envoyproxy/envoy:contrib-v1.30-latest"
 	DefaultWaitDuration      = 5 * time.Second
 	DefaultTickDuration      = 100 * time.Millisecond
 )

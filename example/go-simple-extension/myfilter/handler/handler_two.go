@@ -18,15 +18,17 @@ func (h *HandlerTwo) OnRequestHeader(c gonvoy.Context) error {
 	c.RequestHeader().Add("x-user-id", "0")
 	c.RequestHeader().Add("x-user-id", "1")
 
-	if c.Request().Header.Get("x-error") == "403" {
+	header := c.Request().Header
+
+	if header.Get("x-error") == "403" {
 		return c.String(http.StatusForbidden, "access denied", gonvoy.NewGatewayHeaders())
 	}
 
-	if c.Request().Header.Get("x-error") == "429" {
+	if header.Get("x-error") == "429" {
 		return c.String(http.StatusTooManyRequests, "rate limit exceeded", gonvoy.NewGatewayHeaders())
 	}
 
-	if c.Request().Header.Get("x-error") == "503" {
+	if header.Get("x-error") == "503" {
 		return c.String(http.StatusServiceUnavailable, "service unavailable", gonvoy.NewGatewayHeaders())
 	}
 

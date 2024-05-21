@@ -21,12 +21,13 @@ var HTTPRerouteTestCase = suite.TestCase{
 	Description: "Simulate on how to reroute HTTP request based on the request header dynamically using filter",
 	Parallel:    true,
 	Test: func(t *testing.T, kit *suite.TestSuiteKit) {
-		kill := kit.StartEnvoy(t)
-		defer kill()
+		stop := kit.StartEnvoy(t)
+		defer stop()
 
 		t.Run("good response", func(t *testing.T) {
 			resp, err := http.Get(kit.GetEnvoyHost() + "/")
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
@@ -39,6 +40,7 @@ var HTTPRerouteTestCase = suite.TestCase{
 
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			require.Equal(t, "staticreply", resp.Header.Get("x-response-by"))
 			require.Equal(t, "index", resp.Header.Get("x-response-path-name"))
@@ -54,6 +56,7 @@ var HTTPRerouteTestCase = suite.TestCase{
 
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			require.Equal(t, "staticreply", resp.Header.Get("x-response-by"))
 			require.Equal(t, "staticreply", resp.Header.Get("x-response-path-name"))
@@ -69,6 +72,7 @@ var HTTPRerouteTestCase = suite.TestCase{
 
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			require.Equal(t, "staticreply.svc", resp.Header.Get("x-response-host"))
 			require.Equal(t, "staticreply", resp.Header.Get("x-response-by"))

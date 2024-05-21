@@ -21,32 +21,26 @@ var HttpHeadersModifierTestCase = suite.TestCase{
 	Description: "Running test to simulate HTTP headers modification both Request and Response, while also showing how to use child config for a specific route.",
 	Parallel:    true,
 	Test: func(t *testing.T, kit *suite.TestSuiteKit) {
-		kill := kit.StartEnvoy(t)
-		defer kill()
+		stop := kit.StartEnvoy(t)
+		defer stop()
 
 		t.Run("invoke to index route", func(t *testing.T) {
-			req, err := http.NewRequest("GET", kit.GetEnvoyHost(), nil)
+			resp, err := http.Get(kit.GetEnvoyHost())
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
-			res, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
-			defer res.Body.Close()
-
-			require.Equal(t, res.Header.Get("x-header-modified-at"), "parent")
+			require.Equal(t, resp.Header.Get("x-header-modified-at"), "parent")
 			require.Eventually(t, func() bool {
 				return kit.CheckEnvoyLog("request header ---> X-Foo=[\"bar\"]")
 			}, kit.WaitDuration, kit.TickDuration, "failed to find log message in envoy log")
 		})
 
 		t.Run("invoke to details route, expect to use child config", func(t *testing.T) {
-			req, err := http.NewRequest("GET", kit.GetEnvoyHost()+"/details", nil)
+			resp, err := http.Get(kit.GetEnvoyHost() + "/details")
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
-			res, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
-			defer res.Body.Close()
-
-			require.Equal(t, res.Header.Get("x-header-modified-at"), "child")
+			require.Equal(t, resp.Header.Get("x-header-modified-at"), "child")
 			require.Eventually(t, func() bool {
 				return kit.CheckEnvoyLog("request header ---> X-Boo=[\"far\"]")
 			}, kit.WaitDuration, kit.TickDuration, "failed to find log message in envoy log")

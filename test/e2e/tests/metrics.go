@@ -24,10 +24,12 @@ var MetricsTestCase = suite.TestCase{
 	Description: "Generate user-generated metrics from filter.",
 	Parallel:    true,
 	Test: func(t *testing.T, kit *suite.TestSuiteKit) {
-		t.Cleanup(kit.StartEnvoy(t))
+		stop := kit.StartEnvoy(t)
+		t.Cleanup(stop)
 
 		t.Run("counter metrics on all requests", func(t *testing.T) {
 			t.Parallel()
+
 			expectedCalls := 10
 
 			var actualCall int
@@ -47,14 +49,14 @@ var MetricsTestCase = suite.TestCase{
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				expectedPayload := fmt.Sprintf("envoy_mymetrics_requests_total{host=\"localhost\",method=\"get\",response_code=\"200\",upstream_name=\"httpbin\",route_name=\"httpbin\"} %d", expectedCalls)
+				expectedPayload := fmt.Sprintf("envoy_mymetrics_requests_total{host=\"localhost\",method=\"get\",response_code=\"200\",upstream_name=\"staticreply\",route_name=\"staticreply\"} %d", expectedCalls)
 				return strings.Contains(string(body), expectedPayload)
 			}, kit.WaitDuration, kit.TickDuration, "failed to find the metrics")
-
 		})
 
 		t.Run("counter metrics measured based on header", func(t *testing.T) {
 			t.Parallel()
+
 			expectedCalls := 10
 
 			var actualCall int

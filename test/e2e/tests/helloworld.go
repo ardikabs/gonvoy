@@ -21,15 +21,12 @@ var HelloWorldTestCase = suite.TestCase{
 	Description: "Initial check to see framework working properly.",
 	Parallel:    true,
 	Test: func(t *testing.T, kit *suite.TestSuiteKit) {
-		kill := kit.StartEnvoy(t)
-		defer kill()
+		stop := kit.StartEnvoy(t)
+		defer stop()
 
-		req, err := http.NewRequest("GET", kit.GetEnvoyHost(), nil)
+		resp, err := http.Get(kit.GetEnvoyHost())
 		require.NoError(t, err)
-
-		res, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		defer res.Body.Close()
+		defer resp.Body.Close()
 
 		require.Eventually(t, func() bool {
 			return kit.CheckEnvoyLog("Hello World from the helloworld HTTP filter")

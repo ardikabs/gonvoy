@@ -23,8 +23,8 @@ var CustomErrResponseTestCase = suite.TestCase{
 	Description: "Override a considered error response with custom response payload. It overrides based on status codes, including 401, 429, and 503.",
 	Parallel:    true,
 	Test: func(t *testing.T, kit *suite.TestSuiteKit) {
-		kill := kit.StartEnvoy(t)
-		defer kill()
+		stop := kit.StartEnvoy(t)
+		defer stop()
 
 		t.Run("401 Response", func(t *testing.T) {
 			resp, err := http.Get(kit.GetEnvoyHost() + "/401")

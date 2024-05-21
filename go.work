@@ -8,4 +8,5 @@ use (
 	./test/e2e/filters/custom_err_response
 	./test/e2e/filters/panic_filter
 	./test/e2e/filters/http_reroute
+	./test/e2e/filters/metrics
 )

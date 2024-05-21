@@ -23,8 +23,8 @@ var PanicFilterTestCase = suite.TestCase{
 	Description: "Simulate panic in the filter and return 500 response.",
 	Parallel:    true,
 	Test: func(t *testing.T, kit *suite.TestSuiteKit) {
-		kill := kit.StartEnvoy(t)
-		defer kill()
+		stop := kit.StartEnvoy(t)
+		defer stop()
 
 		t.Run("panic on request", func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, kit.GetEnvoyHost()+"/", nil)
@@ -34,7 +34,6 @@ var PanicFilterTestCase = suite.TestCase{
 
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
-
 			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
@@ -54,7 +53,6 @@ var PanicFilterTestCase = suite.TestCase{
 		t.Run("panic on response", func(t *testing.T) {
 			resp, err := http.Get(kit.GetEnvoyHost() + "/panic")
 			require.NoError(t, err)
-
 			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)

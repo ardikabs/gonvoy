@@ -442,6 +442,105 @@ func (_c *RequestHeaderMap_Set_Call) RunAndReturn(run func(string, string)) *Req
 	return _c
 }
 
+// SetHost provides a mock function with given fields: host
+func (_m *RequestHeaderMap) SetHost(host string) {
+	_m.Called(host)
+}
+
+// RequestHeaderMap_SetHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetHost'
+type RequestHeaderMap_SetHost_Call struct {
+	*mock.Call
+}
+
+// SetHost is a helper method to define mock.On call
+//   - host string
+func (_e *RequestHeaderMap_Expecter) SetHost(host interface{}) *RequestHeaderMap_SetHost_Call {
+	return &RequestHeaderMap_SetHost_Call{Call: _e.mock.On("SetHost", host)}
+}
+
+func (_c *RequestHeaderMap_SetHost_Call) Run(run func(host string)) *RequestHeaderMap_SetHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *RequestHeaderMap_SetHost_Call) Return() *RequestHeaderMap_SetHost_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RequestHeaderMap_SetHost_Call) RunAndReturn(run func(string)) *RequestHeaderMap_SetHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetMethod provides a mock function with given fields: method
+func (_m *RequestHeaderMap) SetMethod(method string) {
+	_m.Called(method)
+}
+
+// RequestHeaderMap_SetMethod_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetMethod'
+type RequestHeaderMap_SetMethod_Call struct {
+	*mock.Call
+}
+
+// SetMethod is a helper method to define mock.On call
+//   - method string
+func (_e *RequestHeaderMap_Expecter) SetMethod(method interface{}) *RequestHeaderMap_SetMethod_Call {
+	return &RequestHeaderMap_SetMethod_Call{Call: _e.mock.On("SetMethod", method)}
+}
+
+func (_c *RequestHeaderMap_SetMethod_Call) Run(run func(method string)) *RequestHeaderMap_SetMethod_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *RequestHeaderMap_SetMethod_Call) Return() *RequestHeaderMap_SetMethod_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RequestHeaderMap_SetMethod_Call) RunAndReturn(run func(string)) *RequestHeaderMap_SetMethod_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetPath provides a mock function with given fields: path
+func (_m *RequestHeaderMap) SetPath(path string) {
+	_m.Called(path)
+}
+
+// RequestHeaderMap_SetPath_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetPath'
+type RequestHeaderMap_SetPath_Call struct {
+	*mock.Call
+}
+
+// SetPath is a helper method to define mock.On call
+//   - path string
+func (_e *RequestHeaderMap_Expecter) SetPath(path interface{}) *RequestHeaderMap_SetPath_Call {
+	return &RequestHeaderMap_SetPath_Call{Call: _e.mock.On("SetPath", path)}
+}
+
+func (_c *RequestHeaderMap_SetPath_Call) Run(run func(path string)) *RequestHeaderMap_SetPath_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *RequestHeaderMap_SetPath_Call) Return() *RequestHeaderMap_SetPath_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *RequestHeaderMap_SetPath_Call) RunAndReturn(run func(string)) *RequestHeaderMap_SetPath_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Values provides a mock function with given fields: key
 func (_m *RequestHeaderMap) Values(key string) []string {
 	ret := _m.Called(key)

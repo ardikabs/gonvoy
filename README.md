@@ -26,7 +26,7 @@ A Go framework to write an HTTP Filter extension on Envoy Proxy. It leverages th
 | v0.1 |v1.27 |
 | v0.2 | v1.29 |
 | v0.3 | v1.29 |
-| [latest](https://github.com/ardikabs/gonvoy) | v1.29 |
+| [latest](https://github.com/ardikabs/gonvoy) | v1.30 |
 
 ## Installation
 

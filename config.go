@@ -20,11 +20,12 @@ type globalConfig struct {
 	counterMap   map[string]api.CounterMetric
 	histogramMap map[string]api.HistogramMetric
 
-	strictBodyAccess       bool
-	allowRequestBodyRead   bool
-	allowRequestBodyWrite  bool
-	allowResponseBodyRead  bool
-	allowResponseBodyWrite bool
+	reloadRouteOnRequestHeader bool
+	strictBodyAccess           bool
+	allowRequestBodyRead       bool
+	allowRequestBodyWrite      bool
+	allowResponseBodyRead      bool
+	allowResponseBodyWrite     bool
 }
 
 func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfig {
@@ -36,11 +37,12 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 		histogramMap:  make(map[string]api.HistogramMetric),
 		metricPrefix:  options.MetricPrefix,
 
-		strictBodyAccess:       !options.DisableStrictBodyAccess,
-		allowRequestBodyRead:   options.EnableRequestBodyRead,
-		allowRequestBodyWrite:  options.EnableRequestBodyWrite,
-		allowResponseBodyRead:  options.EnableResponseBodyRead,
-		allowResponseBodyWrite: options.EnableResponseBodyWrite,
+		reloadRouteOnRequestHeader: options.ReloadRouteOnRequestHeaderChange,
+		strictBodyAccess:           !options.DisableStrictBodyAccess,
+		allowRequestBodyRead:       options.EnableRequestBodyRead,
+		allowRequestBodyWrite:      options.EnableRequestBodyWrite,
+		allowResponseBodyRead:      options.EnableResponseBodyRead,
+		allowResponseBodyWrite:     options.EnableResponseBodyWrite,
 	}
 
 	return gc

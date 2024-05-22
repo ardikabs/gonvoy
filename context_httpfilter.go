@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/ardikabs/gonvoy/pkg/types"
+	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -37,7 +38,7 @@ func (c *context) RequestBody() Body {
 	}
 
 	return &bodyWriter{
-		writeable: c.IsRequestBodyWriteable(),
+		writeable: c.IsRequestBodyWritable(),
 		header:    c.reqHeaderMap,
 		buffer:    c.reqBufferInstance,
 	}
@@ -49,7 +50,7 @@ func (c *context) ResponseBody() Body {
 	}
 
 	return &bodyWriter{
-		writeable: c.IsResponseBodyWriteable(),
+		writeable: c.IsResponseBodyWritable(),
 		header:    c.respHeaderMap,
 		buffer:    c.respBufferInstance,
 	}
@@ -95,13 +96,7 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 
 	c.httpReq = req
 	c.reqHeaderMap = header
-
-	c.requestBodyAccessRead, c.requestBodyAccessWrite = checkBodyAccessibility(c.strictBodyAccess, c.requestBodyAccessRead, c.requestBodyAccessWrite, header)
-
-	if off := req.Header.Get(HeaderXRequestBodyAccess) == XRequestBodyAccessOff; off {
-		c.requestBodyAccessRead = !off && c.requestBodyAccessRead
-		c.requestBodyAccessWrite = !off && c.requestBodyAccessWrite
-	}
+	c.checkRequestBodyAccessibility()
 }
 
 func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
@@ -120,13 +115,7 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 
 	c.httpResp = resp
 	c.respHeaderMap = header
-
-	c.responseBodyAccessRead, c.responseBodyAccessWrite = checkBodyAccessibility(c.strictBodyAccess, c.responseBodyAccessRead, c.responseBodyAccessWrite, header)
-
-	if off := resp.Header.Get(HeaderXResponseBodyAccess) == XResponseBodyAccessOff; off {
-		c.responseBodyAccessRead = !off && c.responseBodyAccessRead
-		c.responseBodyAccessWrite = !off && c.responseBodyAccessWrite
-	}
+	c.checkResponseBodyAccessibility()
 }
 
 func (c *context) SetRequestBody(buffer api.BufferInstance, endStream bool) {
@@ -189,6 +178,10 @@ func (c *context) Response() *http.Response {
 	return c.httpResp
 }
 
+func (c *context) IsRequestBodyAccessible() bool {
+	return c.IsRequestBodyReadable() || c.IsRequestBodyWritable()
+}
+
 func (c *context) IsRequestBodyReadable() bool {
 	// If the Request Body can be accessed, but the current phase has already been committed,
 	// then Request Body is no longer accessible
@@ -199,7 +192,7 @@ func (c *context) IsRequestBodyReadable() bool {
 	return c.requestBodyAccessRead
 }
 
-func (c *context) IsRequestBodyWriteable() bool {
+func (c *context) IsRequestBodyWritable() bool {
 	// If the Request Body can be modified, but the current phase has already been committed,
 	// then Request Body is no longer modifiable
 	if c.committed {
@@ -207,6 +200,10 @@ func (c *context) IsRequestBodyWriteable() bool {
 	}
 
 	return c.requestBodyAccessWrite
+}
+
+func (c *context) IsResponseBodyAccessible() bool {
+	return c.IsResponseBodyReadable() || c.IsResponseBodyWritable()
 }
 
 func (c *context) IsResponseBodyReadable() bool {
@@ -219,7 +216,7 @@ func (c *context) IsResponseBodyReadable() bool {
 	return c.responseBodyAccessRead
 }
 
-func (c *context) IsResponseBodyWriteable() bool {
+func (c *context) IsResponseBodyWritable() bool {
 	// If the response body can be modified, but the current phase has already been committed,
 	// then Response Body is no longer modifiable
 	if c.committed {
@@ -272,4 +269,103 @@ func (c *context) SkipNextPhase() error {
 
 func (c *context) ReloadRoute() {
 	c.callback.ClearRouteCache()
+}
+
+// checkRequestBodyAccessibility checks the accessibility of the request body based on the request header.
+func (c *context) checkRequestBodyAccessibility() {
+	header := c.httpReq.Header
+
+	if off := header.Get(HeaderXRequestBodyAccess) == XRequestBodyAccessOff; off {
+		c.requestBodyAccessRead, c.requestBodyAccessWrite = false, false
+		return
+	}
+
+	c.requestBodyAccessRead, c.requestBodyAccessWrite = c.checkHTTPBodyAccessibility(c.strictBodyAccess, c.requestBodyAccessRead, c.requestBodyAccessWrite, header)
+}
+
+// checkResponseBodyAccessibility checks the accessibility of the response body based on the response header.
+func (c *context) checkResponseBodyAccessibility() {
+	header := c.httpResp.Header
+
+	if off := header.Get(HeaderXResponseBodyAccess) == XResponseBodyAccessOff; off {
+		c.responseBodyAccessRead, c.responseBodyAccessWrite = false, false
+		return
+	}
+
+	c.responseBodyAccessRead, c.responseBodyAccessWrite = c.checkHTTPBodyAccessibility(c.strictBodyAccess, c.responseBodyAccessRead, c.responseBodyAccessWrite, header)
+}
+
+// checkHTTPBodyAccessibility checks the accessibility of the HTTP body based on the provided parameters.
+// If strict is false, it determines the accessibility based on the allowRead and allowWrite flags.
+// If strict is true, it checks the accessibility based on the operation specified in the header.
+// The read and write flags indicate whether the HTTP body is readable and writable, respectively.
+// The header parameter contains the HTTP header.
+func (c *context) checkHTTPBodyAccessibility(strict, allowRead, allowWrite bool, header http.Header) (read, write bool) {
+	access := c.isHTTPBodyAccessible(header)
+	if !access {
+		return
+	}
+
+	if !strict {
+		read = access && (allowRead || allowWrite)
+		write = access && allowWrite
+		return
+	}
+
+	operation := header.Get(HeaderXContentOperation)
+
+	if util.In(operation, ContentOperationReadOnly, ContentOperationRO) {
+		read = access && allowRead
+		return
+	}
+
+	if util.In(operation, ContentOperationReadWrite, ContentOperationRW) {
+		write = access && allowWrite
+		read = write
+		return
+	}
+
+	return
+}
+
+// isHTTPBodyAccessible checks if the HTTP body is accessible based on the provided header.
+// It returns true if the body is accessible, otherwise false.
+// It checks the accessibility of the body based on the content type and/or content length.
+func (c *context) isHTTPBodyAccessible(header http.Header) bool {
+	cType := header.Get(HeaderContentType)
+
+	if cType == "" {
+		return false
+	}
+
+	validContentTypes := []string{
+		MIMEApplicationJSON,
+		MIMEApplicationXML,
+		MIMEApplicationForm,
+		MIMEApplicationProtobuf,
+		MIMEApplicationMsgpack,
+		MIMETextXML,
+		MIMEMultipartForm,
+		MIMEOctetStream,
+	}
+
+	if util.StringStartsWith(cType, validContentTypes...) {
+		return true
+	}
+
+	// gRPC content type is considered inaccessible.
+	// Content type is gRPC if it is exactly "application/grpc" or starts with "application/grpc+".
+	// Particularly, something like "application/grpc-web" is not gRPC.
+	if cType == MIMEApplicationGRPC &&
+		(len(cType) == len(MIMEApplicationGRPC) || cType[len(MIMEApplicationGRPC)] == '+') {
+		return false
+	}
+
+	// For other content types, data is considered accessible only when Content-Length is neither empty nor zero.
+	// Consequently, chunked data of these content types is considered as inaccessible.
+	if cLength := header.Get(HeaderContentLength); cLength != "" {
+		return cLength != "0"
+	}
+
+	return false
 }

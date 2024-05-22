@@ -97,3 +97,14 @@ func GetAbsPathFromCaller(skip int) (string, error) {
 
 	return filepath.Dir(absPath), nil
 }
+
+// StringStartsWith checks if a string starts with any of the prefixes.
+func StringStartsWith(s string, prefixes ...string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(s, prefix) {
+			return true
+		}
+	}
+
+	return false
+}

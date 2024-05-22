@@ -28,6 +28,7 @@ const (
 	MIMEApplicationJSONCharsetUTF8 = MIMEApplicationJSON + "; " + charsetUTF8
 	MIMEApplicationXML             = "application/xml"
 	MIMEApplicationXMLCharsetUTF8  = MIMEApplicationXML + "; " + charsetUTF8
+	MIMEApplicationGRPC            = "application/grpc"
 	MIMETextXML                    = "text/xml"
 	MIMETextXMLCharsetUTF8         = MIMETextXML + "; " + charsetUTF8
 	MIMEApplicationForm            = "application/x-www-form-urlencoded"

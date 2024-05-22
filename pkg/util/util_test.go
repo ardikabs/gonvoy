@@ -119,3 +119,30 @@ func TestGetAbsPathFromCaller(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, wd, path)
 }
+
+func TestStringStartsWith(t *testing.T) {
+	t.Run("empty string", func(t *testing.T) {
+		result := util.StringStartsWith("", "prefix")
+		assert.False(t, result)
+	})
+
+	t.Run("string starts with prefix", func(t *testing.T) {
+		result := util.StringStartsWith("prefix123", "prefix")
+		assert.True(t, result)
+	})
+
+	t.Run("string does not start with prefix", func(t *testing.T) {
+		result := util.StringStartsWith("suffix123", "prefix")
+		assert.False(t, result)
+	})
+
+	t.Run("string starts with any of the prefixes", func(t *testing.T) {
+		result := util.StringStartsWith("prefix123", "suffix", "prefix")
+		assert.True(t, result)
+	})
+
+	t.Run("string does not start with any of the prefixes", func(t *testing.T) {
+		result := util.StringStartsWith("suffix123", "prefix1", "prefix2")
+		assert.False(t, result)
+	})
+}

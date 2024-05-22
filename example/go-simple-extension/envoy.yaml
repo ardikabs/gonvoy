@@ -100,6 +100,11 @@ static_resources:
                     - name: local_service
                       domains: ["*"]
                       routes:
+                        - name: grpc
+                          match:
+                            prefix: "/echo.EchoService/Echo"
+                          route:
+                            cluster: grpc_podinfo_service_cluster
                         - name: details-page
                           match:
                             prefix: "/details"
@@ -207,6 +212,24 @@ static_resources:
                     socket_address:
                       address: podinfo_service
                       port_value: 9898
+    - name: grpc_podinfo_service_cluster
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: grpc_podinfo_service_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: grpc_podinfo_service
+                      port_value: 9999
+
     - name: raw.githubusercontent.com||443
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN

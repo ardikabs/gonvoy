@@ -35,7 +35,7 @@ func (h *HandlerThree) OnRequestHeader(c gonvoy.Context) error {
 }
 
 func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
-	if ct := c.Request().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, "application/json") {
+	if ct := c.Request().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
 		return nil
 	}
 
@@ -48,7 +48,7 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 	reqBody["handlerName"] = "HandlerThree"
 	reqBody["phase"] = "HTTPRequest"
 
-	if c.IsRequestBodyWriteable() {
+	if c.IsRequestBodyWritable() {
 		enc := json.NewEncoder(c.RequestBody())
 		return enc.Encode(reqBody)
 	}
@@ -59,6 +59,7 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 	}
 
 	c.Log().Info("check request body", "payload", string(b))
+
 	return nil
 }
 
@@ -85,7 +86,7 @@ func (h *HandlerThree) OnResponseHeader(c gonvoy.Context) error {
 }
 
 func (h *HandlerThree) OnResponseBody(c gonvoy.Context) error {
-	if ct := c.Response().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, "application/json") {
+	if ct := c.Response().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
 		return nil
 	}
 

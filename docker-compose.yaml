@@ -19,4 +19,12 @@ services:
     # if you are using Apple M1, use below image, otherwise above.
     image: kicbase/echo-server:1.0
   podinfo_service:
-    image: ghcr.io/stefanprodan/podinfo:6.5.0
+    image: ghcr.io/stefanprodan/podinfo:6.6.2
+  grpc_podinfo_service:
+    image: ghcr.io/stefanprodan/podinfo:6.6.2
+    command:
+      - ./podinfo
+      - --port=9898
+      - --grpc-port=9999
+      - --grpc-service-name=podinfo
+      - --level=info

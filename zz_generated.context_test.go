@@ -205,6 +205,47 @@ func (_c *MockContext_GetProperty_Call) RunAndReturn(run func(string, string) (s
 	return _c
 }
 
+// IsRequestBodyAccessible provides a mock function with given fields:
+func (_m *MockContext) IsRequestBodyAccessible() bool {
+	ret := _m.Called()
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func() bool); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
+// MockContext_IsRequestBodyAccessible_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsRequestBodyAccessible'
+type MockContext_IsRequestBodyAccessible_Call struct {
+	*mock.Call
+}
+
+// IsRequestBodyAccessible is a helper method to define mock.On call
+func (_e *MockContext_Expecter) IsRequestBodyAccessible() *MockContext_IsRequestBodyAccessible_Call {
+	return &MockContext_IsRequestBodyAccessible_Call{Call: _e.mock.On("IsRequestBodyAccessible")}
+}
+
+func (_c *MockContext_IsRequestBodyAccessible_Call) Run(run func()) *MockContext_IsRequestBodyAccessible_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockContext_IsRequestBodyAccessible_Call) Return(_a0 bool) *MockContext_IsRequestBodyAccessible_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_IsRequestBodyAccessible_Call) RunAndReturn(run func() bool) *MockContext_IsRequestBodyAccessible_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // IsRequestBodyReadable provides a mock function with given fields:
 func (_m *MockContext) IsRequestBodyReadable() bool {
 	ret := _m.Called()
@@ -246,8 +287,8 @@ func (_c *MockContext_IsRequestBodyReadable_Call) RunAndReturn(run func() bool) 
 	return _c
 }
 
-// IsRequestBodyWriteable provides a mock function with given fields:
-func (_m *MockContext) IsRequestBodyWriteable() bool {
+// IsRequestBodyWritable provides a mock function with given fields:
+func (_m *MockContext) IsRequestBodyWritable() bool {
 	ret := _m.Called()
 
 	var r0 bool
@@ -260,29 +301,70 @@ func (_m *MockContext) IsRequestBodyWriteable() bool {
 	return r0
 }
 
-// MockContext_IsRequestBodyWriteable_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsRequestBodyWriteable'
-type MockContext_IsRequestBodyWriteable_Call struct {
+// MockContext_IsRequestBodyWritable_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsRequestBodyWritable'
+type MockContext_IsRequestBodyWritable_Call struct {
 	*mock.Call
 }
 
-// IsRequestBodyWriteable is a helper method to define mock.On call
-func (_e *MockContext_Expecter) IsRequestBodyWriteable() *MockContext_IsRequestBodyWriteable_Call {
-	return &MockContext_IsRequestBodyWriteable_Call{Call: _e.mock.On("IsRequestBodyWriteable")}
+// IsRequestBodyWritable is a helper method to define mock.On call
+func (_e *MockContext_Expecter) IsRequestBodyWritable() *MockContext_IsRequestBodyWritable_Call {
+	return &MockContext_IsRequestBodyWritable_Call{Call: _e.mock.On("IsRequestBodyWritable")}
 }
 
-func (_c *MockContext_IsRequestBodyWriteable_Call) Run(run func()) *MockContext_IsRequestBodyWriteable_Call {
+func (_c *MockContext_IsRequestBodyWritable_Call) Run(run func()) *MockContext_IsRequestBodyWritable_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run()
 	})
 	return _c
 }
 
-func (_c *MockContext_IsRequestBodyWriteable_Call) Return(_a0 bool) *MockContext_IsRequestBodyWriteable_Call {
+func (_c *MockContext_IsRequestBodyWritable_Call) Return(_a0 bool) *MockContext_IsRequestBodyWritable_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_IsRequestBodyWriteable_Call) RunAndReturn(run func() bool) *MockContext_IsRequestBodyWriteable_Call {
+func (_c *MockContext_IsRequestBodyWritable_Call) RunAndReturn(run func() bool) *MockContext_IsRequestBodyWritable_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// IsResponseBodyAccessible provides a mock function with given fields:
+func (_m *MockContext) IsResponseBodyAccessible() bool {
+	ret := _m.Called()
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func() bool); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
+// MockContext_IsResponseBodyAccessible_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsResponseBodyAccessible'
+type MockContext_IsResponseBodyAccessible_Call struct {
+	*mock.Call
+}
+
+// IsResponseBodyAccessible is a helper method to define mock.On call
+func (_e *MockContext_Expecter) IsResponseBodyAccessible() *MockContext_IsResponseBodyAccessible_Call {
+	return &MockContext_IsResponseBodyAccessible_Call{Call: _e.mock.On("IsResponseBodyAccessible")}
+}
+
+func (_c *MockContext_IsResponseBodyAccessible_Call) Run(run func()) *MockContext_IsResponseBodyAccessible_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockContext_IsResponseBodyAccessible_Call) Return(_a0 bool) *MockContext_IsResponseBodyAccessible_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockContext_IsResponseBodyAccessible_Call) RunAndReturn(run func() bool) *MockContext_IsResponseBodyAccessible_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -328,8 +410,8 @@ func (_c *MockContext_IsResponseBodyReadable_Call) RunAndReturn(run func() bool)
 	return _c
 }
 
-// IsResponseBodyWriteable provides a mock function with given fields:
-func (_m *MockContext) IsResponseBodyWriteable() bool {
+// IsResponseBodyWritable provides a mock function with given fields:
+func (_m *MockContext) IsResponseBodyWritable() bool {
 	ret := _m.Called()
 
 	var r0 bool
@@ -342,29 +424,29 @@ func (_m *MockContext) IsResponseBodyWriteable() bool {
 	return r0
 }
 
-// MockContext_IsResponseBodyWriteable_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsResponseBodyWriteable'
-type MockContext_IsResponseBodyWriteable_Call struct {
+// MockContext_IsResponseBodyWritable_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsResponseBodyWritable'
+type MockContext_IsResponseBodyWritable_Call struct {
 	*mock.Call
 }
 
-// IsResponseBodyWriteable is a helper method to define mock.On call
-func (_e *MockContext_Expecter) IsResponseBodyWriteable() *MockContext_IsResponseBodyWriteable_Call {
-	return &MockContext_IsResponseBodyWriteable_Call{Call: _e.mock.On("IsResponseBodyWriteable")}
+// IsResponseBodyWritable is a helper method to define mock.On call
+func (_e *MockContext_Expecter) IsResponseBodyWritable() *MockContext_IsResponseBodyWritable_Call {
+	return &MockContext_IsResponseBodyWritable_Call{Call: _e.mock.On("IsResponseBodyWritable")}
 }
 
-func (_c *MockContext_IsResponseBodyWriteable_Call) Run(run func()) *MockContext_IsResponseBodyWriteable_Call {
+func (_c *MockContext_IsResponseBodyWritable_Call) Run(run func()) *MockContext_IsResponseBodyWritable_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run()
 	})
 	return _c
 }
 
-func (_c *MockContext_IsResponseBodyWriteable_Call) Return(_a0 bool) *MockContext_IsResponseBodyWriteable_Call {
+func (_c *MockContext_IsResponseBodyWritable_Call) Return(_a0 bool) *MockContext_IsResponseBodyWritable_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockContext_IsResponseBodyWriteable_Call) RunAndReturn(run func() bool) *MockContext_IsResponseBodyWriteable_Call {
+func (_c *MockContext_IsResponseBodyWritable_Call) RunAndReturn(run func() bool) *MockContext_IsResponseBodyWritable_Call {
 	_c.Call.Return(run)
 	return _c
 }

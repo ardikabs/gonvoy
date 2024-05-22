@@ -3,9 +3,6 @@ package gonvoy
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/ardikabs/gonvoy/pkg/util"
-	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
 // MustGetProperty retrieves the value of a property with the given name from the provided RuntimeContext.
@@ -41,81 +38,4 @@ func NewMinimalJSONResponse(code, message string, errs ...error) []byte {
 	}
 
 	return bodyByte
-}
-
-// checkBodyAccessibility checks the accessibility of the request/response body based on the provided parameters.
-// If strict is false, it determines the accessibility based on the allowRead and allowWrite flags.
-// If strict is true, it checks the accessibility based on the operation specified in the header.
-// The read and write flags indicate whether the body is readable and writable, respectively.
-// The header parameter contains the request/response header information.
-func checkBodyAccessibility(strict, allowRead, allowWrite bool, header api.HeaderMap) (read, write bool) {
-	access := isBodyAccessible(header)
-
-	if !strict {
-		read = access && (allowRead || allowWrite)
-		write = access && allowWrite
-		return
-	}
-
-	operation, ok := header.Get(HeaderXContentOperation)
-	if !ok {
-		return
-	}
-
-	if util.In(operation, ContentOperationReadOnly, ContentOperationRO) {
-		read = access && allowRead
-		return
-	}
-
-	if util.In(operation, ContentOperationReadWrite, ContentOperationRW) {
-		write = access && allowWrite
-		read = write
-		return
-	}
-
-	return
-}
-
-// isBodyAccessible checks if the body is accessible based on the provided header.
-// It returns true if the body is accessible, otherwise false.
-func isBodyAccessible(header api.HeaderMap) bool {
-	cType, ok := header.Get(HeaderContentType)
-	if !ok {
-		return false
-	}
-
-	switch cType {
-	case
-		MIMEApplicationJSON,
-		MIMEApplicationXML,
-		MIMEApplicationForm,
-		MIMEApplicationProtobuf,
-		MIMEApplicationMsgpack,
-		MIMETextXML,
-		MIMEMultipartForm,
-		MIMEOctetStream:
-
-		// Content types that are supported and considered accessible, including data sent in chunks.
-		return true
-	default:
-		// For other content types, data is considered accessible only when Content-Length is neither empty nor zero.
-		// Consequently, chunked data of these content types is regarded as inaccessible.
-		if cLength, ok := header.Get(HeaderContentLength); ok {
-			return cLength != "0"
-		}
-
-		return false
-	}
-}
-
-// isRequestBodyAccessible checks if the request body is accessible for reading or writing.
-// It returns true if the request body is readable or writeable, otherwise it returns false.
-func isRequestBodyAccessible(c Context) bool {
-	return c.IsRequestBodyReadable() || c.IsRequestBodyWriteable()
-}
-
-// isResponseBodyAccessible checks if the response body is accessible.
-// It returns true if the response body is readable or writeable, otherwise false.
-func isResponseBodyAccessible(c Context) bool {
-	return c.IsResponseBodyReadable() || c.IsResponseBodyWriteable()
 }

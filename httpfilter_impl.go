@@ -13,9 +13,7 @@ type httpFilterImpl struct {
 
 func (f *httpFilterImpl) OnLog() { f.srv.Finalize() }
 
-func (f *httpFilterImpl) OnDestroy(reason api.DestroyReason) {
-	f.srv = nil
-}
+func (f *httpFilterImpl) OnDestroy(reason api.DestroyReason) { f.srv = nil }
 
 func (f *httpFilterImpl) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	result := f.srv.ServeDecodeFilter(f.handleRequestHeader(header))
@@ -45,7 +43,7 @@ func (f *httpFilterImpl) handleRequestHeader(header api.RequestHeaderMap) HttpFi
 			return ActionContinue, err
 		}
 
-		if c.IsRequestBodyWriteable() {
+		if c.IsRequestBodyWritable() {
 			return ActionPause, nil
 		}
 
@@ -55,7 +53,7 @@ func (f *httpFilterImpl) handleRequestHeader(header api.RequestHeaderMap) HttpFi
 
 func (f *httpFilterImpl) handleRequestBody(buffer api.BufferInstance, endStream bool) HttpFilterDecoderFunc {
 	return func(c Context, p HttpFilterDecodeProcessor) (HttpFilterAction, error) {
-		if !isRequestBodyAccessible(c) {
+		if !c.IsRequestBodyAccessible() {
 			return ActionSkip, nil
 		}
 
@@ -104,7 +102,7 @@ func (f *httpFilterImpl) handleResponseHeader(header api.ResponseHeaderMap) Http
 // Code references: https://github.com/envoyproxy/envoy/blob/v1.29.4/contrib/golang/filters/http/source/processor_state.cc#L362-L371.
 func (f *httpFilterImpl) handleResponseBody(buffer api.BufferInstance, endStream bool) HttpFilterEncoderFunc {
 	return func(c Context, p HttpFilterEncodeProcessor) (HttpFilterAction, error) {
-		if !isResponseBodyAccessible(c) {
+		if !c.IsResponseBodyAccessible() {
 			return ActionSkip, nil
 		}
 

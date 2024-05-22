@@ -91,21 +91,29 @@ type HttpFilterContext interface {
 	//
 	SetResponseBody(buffer api.BufferInstance, endStream bool)
 
+	// IsRequestBodyAccessible checks if the request body is accessible for reading or writing.
+	//
+	IsRequestBodyAccessible() bool
+
 	// IsRequestBodyReadable specifies whether an HTTP Request body is readable or not.
 	//
 	IsRequestBodyReadable() bool
 
-	// IsRequestBodyWriteable specifies whether an HTTP Request body is writeable or not.
+	// IsRequestBodyWritable specifies whether an HTTP Request body is writeable or not.
 	//
-	IsRequestBodyWriteable() bool
+	IsRequestBodyWritable() bool
+
+	// IsResponseBodyAccessible checks if the response body is accessible for reading or writing.
+	//
+	IsResponseBodyAccessible() bool
 
 	// IsResponseBodyReadable specifies whether an HTTP Response body is readable or not.
 	//
 	IsResponseBodyReadable() bool
 
-	// IsResponseBodyWriteable specifies whether an HTTP Response body is writeable or not.
+	// IsResponseBodyWritable specifies whether an HTTP Response body is writeable or not.
 	//
-	IsResponseBodyWriteable() bool
+	IsResponseBodyWritable() bool
 
 	// JSON sends a JSON response with a status code.
 	//

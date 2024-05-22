@@ -10,8 +10,8 @@ import (
 )
 
 func TestHeaderMapAsMap(t *testing.T) {
-	reqHeaderMap := mock_envoy.NewRequestHeaderMap(t)
-	reqHeaderMap.EXPECT().Range(mock.Anything).Return().Run(func(f func(string, string) bool) {
+	reqHeaderMapMock := mock_envoy.NewRequestHeaderMap(t)
+	reqHeaderMapMock.EXPECT().Range(mock.Anything).Return().Run(func(f func(string, string) bool) {
 		headers := map[string][]string{
 			"foo":       {"bar"},
 			"x-foo":     {"x-bar", "x-foobar"},
@@ -24,7 +24,7 @@ func TestHeaderMapAsMap(t *testing.T) {
 		}
 	})
 
-	h := &header{HeaderMap: reqHeaderMap}
+	h := &header{HeaderMap: reqHeaderMapMock}
 	assert.NotNil(t, h)
 	assert.Equal(t, []string{"bar"}, h.AsMap()["foo"])
 	assert.Equal(t, []string{"x-bar", "x-foobar"}, h.AsMap()["x-foo"])
@@ -65,8 +65,11 @@ func TestNewGatewayHeaders(t *testing.T) {
 	})
 
 	t.Run("new gateway headers with envoy header", func(t *testing.T) {
-		reqHeaderMap := mock_envoy.NewRequestHeaderMap(t)
-		reqHeaderMap.EXPECT().Range(mock.Anything).Return().Run(func(f func(string, string) bool) {
+		reqHeaderMapMock := mock_envoy.NewRequestHeaderMap(t)
+		reqHeaderMapMock.EXPECT().Host().Return("foo.bar.com")
+		reqHeaderMapMock.EXPECT().Method().Return(http.MethodGet)
+		reqHeaderMapMock.EXPECT().Path().Return("/foo/bar")
+		reqHeaderMapMock.EXPECT().Range(mock.Anything).Return().Run(func(f func(string, string) bool) {
 			headers := map[string][]string{
 				"x-request-id": {"asdf12345"},
 				"x-foo":        {"x-bar", "x-foobar"},
@@ -78,13 +81,9 @@ func TestNewGatewayHeaders(t *testing.T) {
 				}
 			}
 		})
-		reqHeaderMap.EXPECT().Get(mock.Anything).Return(mock.Anything, false)
-		reqHeaderMap.EXPECT().Method().Return(http.MethodGet)
-		reqHeaderMap.EXPECT().Host().Return("foo.bar.com")
-		reqHeaderMap.EXPECT().Path().Return("/foo/bar")
 
 		ctx := fakeDummyContext(t)
-		ctx.SetRequestHeader(reqHeaderMap)
+		ctx.SetRequestHeader(reqHeaderMapMock)
 
 		headers := NewGatewayHeadersWithEnvoyHeader(ctx.RequestHeader())
 

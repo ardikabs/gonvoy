@@ -50,7 +50,7 @@ jobs:
           CODECOV_TOKEN: "${{ secrets.CODECOV_TOKEN }}"
 
   e2e-test:
-    name: E2E Test
+    name: E2E Testing
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

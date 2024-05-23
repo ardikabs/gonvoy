@@ -38,13 +38,13 @@ go get github.com/ardikabs/gonvoy
 
 ### Prerequisites
 
-* Go 1.21 or later. Follow [Golang installation guideline](https://golang.org/doc/install).
+* Go 1.22 or later. Follow [Golang installation guideline](https://golang.org/doc/install).
 
 ### Setup
 
 * Install Git.
 
-* Install Go 1.21.
+* Install Go 1.22.
 
 * Clone the project.
 
@@ -92,7 +92,7 @@ $ make test
 
 ### Try It
 
-To try this interface in action, heads to [example](./example) directory.
+To try this framework in action, heads to [example](./example) directory.
 
 ## License
 

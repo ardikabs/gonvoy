@@ -226,37 +226,48 @@ func (c *context) IsResponseBodyWritable() bool {
 	return c.responseBodyAccessWrite
 }
 
-func (c *context) JSON(code int, body []byte, header http.Header, opts ...ReplyOption) error {
-	options := NewDefaultReplyOptions(opts...)
+func (c *context) SendResponse(code int, bodyText string, opts ...LocalReplyOption) error {
+	reply := NewLocalReplyOptions(opts...)
 
-	if header == nil {
-		header = make(http.Header)
+	c.callback.SendLocalReply(code, bodyText, reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
+	c.committed = true
+	c.statusType = reply.statusType
+
+	return nil
+}
+
+func (c *context) JSON(code int, body []byte, opts ...LocalReplyOption) error {
+	reply := NewLocalReplyOptions(opts...)
+
+	if reply.headers == nil {
+		reply.headers = make(http.Header)
 	}
 
 	if body == nil {
 		body = []byte("{}")
 	}
 
-	header.Set(HeaderContentType, MIMEApplicationJSON)
-	c.callback.SendLocalReply(code, string(body), header, options.grpcStatusCode, options.responseCodeDetails)
+	reply.headers.Set(HeaderContentType, MIMEApplicationJSON)
+
+	c.callback.SendLocalReply(code, string(body), reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
 	c.committed = true
-	c.statusType = options.statusType
+	c.statusType = reply.statusType
 
 	runtime.GC()
 	return nil
 }
 
-func (c *context) String(code int, s string, header http.Header, opts ...ReplyOption) error {
-	options := NewDefaultReplyOptions(opts...)
+func (c *context) String(code int, s string, opts ...LocalReplyOption) error {
+	reply := NewLocalReplyOptions(opts...)
 
-	if header == nil {
-		header = make(http.Header)
+	if reply.headers == nil {
+		reply.headers = make(http.Header)
 	}
 
-	header.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
-	c.callback.SendLocalReply(code, s, header, options.grpcStatusCode, options.responseCodeDetails)
+	reply.headers.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
+	c.callback.SendLocalReply(code, s, reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
 	c.committed = true
-	c.statusType = options.statusType
+	c.statusType = reply.statusType
 
 	return nil
 }
@@ -356,8 +367,8 @@ func (c *context) isHTTPBodyAccessible(header http.Header) bool {
 	// gRPC content type is considered inaccessible.
 	// Content type is gRPC if it is exactly "application/grpc" or starts with "application/grpc+".
 	// Particularly, something like "application/grpc-web" is not gRPC.
-	if cType == MIMEApplicationGRPC &&
-		(len(cType) == len(MIMEApplicationGRPC) || cType[len(MIMEApplicationGRPC)] == '+') {
+	if util.StringStartsWith(cType, MIMEApplicationGRPC) &&
+		(cType == MIMEApplicationGRPC || cType[len(MIMEApplicationGRPC)] == '+') {
 		return false
 	}
 

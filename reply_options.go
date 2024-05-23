@@ -2,6 +2,7 @@ package gonvoy
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/ardikabs/gonvoy/pkg/util"
@@ -31,16 +32,17 @@ func (prefix ResponseCodeDetailPrefix) Wrap(message string) string {
 	return fmt.Sprintf("%s{%s}", prefix, util.ReplaceAllEmptySpace(message))
 }
 
-type ReplyOptions struct {
+type LocalReplyOptions struct {
+	headers             http.Header
 	statusType          api.StatusType
 	responseCodeDetails string
 	grpcStatusCode      int64
 }
 
-type ReplyOption func(o *ReplyOptions)
+type LocalReplyOption func(o *LocalReplyOptions)
 
-func NewDefaultReplyOptions(opts ...ReplyOption) *ReplyOptions {
-	ro := &ReplyOptions{
+func NewLocalReplyOptions(opts ...LocalReplyOption) *LocalReplyOptions {
+	ro := &LocalReplyOptions{
 		statusType:          api.LocalReply,
 		grpcStatusCode:      -1,
 		responseCodeDetails: DefaultResponseCodeDetails,
@@ -53,27 +55,32 @@ func NewDefaultReplyOptions(opts ...ReplyOption) *ReplyOptions {
 	return ro
 }
 
-// WithResponseCodeDetails sets response code details for a request/response to the envoy context
+// LocalReplyWithRCDetails sets response code details for a request/response to the envoy context
 // It accepts a string, but commonly for convention purpose please check ResponseCodeDetailPrefix.
-func WithResponseCodeDetails(detail string) ReplyOption {
-	return func(o *ReplyOptions) {
+func LocalReplyWithRCDetails(detail string) LocalReplyOption {
+	return func(o *LocalReplyOptions) {
 		o.responseCodeDetails = detail
 	}
 }
 
-// WithGrpcStatus sets the gRPC status code for the reply options.
+// LocalReplyWithGRPCStatus sets the gRPC status code for the local reply options.
 // The status code is used to indicate the result of the gRPC operation.
-func WithGrpcStatus(status int64) ReplyOption {
-	return func(o *ReplyOptions) {
+func LocalReplyWithGRPCStatus(status int64) LocalReplyOption {
+	return func(o *LocalReplyOptions) {
 		o.grpcStatusCode = status
 	}
 }
 
-// WithStatusType sets the status type for the reply options.
-// It takes a status of type api.StatusType and returns a ReplyOption.
-// The returned ReplyOption sets the status type of the ReplyOptions object.
-func WithStatusType(status api.StatusType) ReplyOption {
-	return func(o *ReplyOptions) {
+// LocalReplyWithStatusType sets the status type for the local reply options.
+func LocalReplyWithStatusType(status api.StatusType) LocalReplyOption {
+	return func(o *LocalReplyOptions) {
 		o.statusType = status
+	}
+}
+
+// LocalReplyWithHTTPHeaders sets the HTTP headers for the local reply options.
+func LocalReplyWithHTTPHeaders(headers http.Header) LocalReplyOption {
+	return func(o *LocalReplyOptions) {
+		o.headers = headers
 	}
 }

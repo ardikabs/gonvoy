@@ -66,20 +66,28 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 func (h *HandlerThree) OnResponseHeader(c gonvoy.Context) error {
 	switch sc := c.Response().StatusCode; sc {
 	case http.StatusUnauthorized:
+		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
 		return c.JSON(sc,
 			gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+			gonvoy.LocalReplyWithHTTPHeaders(headers),
+			gonvoy.LocalReplyWithRCDetails(details))
+
 	case http.StatusTooManyRequests:
+		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
 		return c.JSON(sc,
 			gonvoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+			gonvoy.LocalReplyWithHTTPHeaders(headers),
+			gonvoy.LocalReplyWithRCDetails(details))
+
 	case http.StatusServiceUnavailable:
+		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
 		return c.JSON(sc,
 			gonvoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+			gonvoy.LocalReplyWithHTTPHeaders(headers),
+			gonvoy.LocalReplyWithRCDetails(details))
 	}
 
 	return nil

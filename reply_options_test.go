@@ -15,19 +15,19 @@ func TestResponseCodeDetailPrefix(t *testing.T) {
 	assert.Equal(t, "goext_test{foo_bar}", prefix.Wrap(msg))
 }
 
-func TestReplyOptions(t *testing.T) {
+func TestLocalReplyOptions(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
-		ro := NewDefaultReplyOptions()
+		ro := NewLocalReplyOptions()
 		assert.Equal(t, api.LocalReply, ro.statusType)
 		assert.Equal(t, int64(-1), ro.grpcStatusCode)
 		assert.Equal(t, DefaultResponseCodeDetails, ro.responseCodeDetails)
 	})
 
 	t.Run("custom", func(t *testing.T) {
-		ro := NewDefaultReplyOptions(
-			WithResponseCodeDetails(DefaultResponseCodeDetailInfo.Wrap("any message")),
-			WithGrpcStatus(10),
-			WithStatusType(api.StopAndBuffer),
+		ro := NewLocalReplyOptions(
+			LocalReplyWithRCDetails(DefaultResponseCodeDetailInfo.Wrap("any message")),
+			LocalReplyWithGRPCStatus(10),
+			LocalReplyWithStatusType(api.StopAndBuffer),
 		)
 
 		assert.Equal(t, api.StopAndBuffer, ro.statusType)

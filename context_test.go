@@ -103,6 +103,7 @@ func TestContext(t *testing.T) {
 					allowRequestBodyRead: true,
 				},
 				contentType:    "application/grpc+proto",
+				contentLength:  "100",
 				expectedAccess: false,
 				expectedRead:   false,
 				expectedWrite:  false,

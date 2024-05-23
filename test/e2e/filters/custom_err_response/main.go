@@ -32,22 +32,31 @@ type Handler struct {
 }
 
 func (h Handler) OnResponseHeader(c gonvoy.Context) error {
-	switch sc := c.Response().StatusCode; sc {
+	switch code := c.Response().StatusCode; code {
 	case http.StatusUnauthorized:
-		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		rcdetails := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
+
+		return c.JSON(code, gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
+			gonvoy.LocalReplyWithHTTPHeaders(headers),
+			gonvoy.LocalReplyWithRCDetails(rcdetails))
+
 	case http.StatusTooManyRequests:
-		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		rcdetails := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
+
+		return c.JSON(code, gonvoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
+			gonvoy.LocalReplyWithHTTPHeaders(headers),
+			gonvoy.LocalReplyWithRCDetails(rcdetails))
+
 	case http.StatusServiceUnavailable:
-		return c.JSON(sc,
+		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		rcdetails := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
+
+		return c.JSON(code,
 			gonvoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
-			gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader()),
-			gonvoy.WithResponseCodeDetails(gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)))
+			gonvoy.LocalReplyWithHTTPHeaders(headers),
+			gonvoy.LocalReplyWithRCDetails(rcdetails))
 	}
 
 	return nil

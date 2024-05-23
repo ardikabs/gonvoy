@@ -55,25 +55,19 @@ func DefaultErrorHandler(c Context, err error) api.StatusType {
 
 	switch unwrapErr {
 	case errs.ErrUnauthorized:
-		err = c.JSON(
-			http.StatusUnauthorized,
-			ResponseUnauthorized,
-			NewGatewayHeaders(),
-			WithResponseCodeDetails(DefaultResponseCodeDetailUnauthorized.Wrap(err.Error())))
+		err = c.JSON(http.StatusUnauthorized, ResponseUnauthorized,
+			LocalReplyWithHTTPHeaders(NewGatewayHeaders()),
+			LocalReplyWithRCDetails(DefaultResponseCodeDetailUnauthorized.Wrap(err.Error())))
 
 	case errs.ErrAccessDenied:
-		err = c.JSON(
-			http.StatusForbidden,
-			ResponseForbidden,
-			NewGatewayHeaders(),
-			WithResponseCodeDetails(DefaultResponseCodeDetailAccessDenied.Wrap(err.Error())))
+		err = c.JSON(http.StatusForbidden, ResponseForbidden,
+			LocalReplyWithHTTPHeaders(NewGatewayHeaders()),
+			LocalReplyWithRCDetails(DefaultResponseCodeDetailAccessDenied.Wrap(err.Error())))
 
 	case errs.ErrOperationNotPermitted:
-		err = c.JSON(
-			http.StatusBadGateway,
-			NewMinimalJSONResponse("BAD_GATEWAY", "BAD_GATEWAY", err),
-			NewGatewayHeaders(),
-			WithResponseCodeDetails(DefaultResponseCodeDetailError.Wrap(err.Error())))
+		err = c.JSON(http.StatusBadGateway, NewMinimalJSONResponse("BAD_GATEWAY", "BAD_GATEWAY", err),
+			LocalReplyWithHTTPHeaders(NewGatewayHeaders()),
+			LocalReplyWithRCDetails(DefaultResponseCodeDetailError.Wrap(err.Error())))
 
 	default:
 		log := c.Log().WithCallDepth(3)
@@ -87,11 +81,9 @@ func DefaultErrorHandler(c Context, err error) api.StatusType {
 		method := MustGetProperty(c, "request.method", "-")
 		path := MustGetProperty(c, "request.path", "-")
 		log.Error(err, "unidentified error", "host", host, "method", method, "path", path)
-		err = c.JSON(
-			http.StatusInternalServerError,
-			ResponseInternalServerError,
-			NewGatewayHeaders(),
-			WithResponseCodeDetails(DefaultResponseCodeDetailError.Wrap(err.Error())))
+		err = c.JSON(http.StatusInternalServerError, ResponseInternalServerError,
+			LocalReplyWithHTTPHeaders(NewGatewayHeaders()),
+			LocalReplyWithRCDetails(DefaultResponseCodeDetailError.Wrap(err.Error())))
 	}
 
 	if err != nil {

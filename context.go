@@ -115,15 +115,23 @@ type HttpFilterContext interface {
 	//
 	IsResponseBodyWritable() bool
 
-	// JSON sends a JSON response with a status code.
+	// SendResponse dispatches a response with a specified status code, body, and optional localreply options.
+	// Use the JSON() method when you need to respond with a JSON content-type.
+	// For plain text responses, use the String() method.
+	// Use SendResponse only when you need to send a response with a custom content type.
 	//
 	// This action halts the handler chaining and immediately returns back to Envoy.
-	JSON(code int, b []byte, header http.Header, opts ...ReplyOption) error
+	SendResponse(code int, bodyText string, opts ...LocalReplyOption) error
 
-	// String sends a plain text response with a status code.
+	// JSON dispatches a JSON response with a status code.
 	//
 	// This action halts the handler chaining and immediately returns back to Envoy.
-	String(code int, s string, header http.Header, opts ...ReplyOption) error
+	JSON(code int, b []byte, opts ...LocalReplyOption) error
+
+	// String dispatches a plain text response with a status code.
+	//
+	// This action halts the handler chaining and immediately returns back to Envoy.
+	String(code int, s string, opts ...LocalReplyOption) error
 
 	// SkipNextPhase immediately returns to the Envoy without further progressing to the next handler.
 	// This action also enables users to bypass the next phase.

@@ -21,15 +21,15 @@ func (h *HandlerTwo) OnRequestHeader(c gonvoy.Context) error {
 	header := c.Request().Header
 
 	if header.Get("x-error") == "403" {
-		return c.String(http.StatusForbidden, "access denied", gonvoy.NewGatewayHeaders())
+		return c.String(http.StatusForbidden, "access denied", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
 	}
 
 	if header.Get("x-error") == "429" {
-		return c.String(http.StatusTooManyRequests, "rate limit exceeded", gonvoy.NewGatewayHeaders())
+		return c.String(http.StatusTooManyRequests, "rate limit exceeded", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
 	}
 
 	if header.Get("x-error") == "503" {
-		return c.String(http.StatusServiceUnavailable, "service unavailable", gonvoy.NewGatewayHeaders())
+		return c.String(http.StatusServiceUnavailable, "service unavailable", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
 	}
 
 	data := new(globaldata)

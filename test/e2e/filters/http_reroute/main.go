@@ -8,7 +8,7 @@ import (
 
 func init() {
 	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
-		ReloadRouteOnRequestHeaderChange: true,
+		AutoReloadRoute: true,
 	})
 }
 

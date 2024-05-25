@@ -15,17 +15,20 @@ type globalConfig struct {
 	callbacks     api.ConfigCallbacks
 	internalCache Cache
 
-	metricPrefix string
-	gaugeMap     map[string]api.GaugeMetric
-	counterMap   map[string]api.CounterMetric
-	histogramMap map[string]api.HistogramMetric
+	metricsPrefix string
+	gaugeMap      map[string]api.GaugeMetric
+	counterMap    map[string]api.CounterMetric
+	histogramMap  map[string]api.HistogramMetric
 
-	reloadRouteOnRequestHeader bool
-	strictBodyAccess           bool
-	allowRequestBodyRead       bool
-	allowRequestBodyWrite      bool
-	allowResponseBodyRead      bool
-	allowResponseBodyWrite     bool
+	strictBodyAccess                bool
+	allowRequestBodyRead            bool
+	allowRequestBodyWrite           bool
+	allowResponseBodyRead           bool
+	allowResponseBodyWrite          bool
+	preserveContentLengthOnRequest  bool
+	preserveContentLengthOnResponse bool
+
+	autoReloadRoute bool
 }
 
 func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfig {
@@ -35,14 +38,17 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 		gaugeMap:      make(map[string]api.GaugeMetric),
 		counterMap:    make(map[string]api.CounterMetric),
 		histogramMap:  make(map[string]api.HistogramMetric),
-		metricPrefix:  options.MetricPrefix,
 
-		reloadRouteOnRequestHeader: options.ReloadRouteOnRequestHeaderChange,
-		strictBodyAccess:           !options.DisableStrictBodyAccess,
-		allowRequestBodyRead:       options.EnableRequestBodyRead,
-		allowRequestBodyWrite:      options.EnableRequestBodyWrite,
-		allowResponseBodyRead:      options.EnableResponseBodyRead,
-		allowResponseBodyWrite:     options.EnableResponseBodyWrite,
+		autoReloadRoute: options.AutoReloadRoute,
+		metricsPrefix:   options.MetricsPrefix,
+
+		strictBodyAccess:                !options.DisableStrictBodyAccess,
+		allowRequestBodyRead:            options.EnableRequestBodyRead,
+		allowRequestBodyWrite:           options.EnableRequestBodyWrite,
+		allowResponseBodyRead:           options.EnableResponseBodyRead,
+		allowResponseBodyWrite:          options.EnableResponseBodyWrite,
+		preserveContentLengthOnRequest:  options.DisableChunkedEncodingRequest,
+		preserveContentLengthOnResponse: options.DisableChunkedEncodingResponse,
 	}
 
 	return gc
@@ -50,7 +56,7 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 }
 
 func (c *globalConfig) metricCounter(name string) api.CounterMetric {
-	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricPrefix + name))
+	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
 	counter, ok := c.counterMap[name]
 	if !ok {
 		counter = c.callbacks.DefineCounterMetric(name)
@@ -60,7 +66,7 @@ func (c *globalConfig) metricCounter(name string) api.CounterMetric {
 }
 
 func (c *globalConfig) metricGauge(name string) api.GaugeMetric {
-	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricPrefix + name))
+	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
 	gauge, ok := c.gaugeMap[name]
 	if !ok {
 		gauge = c.callbacks.DefineGaugeMetric(name)

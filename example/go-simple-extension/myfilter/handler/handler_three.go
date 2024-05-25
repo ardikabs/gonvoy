@@ -36,6 +36,7 @@ func (h *HandlerThree) OnRequestHeader(c gonvoy.Context) error {
 
 func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 	if ct := c.Request().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
+		c.Log().Info("payload size", "size", len(c.RequestBody().Bytes()))
 		return nil
 	}
 

@@ -83,7 +83,7 @@ func TestNewGatewayHeaders(t *testing.T) {
 		})
 
 		ctx := fakeDummyContext(t)
-		ctx.SetRequestHeader(reqHeaderMapMock)
+		ctx.LoadRequestHeaders(reqHeaderMapMock)
 
 		headers := NewGatewayHeadersWithEnvoyHeader(ctx.RequestHeader())
 

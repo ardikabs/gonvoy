@@ -1,0 +1,176 @@
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 8000
+
+static_resources:
+  listeners:
+    - name: main
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 10000
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: auto
+                http_filters:
+                  - name: envoy.filters.http.golang
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+                      library_id: http-body-reader
+                      library_path: "/filter.so"
+                      plugin_name: http_body_reader
+                      plugin_config:
+                        "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                        value: {}
+                  - name: envoy.filters.http.golang
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+                      library_id: http-body-writer
+                      library_path: "/filter.so"
+                      plugin_name: http_body_writer
+                      plugin_config:
+                        "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                        value: {}
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains: ["*"]
+                      routes:
+                        - name: reader-route
+                          match:
+                            prefix: "/listeners"
+                          route:
+                            cluster: echoserver
+                          typed_per_filter_config:
+                            envoy.filters.http.golang:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.ConfigsPerRoute
+                              plugins_config:
+                                http_body_reader:
+                                  config:
+                                    "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                                    value:
+                                      enable_read: true
+
+                        - name: reader-route-for-json
+                          match:
+                            prefix: "/server_info"
+                            headers:
+                              - name: "x-mode"
+                                exact_match: "READ"
+                          route:
+                            cluster: echoserver
+                          typed_per_filter_config:
+                            envoy.filters.http.golang:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.ConfigsPerRoute
+                              plugins_config:
+                                http_body_reader:
+                                  config:
+                                    "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                                    value:
+                                      enable_read: true
+
+                        - name: writer-route-for-json
+                          match:
+                            prefix: "/server_info"
+                            headers:
+                              - name: "x-mode"
+                                exact_match: "WRITE"
+                          route:
+                            cluster: echoserver
+                          typed_per_filter_config:
+                            envoy.filters.http.golang:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.ConfigsPerRoute
+                              plugins_config:
+                                http_body_writer:
+                                  config:
+                                    "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                                    value:
+                                      enable_write: true
+
+                        - name: index
+                          match:
+                            prefix: "/"
+                          direct_response:
+                            status: 200
+                            body:
+                              inline_string: "Response by INDEX route"
+    - name: echoserver
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 10001
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: auto
+                http_filters:
+                  - name: envoy.filters.http.golang
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+                      library_id: echoserver
+                      library_path: "/filter.so"
+                      plugin_name: echoserver
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                route_config:
+                  name: echoserver_route
+                  virtual_hosts:
+                    - name: echoserver_service
+                      domains: ["*"]
+                      routes:
+                        - name: listeners-info
+                          match:
+                            prefix: "/listeners"
+                          route:
+                            cluster: admin
+                          response_headers_to_add:
+                            - header:
+                                key: "content-type"
+                                value: "application/json"
+                        - name: server-info
+                          match:
+                            prefix: "/server_info"
+                          route:
+                            cluster: admin
+  clusters:
+    - name: echoserver
+      connect_timeout: 5000s
+      type: strict_dns
+      lb_policy: round_robin
+      load_assignment:
+        cluster_name: echoserver
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 0.0.0.0
+                      port_value: 10001
+    - name: admin
+      connect_timeout: 5000s
+      type: strict_dns
+      lb_policy: round_robin
+      load_assignment:
+        cluster_name: admin
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 0.0.0.0
+                      port_value: 8000

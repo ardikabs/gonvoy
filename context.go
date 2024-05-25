@@ -54,42 +54,42 @@ type HttpFilterContext interface {
 	//
 	Response() *http.Response
 
-	// SetRequestHost sets the host of the request.
+	// SetRequestHost modifies the host of the request.
 	// This can be used to dynamically change the request host based on specific conditions for routing.
 	// However, to re-evaluate routing decisions, the filter must explicitly trigger ReloadRoute,
-	// or the ReloadRouteOnRequestHeaderChange option must be enabled in the ConfigOptions.
+	// or the AutoReloadRouteOnHeaderChange option must be enabled in the ConfigOptions.
 	//
 	SetRequestHost(host string)
 
-	// SetRequestMethod sets the method of the request (GET, POST, etc.).
+	// SetRequestMethod modifies the method of the request (GET, POST, etc.).
 	// This can be used to dynamically change the request host based on specific conditions for routing.
 	// However, to re-evaluate routing decisions, the filter must explicitly trigger ReloadRoute,
-	// or the ReloadRouteOnRequestHeaderChange option must be enabled in the ConfigOptions.
+	// or the AutoReloadRouteOnHeaderChange option must be enabled in the ConfigOptions.
 	//
 	SetRequestMethod(method string)
 
-	// SetRequestPath sets the path of the request.
+	// SetRequestPath modifies the path of the request.
 	// This can be used to dynamically change the request host based on specific conditions for routing.
 	// However, to re-evaluate routing decisions, the filter must explicitly trigger ReloadRoute,
-	// or the ReloadRouteOnRequestHeaderChange option must be enabled in the ConfigOptions.
+	// or the AutoReloadRouteOnHeaderChange option must be enabled in the ConfigOptions.
 	//
 	SetRequestPath(path string)
 
-	// SetRequestHeader is a low-level API, it set request header from RequestHeaderMap interface during DecodeHeaders phase
+	// LoadRequestHeaders is a low-level API, it loads HTTP request headers from Envoy during DecodeHeaders phase
 	//
-	SetRequestHeader(api.RequestHeaderMap)
+	LoadRequestHeaders(api.RequestHeaderMap)
 
-	// SetResponseHeader is a low-level API, it set response header from ResponseHeaderMap interface during EncodeHeaders phase
+	// LoadResponseHeaders is a low-level API, it loads HTTP response headers from Envoy during EncodeHeaders phase
 	//
-	SetResponseHeader(api.ResponseHeaderMap)
+	LoadResponseHeaders(api.ResponseHeaderMap)
 
-	// SetRequestBody is a low-level API, it set request body from BufferInstance interface during DecodeData phase
+	// LoadRequestBody is a low-level API, it loads HTTP request body from Envoy during DecodeData phase
 	//
-	SetRequestBody(buffer api.BufferInstance, endStream bool)
+	LoadRequestBody(buffer api.BufferInstance, endStream bool)
 
-	// SetResponseBody is a low-level API, it set response body from BufferInstance interface during EncodeData phase
+	// LoadResponseBody is a low-level API, it loads HTTP response body from Envoy during EncodeData phase
 	//
-	SetResponseBody(buffer api.BufferInstance, endStream bool)
+	LoadResponseBody(buffer api.BufferInstance, endStream bool)
 
 	// IsRequestBodyAccessible checks if the request body is accessible for reading or writing.
 	//
@@ -237,12 +237,16 @@ func applyConfig(c *context, cfg *globalConfig) {
 	c.cache = cfg.internalCache
 	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
 
-	c.reloadRouteOnRequestHeader = cfg.reloadRouteOnRequestHeader
+	c.autoReloadRoute = cfg.autoReloadRoute
+
 	c.strictBodyAccess = cfg.strictBodyAccess
 	c.requestBodyAccessRead = cfg.allowRequestBodyRead
 	c.requestBodyAccessWrite = cfg.allowRequestBodyWrite
 	c.responseBodyAccessRead = cfg.allowResponseBodyRead
 	c.responseBodyAccessWrite = cfg.allowResponseBodyWrite
+	c.preserveContentLengthOnRequest = cfg.preserveContentLengthOnRequest
+	c.preserveContentLengthOnResponse = cfg.preserveContentLengthOnResponse
+
 }
 
 // WithContextLogger sets the logger for the context.
@@ -283,12 +287,15 @@ type context struct {
 	reqBufferBytes     []byte
 	respBufferBytes    []byte
 
-	reloadRouteOnRequestHeader bool
-	strictBodyAccess           bool
-	requestBodyAccessRead      bool
-	requestBodyAccessWrite     bool
-	responseBodyAccessRead     bool
-	responseBodyAccessWrite    bool
+	autoReloadRoute bool
+
+	strictBodyAccess                bool
+	requestBodyAccessRead           bool
+	requestBodyAccessWrite          bool
+	responseBodyAccessRead          bool
+	responseBodyAccessWrite         bool
+	preserveContentLengthOnRequest  bool
+	preserveContentLengthOnResponse bool
 
 	httpReq  *http.Request
 	httpResp *http.Response

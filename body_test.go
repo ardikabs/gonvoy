@@ -30,7 +30,7 @@ func TestBodyRead(t *testing.T) {
 func TestBody_Write(t *testing.T) {
 	input := []byte(`{"name":"John Doe"}`)
 
-	t.Run("body writer is writeable, returns no error", func(t *testing.T) {
+	t.Run("body writer is writable, returns no error", func(t *testing.T) {
 		headerMock := mock_envoy.NewRequestHeaderMap(t)
 		headerMock.EXPECT().Get(HeaderContentLength).Return("", true)
 		headerMock.EXPECT().Set(HeaderContentLength, strconv.Itoa(len(input)))
@@ -40,9 +40,10 @@ func TestBody_Write(t *testing.T) {
 		bufferMock.EXPECT().Len().Return(len(input))
 
 		writer := &bodyWriter{
-			writeable: true,
-			header:    headerMock,
-			buffer:    bufferMock,
+			writable:              true,
+			preserveContentLength: true,
+			header:                headerMock,
+			buffer:                bufferMock,
 		}
 
 		n, err := writer.Write(input)
@@ -50,7 +51,7 @@ func TestBody_Write(t *testing.T) {
 		assert.Equal(t, len(input), n)
 	})
 
-	t.Run("body writer is not writeable, returns an error", func(t *testing.T) {
+	t.Run("body writer is not writable, returns an error", func(t *testing.T) {
 		headerMock := mock_envoy.NewRequestHeaderMap(t)
 		bufferMock := mock_envoy.NewBufferInstance(t)
 		writer := &bodyWriter{
@@ -62,12 +63,31 @@ func TestBody_Write(t *testing.T) {
 		assert.ErrorIs(t, err, errs.ErrOperationNotPermitted)
 		assert.Zero(t, n)
 	})
+
+	t.Run("body writer is writable, but preserveContentLength is enabled", func(t *testing.T) {
+		headerMock := mock_envoy.NewRequestHeaderMap(t)
+
+		bufferMock := mock_envoy.NewBufferInstance(t)
+		bufferMock.EXPECT().Set(input).Return(nil)
+		bufferMock.EXPECT().Len().Return(len(input))
+
+		writer := &bodyWriter{
+			writable:              true,
+			preserveContentLength: false,
+			header:                headerMock,
+			buffer:                bufferMock,
+		}
+
+		n, err := writer.Write(input)
+		assert.NoError(t, err)
+		assert.Equal(t, len(input), n)
+	})
 }
 
 func TestBody_WriteString(t *testing.T) {
 	input := "new data"
 
-	t.Run("body writer is writeable, returns no error", func(t *testing.T) {
+	t.Run("body writer is writable, returns no error", func(t *testing.T) {
 		headerMock := mock_envoy.NewRequestHeaderMap(t)
 		headerMock.EXPECT().Get(HeaderContentLength).Return("", true)
 		headerMock.EXPECT().Set(HeaderContentLength, strconv.Itoa(len(input)))
@@ -77,9 +97,10 @@ func TestBody_WriteString(t *testing.T) {
 		bufferMock.EXPECT().Len().Return(len(input))
 
 		writer := &bodyWriter{
-			writeable: true,
-			header:    headerMock,
-			buffer:    bufferMock,
+			writable:              true,
+			preserveContentLength: true,
+			header:                headerMock,
+			buffer:                bufferMock,
 		}
 
 		n, err := writer.WriteString(input)
@@ -87,7 +108,7 @@ func TestBody_WriteString(t *testing.T) {
 		assert.Equal(t, len(input), n)
 	})
 
-	t.Run("body writer is not writeable, returns an error", func(t *testing.T) {
+	t.Run("body writer is not writable, returns an error", func(t *testing.T) {
 		headerMock := mock_envoy.NewRequestHeaderMap(t)
 		bufferMock := mock_envoy.NewBufferInstance(t)
 		writer := &bodyWriter{

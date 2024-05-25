@@ -22,7 +22,7 @@ func TestConfiguration_Metrics(t *testing.T) {
 	})).Return(mock_envoy.NewGaugeMetric(t))
 
 	gc := newGlobalConfig(cc, ConfigOptions{
-		MetricPrefix: "PREFIX ",
+		MetricsPrefix: "PREFIX ",
 	})
 
 	gc.metricCounter("foo_key=value_key1=value2")

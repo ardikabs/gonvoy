@@ -143,7 +143,7 @@ func TestContext(t *testing.T) {
 				})
 
 				ctx := fakeDummyContext(t, WithContextConfig(tc.config))
-				ctx.SetRequestHeader(reqHeaderMapMock)
+				ctx.LoadRequestHeaders(reqHeaderMapMock)
 
 				assert.Equal(t, tc.expectedAccess, ctx.IsRequestBodyAccessible())
 				assert.Equal(t, tc.expectedRead, ctx.IsRequestBodyReadable())

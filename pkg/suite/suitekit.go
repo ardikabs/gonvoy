@@ -48,7 +48,7 @@ func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
 		"/usr/local/bin/envoy",
 		"-c", "/etc/envoy.yaml",
 		"--log-level", "warn",
-		"--component-log-level", "main:critical,misc:critical,golang:info",
+		"--component-log-level", "main:error,golang:info,misc:error",
 		"--concurrency", "1",
 	)
 
@@ -99,4 +99,8 @@ func (s *TestSuiteKit) CheckEnvoyLog(expressions ...string) bool {
 	}
 
 	return false
+}
+
+func (s *TestSuiteKit) ShowEnvoyLog() string {
+	return s.envoyLogBuffer.String()
 }

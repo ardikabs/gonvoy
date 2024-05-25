@@ -37,13 +37,19 @@ func (f *httpFilterImpl) EncodeData(buffer api.BufferInstance, endStream bool) a
 
 func (f *httpFilterImpl) handleRequestHeader(header api.RequestHeaderMap) HttpFilterDecoderFunc {
 	return func(c Context, p HttpFilterDecodeProcessor) (HttpFilterAction, error) {
-		c.SetRequestHeader(header)
+		c.LoadRequestHeaders(header)
 
 		if err := p.HandleOnRequestHeader(c); err != nil {
 			return ActionContinue, err
 		}
 
 		if c.IsRequestBodyWritable() {
+			// If content length is omitted, there's no need for the filter manager to buffer the request headers.
+			// Therefore, we can continue the flow.
+			if shouldOmitContentLengthOnRequest(c, header) {
+				return ActionContinue, nil
+			}
+
 			return ActionPause, nil
 		}
 
@@ -57,7 +63,7 @@ func (f *httpFilterImpl) handleRequestBody(buffer api.BufferInstance, endStream 
 			return ActionSkip, nil
 		}
 
-		c.SetRequestBody(buffer, endStream)
+		c.LoadRequestBody(buffer, endStream)
 
 		if endStream {
 			return ActionContinue, p.HandleOnRequestBody(c)
@@ -69,7 +75,7 @@ func (f *httpFilterImpl) handleRequestBody(buffer api.BufferInstance, endStream 
 
 func (f *httpFilterImpl) handleResponseHeader(header api.ResponseHeaderMap) HttpFilterEncoderFunc {
 	return func(c Context, p HttpFilterEncodeProcessor) (HttpFilterAction, error) {
-		c.SetResponseHeader(header)
+		c.LoadResponseHeaders(header)
 
 		if err := p.HandleOnResponseHeader(c); err != nil {
 			return ActionContinue, err
@@ -77,7 +83,7 @@ func (f *httpFilterImpl) handleResponseHeader(header api.ResponseHeaderMap) Http
 
 		// During the Encode phases or HTTP Response flows,
 		// if a user needs access to the HTTP Response Body, whether for reading or writing,
-		// the EncodeHeaders phase should return with ActionPause (StopAndBuffer status) status.
+		// the EncodeHeaders phase should return with ActionPause (StopAndBuffer status) action.
 		// This is necessary because the Response Header must be buffered in Envoy's filter-manager.
 		// If this buffering is not done, the Response Header might be sent to the downstream client prematurely,
 		// preventing the filter from returning a custom error response in case of unexpected events during processing.
@@ -87,6 +93,13 @@ func (f *httpFilterImpl) handleResponseHeader(header api.ResponseHeaderMap) Http
 		// This means that even if DecodeHeaders has returned with ActionContinue (Continue status),
 		// DecodeData is still under supervision within Envoy's filter-manager state.
 		if c.IsResponseBodyReadable() {
+			// Regardless of whether the content length is omitted, the filter manager needs to buffer the response headers.
+			// This is to safeguard against unforeseen events during processing, allowing us to interrupt it with a custom error response.
+			if c.IsResponseBodyWritable() {
+				// Ignore the return value of shouldOmitContentLengthOnResponse.
+				_ = shouldOmitContentLengthOnResponse(c, header)
+			}
+
 			return ActionPause, nil
 		}
 
@@ -106,7 +119,7 @@ func (f *httpFilterImpl) handleResponseBody(buffer api.BufferInstance, endStream
 			return ActionSkip, nil
 		}
 
-		c.SetResponseBody(buffer, endStream)
+		c.LoadResponseBody(buffer, endStream)
 
 		if endStream {
 			return ActionContinue, p.HandleOnResponseBody(c)

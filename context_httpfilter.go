@@ -13,11 +13,11 @@ import (
 
 func (c *context) RequestHeader() Header {
 	if c.reqHeaderMap == nil {
-		panic("The Request Header is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
+		panic("The Request Header has not been set up yet. Likely because the filter has not traversed the HTTP request yet. Please refer to the previous HTTP filter behavior.")
 	}
 
 	h := &header{HeaderMap: c.reqHeaderMap}
-	if c.reloadRouteOnRequestHeader {
+	if c.autoReloadRoute {
 		h.clearRouteCache = c.callback.ClearRouteCache
 	}
 
@@ -26,7 +26,7 @@ func (c *context) RequestHeader() Header {
 
 func (c *context) ResponseHeader() Header {
 	if c.respHeaderMap == nil {
-		panic("The Response Header is not initialized yet and is only available during the OnRequestHeader, OnRequestBody, and OnResponseHeader phases")
+		panic("The Response Header has not been set up yet. It is only accessible during the OnResponseHeader or OnResponseBody phases")
 	}
 
 	return &header{HeaderMap: c.respHeaderMap}
@@ -34,32 +34,34 @@ func (c *context) ResponseHeader() Header {
 
 func (c *context) RequestBody() Body {
 	if c.reqBufferInstance == nil {
-		panic("The Request Body is not initialized yet and is only accessible during the OnRequestBody, OnResponseHeader, and OnResponseBody phases.")
+		panic("The Request Body has not been set up yet. Likely because the filter has not traversed the HTTP request yet, or it is being accessed in an incorrect phase, such as outside of OnRequestBody. Please refer to the previous HTTP filter behavior")
 	}
 
 	return &bodyWriter{
-		writeable: c.IsRequestBodyWritable(),
-		header:    c.reqHeaderMap,
-		buffer:    c.reqBufferInstance,
+		writable:              c.IsRequestBodyWritable(),
+		header:                c.reqHeaderMap,
+		buffer:                c.reqBufferInstance,
+		preserveContentLength: c.preserveContentLengthOnRequest,
 	}
 }
 
 func (c *context) ResponseBody() Body {
 	if c.respBufferInstance == nil {
-		panic("The Response Body is not initialized yet and is only accessible during OnResponseBody phase.")
+		panic("The Response Body has not been set up yet. It is only accessible during OnResponseBody phase.")
 	}
 
 	return &bodyWriter{
-		writeable: c.IsResponseBodyWritable(),
-		header:    c.respHeaderMap,
-		buffer:    c.respBufferInstance,
+		writable:              c.IsResponseBodyWritable(),
+		header:                c.respHeaderMap,
+		buffer:                c.respBufferInstance,
+		preserveContentLength: c.preserveContentLengthOnResponse,
 	}
 }
 
 func (c *context) SetRequestHost(host string) {
 	c.reqHeaderMap.SetHost(host)
 
-	if c.reloadRouteOnRequestHeader {
+	if c.autoReloadRoute {
 		c.callback.ClearRouteCache()
 	}
 }
@@ -67,7 +69,7 @@ func (c *context) SetRequestHost(host string) {
 func (c *context) SetRequestMethod(method string) {
 	c.reqHeaderMap.SetMethod(method)
 
-	if c.reloadRouteOnRequestHeader {
+	if c.autoReloadRoute {
 		c.callback.ClearRouteCache()
 	}
 }
@@ -75,12 +77,12 @@ func (c *context) SetRequestMethod(method string) {
 func (c *context) SetRequestPath(path string) {
 	c.reqHeaderMap.SetPath(path)
 
-	if c.reloadRouteOnRequestHeader {
+	if c.autoReloadRoute {
 		c.callback.ClearRouteCache()
 	}
 }
 
-func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
+func (c *context) LoadRequestHeaders(header api.RequestHeaderMap) {
 	c.reset()
 
 	req, err := types.NewRequest(
@@ -99,7 +101,7 @@ func (c *context) SetRequestHeader(header api.RequestHeaderMap) {
 	c.checkRequestBodyAccessibility()
 }
 
-func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
+func (c *context) LoadResponseHeaders(header api.ResponseHeaderMap) {
 	c.reset()
 
 	code, ok := header.Status()
@@ -118,9 +120,9 @@ func (c *context) SetResponseHeader(header api.ResponseHeaderMap) {
 	c.checkResponseBodyAccessibility()
 }
 
-func (c *context) SetRequestBody(buffer api.BufferInstance, endStream bool) {
+func (c *context) LoadRequestBody(buffer api.BufferInstance, endStream bool) {
 	if endStream {
-		c.setRequestBody(buffer)
+		c.loadRequestBody(buffer)
 		return
 	}
 
@@ -130,7 +132,7 @@ func (c *context) SetRequestBody(buffer api.BufferInstance, endStream bool) {
 	}
 }
 
-func (c *context) setRequestBody(buffer api.BufferInstance) {
+func (c *context) loadRequestBody(buffer api.BufferInstance) {
 	if c.reqBufferBytes != nil {
 		_ = buffer.Set(c.reqBufferBytes)
 	}
@@ -140,9 +142,9 @@ func (c *context) setRequestBody(buffer api.BufferInstance) {
 	c.reqBufferInstance = buffer
 }
 
-func (c *context) SetResponseBody(buffer api.BufferInstance, endStream bool) {
+func (c *context) LoadResponseBody(buffer api.BufferInstance, endStream bool) {
 	if endStream {
-		c.setResponseBody(buffer)
+		c.loadResponseBody(buffer)
 		return
 	}
 
@@ -152,7 +154,7 @@ func (c *context) SetResponseBody(buffer api.BufferInstance, endStream bool) {
 	}
 }
 
-func (c *context) setResponseBody(buffer api.BufferInstance) {
+func (c *context) loadResponseBody(buffer api.BufferInstance) {
 	if c.respBufferBytes != nil {
 		_ = buffer.Set(c.respBufferBytes)
 	}
@@ -379,4 +381,43 @@ func (c *context) isHTTPBodyAccessible(header http.Header) bool {
 	}
 
 	return false
+}
+
+func shouldOmitContentLengthOnRequest(c Context, header api.HeaderMap) bool {
+	ctx := mustCastToContext(c)
+	if ctx.preserveContentLengthOnRequest {
+		return false
+	}
+
+	// If Content-Length is not preserved, it is removed, implying that the request is converted to chunked encoding.
+	// This removal is also necessary to prevent Envoy from crashing if the body is modified differently from the downstream.
+	return deleteContentLength(header)
+}
+
+func shouldOmitContentLengthOnResponse(c Context, header api.HeaderMap) bool {
+	ctx := mustCastToContext(c)
+	if ctx.preserveContentLengthOnResponse {
+		return false
+	}
+
+	// If Content-Length is not preserved, it is removed, implying that the request is converted to chunked encoding.
+	// This removal is also necessary to prevent Envoy from crashing if the body is modified differently from the downstream.
+	return deleteContentLength(header)
+}
+
+func deleteContentLength(header api.HeaderMap) bool {
+	if _, ok := header.Get(HeaderContentLength); ok {
+		header.Del(HeaderContentLength)
+		return true
+	}
+
+	return false
+}
+
+func mustCastToContext(c Context) *context {
+	ctx, ok := c.(*context)
+	if !ok {
+		panic("invalid context type")
+	}
+	return ctx
 }

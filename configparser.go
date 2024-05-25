@@ -26,6 +26,13 @@ type ConfigOptions struct {
 	//
 	IgnoreMergeError bool
 
+	// MetricsPrefix specifies the prefix used for metrics.
+	MetricsPrefix string
+
+	// AutoReloadRoute specifies whether the route should be auto reloaded when the request headers changes.
+	// It recommends to set this to true when the filter is used in a route configuration and the route is expected to change dynamically within certain conditions.
+	AutoReloadRoute bool
+
 	// DisableStrictBodyAccess specifies whether HTTP body access follows strict rules.
 	// As its name goes, it defaults to strict, which mean that HTTP body access and manipulation is only possible
 	// with the presence of the `X-Content-Operation` header, with accepted values being `ReadOnly` and `ReadWrite`.
@@ -68,16 +75,27 @@ type ConfigOptions struct {
 	// to potentially sensitive information that shouldn't be visible to the middleware otherwise.
 	EnableResponseBodyWrite bool
 
-	// MetricPrefix specifies the prefix used for metrics.
-	MetricPrefix string
+	// DisableChunkedEncodingRequest specifies whether the request body should not be chunked during OnRequestBody phases.
+	// This setting applies when EnableRequestBodyWrite is enabled.
+	// It defaults to false, meaning if EnableRequestBodyWrite is enabled, the filter is expected to modify the request body, hence it will be chunked following the Content-Length header removal.
+	// However, this setting only relevant for protocols prior to HTTP/2, as it will be treated as having chunked encoding (Transfer-Encoding: chunked).
+	// Therefore turning this on will preserve the Content-Length header.
+	// Note that when this setting is turned on (disabled), the headers will be buffered into the filter manager until the OnRequestBody phases are completed.
+	//
+	DisableChunkedEncodingRequest bool
 
-	// ReloadRouteOnRequestHeaderChange specifies whether the route should be reloaded when the request header changes.
-	ReloadRouteOnRequestHeaderChange bool
+	// DisableChunkedEncodingResponse specifies whether the response should not be chunked during OnResponseBody phases.
+	// This setting applies when EnableResponseBodyWrite is enabled.
+	// It defaults to false, meaning if EnableResponseBodyWrite is enabled,
+	// the filter is expected to modify the response body, hence it will be chunked following the Content-Length header removal.
+	// However, this setting only relevant for protocols prior to HTTP/2, as it will be treated as having chunked encoding (Transfer-Encoding: chunked).
+	// Therefore turning this on will preserve the Content-Length header.
+	//
+	DisableChunkedEncodingResponse bool
 }
 
 type configParser struct {
-	options ConfigOptions
-
+	options          ConfigOptions
 	rootGlobalConfig *globalConfig
 }
 

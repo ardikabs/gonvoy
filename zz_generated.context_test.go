@@ -509,6 +509,140 @@ func (_c *MockContext_JSON_Call) RunAndReturn(run func(int, []byte, ...LocalRepl
 	return _c
 }
 
+// LoadRequestBody provides a mock function with given fields: buffer, endStream
+func (_m *MockContext) LoadRequestBody(buffer api.BufferInstance, endStream bool) {
+	_m.Called(buffer, endStream)
+}
+
+// MockContext_LoadRequestBody_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LoadRequestBody'
+type MockContext_LoadRequestBody_Call struct {
+	*mock.Call
+}
+
+// LoadRequestBody is a helper method to define mock.On call
+//   - buffer api.BufferInstance
+//   - endStream bool
+func (_e *MockContext_Expecter) LoadRequestBody(buffer interface{}, endStream interface{}) *MockContext_LoadRequestBody_Call {
+	return &MockContext_LoadRequestBody_Call{Call: _e.mock.On("LoadRequestBody", buffer, endStream)}
+}
+
+func (_c *MockContext_LoadRequestBody_Call) Run(run func(buffer api.BufferInstance, endStream bool)) *MockContext_LoadRequestBody_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(api.BufferInstance), args[1].(bool))
+	})
+	return _c
+}
+
+func (_c *MockContext_LoadRequestBody_Call) Return() *MockContext_LoadRequestBody_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_LoadRequestBody_Call) RunAndReturn(run func(api.BufferInstance, bool)) *MockContext_LoadRequestBody_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// LoadRequestHeaders provides a mock function with given fields: _a0
+func (_m *MockContext) LoadRequestHeaders(_a0 api.RequestHeaderMap) {
+	_m.Called(_a0)
+}
+
+// MockContext_LoadRequestHeaders_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LoadRequestHeaders'
+type MockContext_LoadRequestHeaders_Call struct {
+	*mock.Call
+}
+
+// LoadRequestHeaders is a helper method to define mock.On call
+//   - _a0 api.RequestHeaderMap
+func (_e *MockContext_Expecter) LoadRequestHeaders(_a0 interface{}) *MockContext_LoadRequestHeaders_Call {
+	return &MockContext_LoadRequestHeaders_Call{Call: _e.mock.On("LoadRequestHeaders", _a0)}
+}
+
+func (_c *MockContext_LoadRequestHeaders_Call) Run(run func(_a0 api.RequestHeaderMap)) *MockContext_LoadRequestHeaders_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(api.RequestHeaderMap))
+	})
+	return _c
+}
+
+func (_c *MockContext_LoadRequestHeaders_Call) Return() *MockContext_LoadRequestHeaders_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_LoadRequestHeaders_Call) RunAndReturn(run func(api.RequestHeaderMap)) *MockContext_LoadRequestHeaders_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// LoadResponseBody provides a mock function with given fields: buffer, endStream
+func (_m *MockContext) LoadResponseBody(buffer api.BufferInstance, endStream bool) {
+	_m.Called(buffer, endStream)
+}
+
+// MockContext_LoadResponseBody_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LoadResponseBody'
+type MockContext_LoadResponseBody_Call struct {
+	*mock.Call
+}
+
+// LoadResponseBody is a helper method to define mock.On call
+//   - buffer api.BufferInstance
+//   - endStream bool
+func (_e *MockContext_Expecter) LoadResponseBody(buffer interface{}, endStream interface{}) *MockContext_LoadResponseBody_Call {
+	return &MockContext_LoadResponseBody_Call{Call: _e.mock.On("LoadResponseBody", buffer, endStream)}
+}
+
+func (_c *MockContext_LoadResponseBody_Call) Run(run func(buffer api.BufferInstance, endStream bool)) *MockContext_LoadResponseBody_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(api.BufferInstance), args[1].(bool))
+	})
+	return _c
+}
+
+func (_c *MockContext_LoadResponseBody_Call) Return() *MockContext_LoadResponseBody_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_LoadResponseBody_Call) RunAndReturn(run func(api.BufferInstance, bool)) *MockContext_LoadResponseBody_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// LoadResponseHeaders provides a mock function with given fields: _a0
+func (_m *MockContext) LoadResponseHeaders(_a0 api.ResponseHeaderMap) {
+	_m.Called(_a0)
+}
+
+// MockContext_LoadResponseHeaders_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LoadResponseHeaders'
+type MockContext_LoadResponseHeaders_Call struct {
+	*mock.Call
+}
+
+// LoadResponseHeaders is a helper method to define mock.On call
+//   - _a0 api.ResponseHeaderMap
+func (_e *MockContext_Expecter) LoadResponseHeaders(_a0 interface{}) *MockContext_LoadResponseHeaders_Call {
+	return &MockContext_LoadResponseHeaders_Call{Call: _e.mock.On("LoadResponseHeaders", _a0)}
+}
+
+func (_c *MockContext_LoadResponseHeaders_Call) Run(run func(_a0 api.ResponseHeaderMap)) *MockContext_LoadResponseHeaders_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(api.ResponseHeaderMap))
+	})
+	return _c
+}
+
+func (_c *MockContext_LoadResponseHeaders_Call) Return() *MockContext_LoadResponseHeaders_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockContext_LoadResponseHeaders_Call) RunAndReturn(run func(api.ResponseHeaderMap)) *MockContext_LoadResponseHeaders_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Log provides a mock function with given fields:
 func (_m *MockContext) Log() logr.Logger {
 	ret := _m.Called()
@@ -941,73 +1075,6 @@ func (_c *MockContext_SendResponse_Call) RunAndReturn(run func(int, string, ...L
 	return _c
 }
 
-// SetRequestBody provides a mock function with given fields: buffer, endStream
-func (_m *MockContext) SetRequestBody(buffer api.BufferInstance, endStream bool) {
-	_m.Called(buffer, endStream)
-}
-
-// MockContext_SetRequestBody_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetRequestBody'
-type MockContext_SetRequestBody_Call struct {
-	*mock.Call
-}
-
-// SetRequestBody is a helper method to define mock.On call
-//   - buffer api.BufferInstance
-//   - endStream bool
-func (_e *MockContext_Expecter) SetRequestBody(buffer interface{}, endStream interface{}) *MockContext_SetRequestBody_Call {
-	return &MockContext_SetRequestBody_Call{Call: _e.mock.On("SetRequestBody", buffer, endStream)}
-}
-
-func (_c *MockContext_SetRequestBody_Call) Run(run func(buffer api.BufferInstance, endStream bool)) *MockContext_SetRequestBody_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(api.BufferInstance), args[1].(bool))
-	})
-	return _c
-}
-
-func (_c *MockContext_SetRequestBody_Call) Return() *MockContext_SetRequestBody_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockContext_SetRequestBody_Call) RunAndReturn(run func(api.BufferInstance, bool)) *MockContext_SetRequestBody_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// SetRequestHeader provides a mock function with given fields: _a0
-func (_m *MockContext) SetRequestHeader(_a0 api.RequestHeaderMap) {
-	_m.Called(_a0)
-}
-
-// MockContext_SetRequestHeader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetRequestHeader'
-type MockContext_SetRequestHeader_Call struct {
-	*mock.Call
-}
-
-// SetRequestHeader is a helper method to define mock.On call
-//   - _a0 api.RequestHeaderMap
-func (_e *MockContext_Expecter) SetRequestHeader(_a0 interface{}) *MockContext_SetRequestHeader_Call {
-	return &MockContext_SetRequestHeader_Call{Call: _e.mock.On("SetRequestHeader", _a0)}
-}
-
-func (_c *MockContext_SetRequestHeader_Call) Run(run func(_a0 api.RequestHeaderMap)) *MockContext_SetRequestHeader_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(api.RequestHeaderMap))
-	})
-	return _c
-}
-
-func (_c *MockContext_SetRequestHeader_Call) Return() *MockContext_SetRequestHeader_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockContext_SetRequestHeader_Call) RunAndReturn(run func(api.RequestHeaderMap)) *MockContext_SetRequestHeader_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // SetRequestHost provides a mock function with given fields: host
 func (_m *MockContext) SetRequestHost(host string) {
 	_m.Called(host)
@@ -1103,73 +1170,6 @@ func (_c *MockContext_SetRequestPath_Call) Return() *MockContext_SetRequestPath_
 }
 
 func (_c *MockContext_SetRequestPath_Call) RunAndReturn(run func(string)) *MockContext_SetRequestPath_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// SetResponseBody provides a mock function with given fields: buffer, endStream
-func (_m *MockContext) SetResponseBody(buffer api.BufferInstance, endStream bool) {
-	_m.Called(buffer, endStream)
-}
-
-// MockContext_SetResponseBody_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetResponseBody'
-type MockContext_SetResponseBody_Call struct {
-	*mock.Call
-}
-
-// SetResponseBody is a helper method to define mock.On call
-//   - buffer api.BufferInstance
-//   - endStream bool
-func (_e *MockContext_Expecter) SetResponseBody(buffer interface{}, endStream interface{}) *MockContext_SetResponseBody_Call {
-	return &MockContext_SetResponseBody_Call{Call: _e.mock.On("SetResponseBody", buffer, endStream)}
-}
-
-func (_c *MockContext_SetResponseBody_Call) Run(run func(buffer api.BufferInstance, endStream bool)) *MockContext_SetResponseBody_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(api.BufferInstance), args[1].(bool))
-	})
-	return _c
-}
-
-func (_c *MockContext_SetResponseBody_Call) Return() *MockContext_SetResponseBody_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockContext_SetResponseBody_Call) RunAndReturn(run func(api.BufferInstance, bool)) *MockContext_SetResponseBody_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// SetResponseHeader provides a mock function with given fields: _a0
-func (_m *MockContext) SetResponseHeader(_a0 api.ResponseHeaderMap) {
-	_m.Called(_a0)
-}
-
-// MockContext_SetResponseHeader_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetResponseHeader'
-type MockContext_SetResponseHeader_Call struct {
-	*mock.Call
-}
-
-// SetResponseHeader is a helper method to define mock.On call
-//   - _a0 api.ResponseHeaderMap
-func (_e *MockContext_Expecter) SetResponseHeader(_a0 interface{}) *MockContext_SetResponseHeader_Call {
-	return &MockContext_SetResponseHeader_Call{Call: _e.mock.On("SetResponseHeader", _a0)}
-}
-
-func (_c *MockContext_SetResponseHeader_Call) Run(run func(_a0 api.ResponseHeaderMap)) *MockContext_SetResponseHeader_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(api.ResponseHeaderMap))
-	})
-	return _c
-}
-
-func (_c *MockContext_SetResponseHeader_Call) Return() *MockContext_SetResponseHeader_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockContext_SetResponseHeader_Call) RunAndReturn(run func(api.ResponseHeaderMap)) *MockContext_SetResponseHeader_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -26,14 +26,15 @@ type Body interface {
 var _ Body = &bodyWriter{}
 
 type bodyWriter struct {
-	writeable bool
-	header    api.HeaderMap
-	buffer    api.BufferInstance
+	writable              bool
+	header                api.HeaderMap
+	buffer                api.BufferInstance
+	preserveContentLength bool
 }
 
 func (b *bodyWriter) Write(p []byte) (n int, err error) {
-	if !b.writeable {
-		return 0, fmt.Errorf("body is not writeable, %w", errs.ErrOperationNotPermitted)
+	if !b.writable {
+		return 0, fmt.Errorf("body is not writable, %w", errs.ErrOperationNotPermitted)
 	}
 
 	err = b.buffer.Set(p)
@@ -44,8 +45,8 @@ func (b *bodyWriter) Write(p []byte) (n int, err error) {
 }
 
 func (b *bodyWriter) WriteString(s string) (n int, err error) {
-	if !b.writeable {
-		return 0, fmt.Errorf("body is not writeable, %w", errs.ErrOperationNotPermitted)
+	if !b.writable {
+		return 0, fmt.Errorf("body is not writable, %w", errs.ErrOperationNotPermitted)
 	}
 
 	err = b.buffer.SetString(s)
@@ -72,6 +73,11 @@ func (b *bodyWriter) Bytes() []byte {
 }
 
 func (b *bodyWriter) resetContentLength() {
+	if !b.preserveContentLength {
+		// if content-length is not preserved, do nothing.
+		return
+	}
+
 	if _, ok := b.header.Get(HeaderContentLength); ok {
 		b.header.Set(HeaderContentLength, strconv.Itoa(b.buffer.Len()))
 	}

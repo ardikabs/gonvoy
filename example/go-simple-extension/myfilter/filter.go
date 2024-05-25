@@ -10,14 +10,15 @@ import (
 func init() {
 	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
 		FilterConfig:            new(Config),
-		MetricPrefix:            "myfilter_",
+		MetricsPrefix:           "myfilter_",
+		AutoReloadRoute:         true,
 		DisableStrictBodyAccess: true,
 		EnableRequestBodyWrite:  true,
-		// EnableResponseBodyRead: true,
-		// EnableResponseBodyWrite: true,
-
-		// ReloadRouteOnRequestHeaderChange: true,
+		// EnableResponseBodyRead:         true,
+		// DisableChunkedEncodingRequest:  true,
+		// DisableChunkedEncodingResponse: true,
 	})
+
 }
 
 type Filter struct{}

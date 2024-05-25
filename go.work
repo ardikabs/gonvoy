@@ -9,4 +9,5 @@ use (
 	./test/e2e/filters/panic_filter
 	./test/e2e/filters/http_reroute
 	./test/e2e/filters/metrics
+	./test/e2e/filters/http_body
 )

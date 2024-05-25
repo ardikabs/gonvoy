@@ -63,6 +63,25 @@ func TestBody_Write(t *testing.T) {
 		assert.ErrorIs(t, err, errs.ErrOperationNotPermitted)
 		assert.Zero(t, n)
 	})
+
+	t.Run("body writer is writable, but preserveContentLength is enabled", func(t *testing.T) {
+		headerMock := mock_envoy.NewRequestHeaderMap(t)
+
+		bufferMock := mock_envoy.NewBufferInstance(t)
+		bufferMock.EXPECT().Set(input).Return(nil)
+		bufferMock.EXPECT().Len().Return(len(input))
+
+		writer := &bodyWriter{
+			writable:              true,
+			preserveContentLength: false,
+			header:                headerMock,
+			buffer:                bufferMock,
+		}
+
+		n, err := writer.Write(input)
+		assert.NoError(t, err)
+		assert.Equal(t, len(input), n)
+	})
 }
 
 func TestBody_WriteString(t *testing.T) {

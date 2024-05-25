@@ -6,7 +6,7 @@ import (
 
 func init() {
 	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
-		MetricPrefix: "mymetrics_",
+		MetricsPrefix: "mymetrics_",
 	})
 }
 

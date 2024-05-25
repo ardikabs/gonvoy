@@ -1,6 +1,7 @@
 package gonvoy
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -24,14 +25,19 @@ func TestLocalReplyOptions(t *testing.T) {
 	})
 
 	t.Run("custom", func(t *testing.T) {
+		headers := make(http.Header)
+		headers.Add("reporter", "golib")
+
 		ro := NewLocalReplyOptions(
 			LocalReplyWithRCDetails(DefaultResponseCodeDetailInfo.Wrap("any message")),
 			LocalReplyWithGRPCStatus(10),
 			LocalReplyWithStatusType(api.StopAndBuffer),
+			LocalReplyWithHTTPHeaders(headers),
 		)
 
 		assert.Equal(t, api.StopAndBuffer, ro.statusType)
 		assert.Equal(t, int64(10), ro.grpcStatusCode)
 		assert.Equal(t, "goext_info{any_message}", ro.responseCodeDetails)
+		assert.Equal(t, "golib", ro.headers.Get("reporter"))
 	})
 }

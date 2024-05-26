@@ -39,8 +39,9 @@ func (c *context) RequestBody() Body {
 
 	return &bodyWriter{
 		writable:              c.IsRequestBodyWritable(),
-		header:                c.reqHeaderMap,
 		buffer:                c.reqBufferInstance,
+		bytes:                 c.reqBufferBytes,
+		header:                c.reqHeaderMap,
 		preserveContentLength: c.preserveContentLengthOnRequest,
 	}
 }
@@ -52,8 +53,9 @@ func (c *context) ResponseBody() Body {
 
 	return &bodyWriter{
 		writable:              c.IsResponseBodyWritable(),
-		header:                c.respHeaderMap,
 		buffer:                c.respBufferInstance,
+		bytes:                 c.respBufferBytes,
+		header:                c.respHeaderMap,
 		preserveContentLength: c.preserveContentLengthOnResponse,
 	}
 }
@@ -121,46 +123,34 @@ func (c *context) LoadResponseHeaders(header api.ResponseHeaderMap) {
 }
 
 func (c *context) LoadRequestBody(buffer api.BufferInstance, endStream bool) {
-	if endStream {
-		c.loadRequestBody(buffer)
-		return
-	}
-
 	if buffer.Len() > 0 {
 		c.reqBufferBytes = append(c.reqBufferBytes, buffer.Bytes()...)
-		buffer.Reset()
+	}
+
+	if endStream {
+		c.loadRequestBody(buffer)
 	}
 }
 
 func (c *context) loadRequestBody(buffer api.BufferInstance) {
-	if c.reqBufferBytes != nil {
-		_ = buffer.Set(c.reqBufferBytes)
-	}
-
-	bytes := bytes.NewBuffer(buffer.Bytes())
-	c.httpReq.Body = io.NopCloser(bytes)
+	reqBody := bytes.NewBuffer(c.reqBufferBytes)
+	c.httpReq.Body = io.NopCloser(reqBody)
 	c.reqBufferInstance = buffer
 }
 
 func (c *context) LoadResponseBody(buffer api.BufferInstance, endStream bool) {
-	if endStream {
-		c.loadResponseBody(buffer)
-		return
-	}
-
 	if buffer.Len() > 0 {
 		c.respBufferBytes = append(c.respBufferBytes, buffer.Bytes()...)
-		buffer.Reset()
+	}
+
+	if endStream {
+		c.loadResponseBody(buffer)
 	}
 }
 
 func (c *context) loadResponseBody(buffer api.BufferInstance) {
-	if c.respBufferBytes != nil {
-		_ = buffer.Set(c.respBufferBytes)
-	}
-
-	buf := bytes.NewBuffer(buffer.Bytes())
-	c.httpResp.Body = io.NopCloser(buf)
+	respBody := bytes.NewBuffer(c.respBufferBytes)
+	c.httpResp.Body = io.NopCloser(respBody)
 	c.respBufferInstance = buffer
 }
 

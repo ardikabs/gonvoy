@@ -65,11 +65,13 @@ func (f *httpFilterImpl) handleRequestBody(buffer api.BufferInstance, endStream 
 
 		c.LoadRequestBody(buffer, endStream)
 
-		if endStream {
-			return ActionContinue, p.HandleOnRequestBody(c)
+		if !endStream {
+			// Wait -- we'll be called again when the complete body is buffered
+			// at the host side.
+			return ActionWait, nil
 		}
 
-		return ActionContinue, nil
+		return ActionContinue, p.HandleOnRequestBody(c)
 	}
 }
 
@@ -121,11 +123,13 @@ func (f *httpFilterImpl) handleResponseBody(buffer api.BufferInstance, endStream
 
 		c.LoadResponseBody(buffer, endStream)
 
-		if endStream {
-			return ActionContinue, p.HandleOnResponseBody(c)
+		if !endStream {
+			// Wait -- we'll be called again when the complete body is buffered
+			// at the host side.
+			return ActionWait, nil
 		}
 
-		return ActionContinue, nil
+		return ActionContinue, p.HandleOnResponseBody(c)
 	}
 }
 

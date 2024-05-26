@@ -67,7 +67,7 @@ func (f *httpFilterImpl) handleRequestBody(buffer api.BufferInstance, endStream 
 
 		if !endStream {
 			// Wait -- we'll be called again when the complete body is buffered
-			// at the host side.
+			// at the Envoy host side.
 			return ActionWait, nil
 		}
 
@@ -112,9 +112,7 @@ func (f *httpFilterImpl) handleResponseHeader(header api.ResponseHeaderMap) Http
 // Attention! Please be mindful of the Listener or Cluster per_connection_buffer_limit_bytes value
 // when enabling the response body access on ConfigOptions (EnableResponseBodyRead or EnableResponseBodyWrite).
 // The default value set by Envoy is 1MB. If the response body size exceeds this limit, the process will be halted.
-// Although it's unclear whether this is considered a bug or a limitation at present,
-// the Envoy Golang HTTP Filter library currently returns a 413 status code with a PayloadTooLarge message in such cases.
-// Code references: https://github.com/envoyproxy/envoy/blob/v1.29.4/contrib/golang/filters/http/source/processor_state.cc#L362-L371.
+// TODO(ardikabs): Upgrade to recent version where the issue is resolved, ref(https://github.com/envoyproxy/envoy/pull/34240).
 func (f *httpFilterImpl) handleResponseBody(buffer api.BufferInstance, endStream bool) HttpFilterEncoderFunc {
 	return func(c Context, p HttpFilterEncodeProcessor) (HttpFilterAction, error) {
 		if !c.IsResponseBodyAccessible() {
@@ -125,7 +123,7 @@ func (f *httpFilterImpl) handleResponseBody(buffer api.BufferInstance, endStream
 
 		if !endStream {
 			// Wait -- we'll be called again when the complete body is buffered
-			// at the host side.
+			// at the Envoy host side.
 			return ActionWait, nil
 		}
 

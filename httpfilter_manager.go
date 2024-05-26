@@ -23,17 +23,19 @@ const (
 	ActionContinue
 
 	// ActionPause is an operation action that pause the current filter phase.
-	// This pause could be essential as future filter phases may rely on the processes of preceding phases.
-	// For example, the EncodeData phase may require header alterations, which are established in the EncodeHeaders phase.
-	// Therefore, EncodeHeaders should return with ActionPause, and the header changes may occur later in the EncodeData phase.
-	// From Envoy perspective, this is equivalent to a StopAndBuffer status.
-	// Be aware, when employing this action, the subsequent filter phase must return with ActionContinue,
-	// otherwise the filter chain will be hanging.
+	// This pause could be essential as subsequent filter phases might depend on the outcomes of previous phases.
+	// For instance, the EncodeData phase might need modifications to the headers, which are set in the EncodeHeaders phase.
+	// Hence, EncodeHeaders should return with ActionPause, allowing for potential header changes in the EncodeData phase.
+	// Note that when using this action, the subsequent filter phase must return with ActionContinue,
+	// otherwise the filter chain might be hanging.
+	//
+	// From the perspective of Envoy, this is similar to a StopAndBuffer status.
 	ActionPause
 
 	// ActionWait is an operation action that waits the current filter phase.
-	// The purpose of ActionWait is specifically for data streaming phases such as DecodeData or EncodeData,
-	// where the filter phase needs to wait until the entire body is buffered on the Envoy host side.
+	// This is particularly relevant during data streaming phases like DecodeData or EncodeData,
+	// where the filter phase needs to wait until the complete body is buffered on the Envoy host side.
+	//
 	// From Envoy's perspective, this is equivalent to a StopNoBuffer status.
 	ActionWait
 )

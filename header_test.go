@@ -2,33 +2,97 @@ package gonvoy
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func TestHeaderMapAsMap(t *testing.T) {
-	reqHeaderMap := mock_envoy.NewRequestHeaderMap(t)
-	reqHeaderMap.EXPECT().Range(mock.Anything).Return().Run(func(f func(string, string) bool) {
-		headers := map[string][]string{
+type fakeHeaderMap struct {
+	api.RequestHeaderMap
+
+	data map[string][]string
+}
+
+func (d *fakeHeaderMap) Get(key string) (string, bool) {
+	if v, ok := d.data[strings.ToLower(key)]; ok {
+		return v[0], true
+	}
+
+	return "", false
+}
+
+func (d *fakeHeaderMap) Set(key, value string) {
+	d.data[strings.ToLower(key)] = []string{value}
+}
+
+func (d *fakeHeaderMap) Add(key, value string) {
+	d.data[strings.ToLower(key)] = append(d.data[strings.ToLower(key)], value)
+}
+
+func (d *fakeHeaderMap) Range(f func(string, string) bool) {
+	for k, values := range d.data {
+		for _, v := range values {
+			if !f(strings.ToLower(k), v) {
+				return
+			}
+		}
+	}
+}
+
+func TestHeader_ToHeaders(t *testing.T) {
+	fakeHeaderMap := &fakeHeaderMap{
+		data: map[string][]string{
 			"foo":       {"bar"},
 			"x-foo":     {"x-bar", "x-foobar"},
 			"x-foo-bar": {"x-foo-bar,x-foo-bar-2"},
-		}
-		for k, values := range headers {
-			for _, v := range values {
-				f(k, v)
-			}
-		}
-	})
+		},
+	}
 
-	h := &header{reqHeaderMap}
+	h := &header{HeaderMap: fakeHeaderMap}
 	assert.NotNil(t, h)
-	assert.Equal(t, []string{"bar"}, h.AsMap()["foo"])
-	assert.Equal(t, []string{"x-bar", "x-foobar"}, h.AsMap()["x-foo"])
-	assert.Equal(t, []string{"x-foo-bar,x-foo-bar-2"}, h.AsMap()["x-foo-bar"])
+
+	headers := h.ToHeaders()
+	assert.Equal(t, "bar", headers.Get("foo"))
+	assert.Equal(t, []string{"x-bar", "x-foobar"}, headers.Values("x-foo"))
+	assert.Equal(t, "x-foo-bar,x-foo-bar-2", headers.Get("x-foo-bar"))
+}
+
+func TestHeader_Replace(t *testing.T) {
+	fakeHeaderMap := &fakeHeaderMap{
+		data: map[string][]string{
+			"foo":       {"bar"},
+			"x-foo":     {"x-bar", "x-foobar"},
+			"x-foo-bar": {"x-foo-bar,x-foo-bar-2"},
+		},
+	}
+
+	h := &header{HeaderMap: fakeHeaderMap}
+	assert.NotNil(t, h)
+
+	headers := h.ToHeaders()
+	assert.NotEmpty(t, headers)
+
+	headers.Add("boo", "far")
+	headers.Add("foo", "foobar")
+	headers.Set("x-foo-bar", "bar-foo-x")
+
+	h.Replace(headers)
+
+	if v, ok := h.Get("boo"); ok {
+		assert.Equal(t, "far", v)
+	}
+
+	if v, ok := h.Get("foo"); ok {
+		assert.Equal(t, "bar", v)
+	}
+
+	if v, ok := h.Get("x-foo-bar"); ok {
+		assert.Equal(t, "bar-foo-x", v)
+	}
 }
 
 func TestNewGatewayHeaders(t *testing.T) {

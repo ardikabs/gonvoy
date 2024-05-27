@@ -48,10 +48,15 @@ const (
 type Header interface {
 	api.HeaderMap
 
-	// AsMap returns the header as a map of string slices, where each key
-	// represents a header field name and the corresponding value is a slice
+	// ToMap returns the header as a copy of map of string slices,
+	// where each key represents a header field name and the corresponding value is a slice
 	// of header field values.
-	AsMap() map[string][]string
+	//
+	// Any changes made to the returned map will not affect the original headers.
+	ToHeaders() http.Header
+
+	// Replace replaces the header with the given headers.
+	Replace(headers http.Header)
 }
 
 var _ Header = &header{}
@@ -60,27 +65,38 @@ type header struct {
 	api.HeaderMap
 }
 
-func (h *header) AsMap() map[string][]string {
-	headers := make(map[string][]string)
+func (h *header) ToHeaders() http.Header {
+	headers := make(http.Header)
 
 	h.HeaderMap.Range(func(key, value string) bool {
-		if values, ok := headers[key]; ok {
-			headers[key] = append(values, value)
-			return true
-		}
-
-		headers[key] = []string{value}
+		headers.Add(key, value)
 		return true
 	})
 
 	return headers
 }
 
+func (h *header) Replace(headers http.Header) {
+	sets := make(map[string]struct{})
+
+	for key, values := range headers {
+		for _, v := range values {
+			if _, ok := sets[key]; ok {
+				h.Add(key, v)
+				continue
+			}
+
+			h.Set(key, v)
+			sets[key] = struct{}{}
+		}
+	}
+}
+
 func NewGatewayHeadersWithEnvoyHeader(envoyheader Header, keysAndValues ...string) http.Header {
 	headers := NewGatewayHeaders(keysAndValues...)
 
-	for k, values := range envoyheader.AsMap() {
-		headers[http.CanonicalHeaderKey(k)] = values
+	for key, values := range envoyheader.ToHeaders() {
+		headers[key] = values
 	}
 
 	return headers

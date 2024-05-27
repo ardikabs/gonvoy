@@ -30,7 +30,7 @@ func (h *HandlerThree) OnRequestHeader(c gonvoy.Context) error {
 		c.GetCache().Store(GLOBAL, data)
 	}
 
-	log.Info("handling request", "request", c.RequestHeader().AsMap())
+	log.Info("handling request", "request", c.RequestHeader().ToHeaders())
 	return nil
 }
 

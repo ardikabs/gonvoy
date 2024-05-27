@@ -15,19 +15,28 @@ const (
 	// ActionSkip is basically a no-op action, which mean the filter phase will be skipped.
 	// From Envoy perspective, this is equivalent to a Continue status.
 	ActionSkip HttpFilterAction = iota
+
 	// ActionContinue is operation action that continues the current filter phase.
 	// From Envoy perspective, this is equivalent to a Continue status.
 	// Although the status is identical to ActionSkip, the purpose of ActionContinue
 	// is to indicate that the current phase is operating correctly and needs to advance to the subsequent filter phase.
 	ActionContinue
-	// ActionPause is an operation action that pause the current filter phase.
-	// This pause could be essential as future filter phases may rely on the processes of preceding phases.
-	// For example, the EncodeData phase may require header alterations, which are established in the EncodeHeaders phase.
-	// Therefore, EncodeHeaders should return with ActionPause, and the header changes may occur later in the EncodeData phase.
-	// From Envoy perspective, this is equivalent to a StopAndBuffer status.
-	// Be aware, when employing this action, the subsequent filter phase must return with ActionContinue,
-	// otherwise the filter chain will be hanging.
+
+	// ActionPause is an operation action that pause the current filter phase, preventing it from being sent to downstream or upstream.
+	// This pause could be essential as subsequent filter phases might depend on the previous phases.
+	// For instance, the EncodeData phase might need modifications to the headers, which are managed in the EncodeHeaders phase.
+	// Hence, EncodeHeaders should return with ActionPause, allowing for potential header changes in the EncodeData phase.
+	// Note that when using this action, the subsequent filter phase must return with ActionContinue; otherwise the filter chain might hang.
+	//
+	// From the perspective of Envoy, this is similar to a StopAndBuffer status.
 	ActionPause
+
+	// ActionWait is an operation action that waits the current filter phase.
+	// This is particularly relevant during data streaming phases like DecodeData or EncodeData,
+	// where the filter phase needs to wait until the complete body is buffered on the Envoy host side.
+	//
+	// From Envoy's perspective, this is equivalent to a StopNoBuffer status.
+	ActionWait
 )
 
 // HttpFilterDecoderFunc is a function type that represents a decoder for HTTP filters.
@@ -194,6 +203,8 @@ func (res *HttpFilterResult) Finalize(c Context, errorHandler ErrorHandler) {
 		res.Status = c.StatusType()
 	case ActionPause:
 		res.Status = api.StopAndBuffer
+	case ActionWait:
+		res.Status = api.StopNoBuffer
 	default:
 		res.Status = api.Continue
 	}

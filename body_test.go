@@ -16,11 +16,10 @@ func TestBodyRead(t *testing.T) {
 	assert.Zero(t, b.String())
 
 	bufferMock := mock_envoy.NewBufferInstance(t)
-	bufferMock.EXPECT().String().Return("lorem_ipsum")
-	bufferMock.EXPECT().Bytes().Return([]byte("lorem_ipsum"))
 
 	bw := &bodyWriter{
 		buffer: bufferMock,
+		bytes:  []byte("lorem_ipsum"),
 	}
 
 	assert.Equal(t, "lorem_ipsum", bw.String())

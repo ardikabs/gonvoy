@@ -80,8 +80,9 @@ type ConfigOptions struct {
 	// It defaults to false, meaning if EnableRequestBodyWrite is enabled, the filter is expected to modify the request body, hence it will be chunked following the Content-Length header removal.
 	// However, this setting only relevant for protocols prior to HTTP/2, as it will be treated as having chunked encoding (Transfer-Encoding: chunked).
 	// Therefore turning this on will preserve the Content-Length header.
-	// Note that when this setting is turned on (disabled), the headers will be buffered into the filter manager until the OnRequestBody phases are completed.
 	//
+	// Note that when this setting is turned on (re: disabled), the request headers will be buffered into the filter manager.
+	// Hence, you can modify request headers as well in the OnRequestBody phase.
 	DisableChunkedEncodingRequest bool
 
 	// DisableChunkedEncodingResponse specifies whether the response should not be chunked during OnResponseBody phases.

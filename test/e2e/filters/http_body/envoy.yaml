@@ -124,6 +124,9 @@ static_resources:
                       library_id: echoserver
                       library_path: "/filter.so"
                       plugin_name: echoserver
+                      plugin_config:
+                        "@type": type.googleapis.com/xds.type.v3.TypedStruct
+                        value: {}
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -138,10 +141,6 @@ static_resources:
                             prefix: "/listeners"
                           route:
                             cluster: admin
-                          response_headers_to_add:
-                            - header:
-                                key: "content-type"
-                                value: "application/json"
                         - name: server-info
                           match:
                             prefix: "/server_info"

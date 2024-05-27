@@ -39,8 +39,9 @@ func (c *context) RequestBody() Body {
 
 	return &bodyWriter{
 		writable:              c.IsRequestBodyWritable(),
-		header:                c.reqHeaderMap,
 		buffer:                c.reqBufferInstance,
+		bytes:                 c.reqBufferBytes,
+		header:                c.reqHeaderMap,
 		preserveContentLength: c.preserveContentLengthOnRequest,
 	}
 }
@@ -52,8 +53,9 @@ func (c *context) ResponseBody() Body {
 
 	return &bodyWriter{
 		writable:              c.IsResponseBodyWritable(),
-		header:                c.respHeaderMap,
 		buffer:                c.respBufferInstance,
+		bytes:                 c.respBufferBytes,
+		header:                c.respHeaderMap,
 		preserveContentLength: c.preserveContentLengthOnResponse,
 	}
 }
@@ -121,52 +123,45 @@ func (c *context) LoadResponseHeaders(header api.ResponseHeaderMap) {
 }
 
 func (c *context) LoadRequestBody(buffer api.BufferInstance, endStream bool) {
-	if endStream {
-		c.loadRequestBody(buffer)
-		return
-	}
-
 	if buffer.Len() > 0 {
 		c.reqBufferBytes = append(c.reqBufferBytes, buffer.Bytes()...)
-		buffer.Reset()
 	}
-}
 
-func (c *context) loadRequestBody(buffer api.BufferInstance) {
-	if c.reqBufferBytes != nil {
+	if endStream {
+		// If the request body is fully loaded, the buffer is set to the final bytes.
+		// Rationale behind this, because during the DecodeData phase, the api.StopNoBuffer status is sent while data is streaming.
+		// Each time the DecodeData phase is called, the buffer on the Envoy side is cleared. Therefore, we need to refill the buffer
+		// after storing each byte.
+		// This is also relevant for the EncodeData phase.
+		// Reference:
+		// - https://github.com/envoyproxy/envoy/blob/816188b86a0a52095b116b107f576324082c7c02/contrib/golang/filters/http/source/processor_state.cc#L138-L145
 		_ = buffer.Set(c.reqBufferBytes)
-	}
 
-	bytes := bytes.NewBuffer(buffer.Bytes())
-	c.httpReq.Body = io.NopCloser(bytes)
-	c.reqBufferInstance = buffer
+		bodyBuffer := bytes.NewBuffer(c.reqBufferBytes)
+		c.httpReq.Body = io.NopCloser(bodyBuffer)
+		c.reqBufferInstance = buffer
+	}
 }
 
 func (c *context) LoadResponseBody(buffer api.BufferInstance, endStream bool) {
-	if endStream {
-		c.loadResponseBody(buffer)
-		return
-	}
-
 	if buffer.Len() > 0 {
 		c.respBufferBytes = append(c.respBufferBytes, buffer.Bytes()...)
-		buffer.Reset()
 	}
-}
 
-func (c *context) loadResponseBody(buffer api.BufferInstance) {
-	if c.respBufferBytes != nil {
+	if endStream {
+		// If the response body is fully loaded, the buffer is set to the final bytes.
+		// ditto with #L132-135
 		_ = buffer.Set(c.respBufferBytes)
-	}
 
-	buf := bytes.NewBuffer(buffer.Bytes())
-	c.httpResp.Body = io.NopCloser(buf)
-	c.respBufferInstance = buffer
+		bodyBuffer := bytes.NewBuffer(c.respBufferBytes)
+		c.httpResp.Body = io.NopCloser(bodyBuffer)
+		c.respBufferInstance = buffer
+	}
 }
 
 func (c *context) Request() *http.Request {
 	if c.httpReq == nil {
-		panic("an HTTP Request is not initialized yet, likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
+		panic("an HTTP Request has not been set up yet. Likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
 	}
 
 	return c.httpReq
@@ -174,7 +169,7 @@ func (c *context) Request() *http.Request {
 
 func (c *context) Response() *http.Response {
 	if c.httpResp == nil {
-		panic("an HTTP Response is not initialized yet, and is only available during the OnResponseHeader, and OnResponseBody phases.")
+		panic("an HTTP Response has not been set up yet. It is only available during the OnResponseHeader and OnResponseBody phases.")
 	}
 
 	return c.httpResp

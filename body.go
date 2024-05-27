@@ -26,9 +26,12 @@ type Body interface {
 var _ Body = &bodyWriter{}
 
 type bodyWriter struct {
-	writable              bool
+	writable bool
+
+	bytes  []byte
+	buffer api.BufferInstance
+
 	header                api.HeaderMap
-	buffer                api.BufferInstance
 	preserveContentLength bool
 }
 
@@ -61,7 +64,7 @@ func (b *bodyWriter) String() string {
 		return ""
 	}
 
-	return b.buffer.String()
+	return string(b.bytes)
 }
 
 func (b *bodyWriter) Bytes() []byte {
@@ -69,7 +72,7 @@ func (b *bodyWriter) Bytes() []byte {
 		return nil
 	}
 
-	return b.buffer.Bytes()
+	return b.bytes
 }
 
 func (b *bodyWriter) resetContentLength() {

@@ -22,12 +22,11 @@ const (
 	// is to indicate that the current phase is operating correctly and needs to advance to the subsequent filter phase.
 	ActionContinue
 
-	// ActionPause is an operation action that pause the current filter phase.
-	// This pause could be essential as subsequent filter phases might depend on the outcomes of previous phases.
-	// For instance, the EncodeData phase might need modifications to the headers, which are set in the EncodeHeaders phase.
+	// ActionPause is an operation action that pause the current filter phase, preventing it from being sent to downstream or upstream.
+	// This pause could be essential as subsequent filter phases might depend on the previous phases.
+	// For instance, the EncodeData phase might need modifications to the headers, which are managed in the EncodeHeaders phase.
 	// Hence, EncodeHeaders should return with ActionPause, allowing for potential header changes in the EncodeData phase.
-	// Note that when using this action, the subsequent filter phase must return with ActionContinue,
-	// otherwise the filter chain might be hanging.
+	// Note that when using this action, the subsequent filter phase must return with ActionContinue; otherwise the filter chain might hang.
 	//
 	// From the perspective of Envoy, this is similar to a StopAndBuffer status.
 	ActionPause

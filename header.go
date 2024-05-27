@@ -49,10 +49,17 @@ const (
 type Header interface {
 	api.HeaderMap
 
-	// AsMap returns the header as a map of string slices, where each key
-	// represents a header field name and the corresponding value is a slice
-	// of header field values.
-	AsMap() map[string][]string
+	// Export returns a copy of the headers as an http.Header form.
+	// This implies that any changes made to the copy of headers will not affect the original headers.
+	// If there's a need to alter the headers, you can do so directly via this interface, or
+	// you can use the Export method in conjunction with the Import method to affect the original headers.
+	//
+	Export() http.Header
+
+	// Import overwrites the original headers with the given headers.
+	// Please use this method with caution, and it's advisable to use it in conjunction with the return of Export method as the headers' source.
+	//
+	Import(headers http.Header)
 }
 
 var _ Header = &header{}
@@ -87,27 +94,38 @@ func (h *header) Del(key string) {
 	}
 }
 
-func (h *header) AsMap() map[string][]string {
-	headers := make(map[string][]string)
+func (h *header) Export() http.Header {
+	headers := make(http.Header)
 
 	h.HeaderMap.Range(func(key, value string) bool {
-		if values, ok := headers[key]; ok {
-			headers[key] = append(values, value)
-			return true
-		}
-
-		headers[key] = []string{value}
+		headers.Add(key, value)
 		return true
 	})
 
 	return headers
 }
 
+func (h *header) Import(headers http.Header) {
+	sets := make(map[string]struct{})
+
+	for key, values := range headers {
+		for _, v := range values {
+			if _, ok := sets[key]; ok {
+				h.Add(key, v)
+				continue
+			}
+
+			h.Set(key, v)
+			sets[key] = struct{}{}
+		}
+	}
+}
+
 func NewGatewayHeadersWithEnvoyHeader(envoyheader Header, keysAndValues ...string) http.Header {
 	headers := NewGatewayHeaders(keysAndValues...)
 
-	for k, values := range envoyheader.AsMap() {
-		headers[http.CanonicalHeaderKey(k)] = values
+	for key, values := range envoyheader.Export() {
+		headers[key] = values
 	}
 
 	return headers

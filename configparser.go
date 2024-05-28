@@ -97,7 +97,7 @@ type ConfigOptions struct {
 
 type configParser struct {
 	options          ConfigOptions
-	rootGlobalConfig *globalConfig
+	rootGlobalConfig *internalConfig
 }
 
 func newConfigParser(options ConfigOptions) *configParser {
@@ -108,7 +108,7 @@ func newConfigParser(options ConfigOptions) *configParser {
 
 func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (interface{}, error) {
 	if util.IsNil(p.options.FilterConfig) {
-		return newGlobalConfig(cc, p.options), nil
+		return newInternalConfig(cc, p.options), nil
 	}
 
 	configStruct := &xds.TypedStruct{}
@@ -132,7 +132,7 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 	}
 
 	if p.rootGlobalConfig == nil {
-		p.rootGlobalConfig = newGlobalConfig(cc, p.options)
+		p.rootGlobalConfig = newInternalConfig(cc, p.options)
 		p.rootGlobalConfig.filterConfig = filterCfg
 		return p.rootGlobalConfig, nil
 	}
@@ -143,8 +143,8 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 }
 
 func (p *configParser) Merge(parent, child interface{}) interface{} {
-	origParentGlobalConfig := parent.(*globalConfig)
-	origChildGlobalConfig := child.(*globalConfig)
+	origParentGlobalConfig := parent.(*internalConfig)
+	origChildGlobalConfig := child.(*internalConfig)
 
 	if util.IsNil(origParentGlobalConfig.filterConfig) {
 		return parent

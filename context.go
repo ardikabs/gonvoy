@@ -2,7 +2,6 @@ package gonvoy
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -215,60 +214,8 @@ type Context interface {
 	Committed() bool
 }
 
-// ContextOption is a function type that sets the configuration for the context.
-type ContextOption func(c *context) error
-
-// WithContextConfig sets the configuration for the context.
-func WithContextConfig(cfg *globalConfig) ContextOption {
-	return func(c *context) error {
-		if err := validateFilterConfig(cfg.filterConfig); err != nil {
-			return fmt.Errorf("invalid filter config; %w", err)
-		}
-
-		applyConfig(c, cfg)
-		return nil
-	}
-}
-
-func validateFilterConfig(filterConfig interface{}) error {
-	type validator interface {
-		Validate() error
-	}
-
-	if validate, ok := filterConfig.(validator); ok {
-		return validate.Validate()
-	}
-
-	return nil
-}
-
-func applyConfig(c *context, cfg *globalConfig) {
-	c.filterConfig = cfg.filterConfig
-	c.cache = cfg.internalCache
-	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
-
-	c.autoReloadRoute = cfg.autoReloadRoute
-
-	c.strictBodyAccess = cfg.strictBodyAccess
-	c.requestBodyAccessRead = cfg.allowRequestBodyRead
-	c.requestBodyAccessWrite = cfg.allowRequestBodyWrite
-	c.responseBodyAccessRead = cfg.allowResponseBodyRead
-	c.responseBodyAccessWrite = cfg.allowResponseBodyWrite
-	c.preserveContentLengthOnRequest = cfg.preserveContentLengthOnRequest
-	c.preserveContentLengthOnResponse = cfg.preserveContentLengthOnResponse
-
-}
-
-// WithContextLogger sets the logger for the context.
-func WithContextLogger(logger logr.Logger) ContextOption {
-	return func(c *context) error {
-		c.logger = logger
-		return nil
-	}
-}
-
 // NewContext creates a new context object for the filter.
-func NewContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) {
+func NewContext(cb api.FilterCallbacks, o contextOptions) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
@@ -278,10 +225,8 @@ func NewContext(cb api.FilterCallbacks, opts ...ContextOption) (Context, error) 
 		statusType: api.Continue,
 	}
 
-	for _, opt := range opts {
-		if err := opt(c); err != nil {
-			return nil, err
-		}
+	if err := o.apply(c); err != nil {
+		return c, err
 	}
 
 	return c, nil
@@ -329,4 +274,17 @@ func (c *context) Committed() bool {
 func (c *context) reset() {
 	c.statusType = api.Continue
 	c.committed = false
+}
+
+type contextOptions struct {
+	config *internalConfig
+	logger logr.Logger
+}
+
+func (o *contextOptions) apply(c *context) error {
+	if !o.logger.IsZero() {
+		c.logger = o.logger
+	}
+
+	return applyInternalConfig(c, o.config)
 }

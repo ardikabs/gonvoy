@@ -61,7 +61,7 @@ func TestHeader_Export(t *testing.T) {
 	assert.Equal(t, "x-foo-bar,x-foo-bar-2", headers.Get("x-foo-bar"))
 }
 
-func TestHeader_Replace(t *testing.T) {
+func TestHeader_Import(t *testing.T) {
 	fakeHeaderMap := &fakeHeaderMap{
 		data: map[string][]string{
 			"foo":       {"bar"},
@@ -146,7 +146,7 @@ func TestNewGatewayHeaders(t *testing.T) {
 			}
 		})
 
-		ctx := fakeDummyContext(t)
+		ctx := fakeDummyContext(t, nil)
 		ctx.LoadRequestHeaders(reqHeaderMapMock)
 
 		headers := NewGatewayHeadersWithEnvoyHeader(ctx.RequestHeader())

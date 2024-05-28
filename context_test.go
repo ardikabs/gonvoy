@@ -1,6 +1,7 @@
 package gonvoy
 
 import (
+	"errors"
 	"testing"
 
 	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
@@ -9,19 +10,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func fakeDummyContext(t *testing.T, opts ...ContextOption) Context {
+func fakeDummyContext(t *testing.T, config *internalConfig) Context {
 	fc := mock_envoy.NewFilterCallbackHandler(t)
-	c, err := NewContext(fc, opts...)
+	c, err := NewContext(fc, contextOptions{config: config})
+	if errors.Is(err, errInternalConfigNotFound) {
+		return c
+	}
+
 	require.NoError(t, err)
 	return c
 }
 
 func TestContext(t *testing.T) {
-
 	t.Run("Request Body Accessibility", func(t *testing.T) {
 		testcases := []struct {
 			name           string
-			config         *globalConfig
+			config         *internalConfig
 			contentType    string
 			contentLength  string
 			expectedAccess bool
@@ -30,7 +34,7 @@ func TestContext(t *testing.T) {
 		}{
 			{
 				name: "non-writeable| content-type: application/json, content-length: 100",
-				config: &globalConfig{
+				config: &internalConfig{
 					strictBodyAccess:     false,
 					allowRequestBodyRead: true,
 				},
@@ -41,7 +45,7 @@ func TestContext(t *testing.T) {
 			},
 			{
 				name: "body accessible| content-type: application/json, content-length: 100",
-				config: &globalConfig{
+				config: &internalConfig{
 					strictBodyAccess:      false,
 					allowRequestBodyWrite: true,
 				},
@@ -53,7 +57,7 @@ func TestContext(t *testing.T) {
 			},
 			{
 				name: "body accessible| content-type: application/json and data chunked",
-				config: &globalConfig{
+				config: &internalConfig{
 					strictBodyAccess:      false,
 					allowRequestBodyWrite: true,
 				},
@@ -64,7 +68,7 @@ func TestContext(t *testing.T) {
 			},
 			{
 				name: "body accessible| content-type: application/ld+json, content-length: 100",
-				config: &globalConfig{
+				config: &internalConfig{
 					strictBodyAccess:     false,
 					allowRequestBodyRead: true,
 				},
@@ -76,7 +80,7 @@ func TestContext(t *testing.T) {
 			},
 			{
 				name: "body inaccessible| content-type: application/ld+json and data chunked (no content-length)",
-				config: &globalConfig{
+				config: &internalConfig{
 					strictBodyAccess:     false,
 					allowRequestBodyRead: true,
 				},
@@ -87,7 +91,7 @@ func TestContext(t *testing.T) {
 			},
 			{
 				name: "body inaccessible| content-type: application/grpc",
-				config: &globalConfig{
+				config: &internalConfig{
 					strictBodyAccess:     false,
 					allowRequestBodyRead: true,
 				},
@@ -98,7 +102,7 @@ func TestContext(t *testing.T) {
 			},
 			{
 				name: "body inaccessible| content-type: application/grpc+",
-				config: &globalConfig{
+				config: &internalConfig{
 					strictBodyAccess:     false,
 					allowRequestBodyRead: true,
 				},
@@ -110,7 +114,7 @@ func TestContext(t *testing.T) {
 			},
 			{
 				name: "body accessible for non-grpc| content-type: application/grpc-web, content-length: 100",
-				config: &globalConfig{
+				config: &internalConfig{
 					strictBodyAccess:     false,
 					allowRequestBodyRead: true,
 				},
@@ -142,7 +146,7 @@ func TestContext(t *testing.T) {
 					}
 				})
 
-				ctx := fakeDummyContext(t, WithContextConfig(tc.config))
+				ctx := fakeDummyContext(t, tc.config)
 				ctx.LoadRequestHeaders(reqHeaderMapMock)
 
 				assert.Equal(t, tc.expectedAccess, ctx.IsRequestBodyAccessible())

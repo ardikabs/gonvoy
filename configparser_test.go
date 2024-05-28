@@ -72,7 +72,7 @@ func TestConfigParser(t *testing.T) {
 		parentCfg, err := cp.Parse(nil, mockCC)
 		require.NoError(t, err)
 
-		pConfig, ok := parentCfg.(*globalConfig)
+		pConfig, ok := parentCfg.(*internalConfig)
 		assert.True(t, ok)
 		assert.Nil(t, pConfig.filterConfig)
 	})
@@ -85,7 +85,7 @@ func TestConfigParser(t *testing.T) {
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
 
-		pConfig, ok := parentCfg.(*globalConfig)
+		pConfig, ok := parentCfg.(*internalConfig)
 		assert.True(t, ok)
 
 		pFilterCfg, ok := (pConfig.filterConfig).(*dummyConfig)
@@ -105,7 +105,7 @@ func TestConfigParser(t *testing.T) {
 		require.Nil(t, err)
 
 		mergedCfg := cp.Merge(parentCfg, childCfg)
-		mConfig, ok := mergedCfg.(*globalConfig)
+		mConfig, ok := mergedCfg.(*internalConfig)
 		assert.True(t, ok)
 
 		pMergedCfg, ok := (mConfig.filterConfig).(*dummyConfig)
@@ -115,11 +115,11 @@ func TestConfigParser(t *testing.T) {
 		assert.Equal(t, "child value", pMergedCfg.C)
 		assert.Equal(t, []string{"parent", "value"}, pMergedCfg.Arrays)
 
-		assert.Same(t, parentCfg.(*globalConfig).internalCache, mConfig.internalCache)
-		assert.Same(t, parentCfg.(*globalConfig).internalCache, childCfg.(*globalConfig).internalCache)
-		assert.Same(t, childCfg.(*globalConfig).internalCache, mConfig.internalCache)
-		assert.NotSame(t, parentCfg.(*globalConfig).filterConfig, mConfig.filterConfig)
-		assert.Same(t, childCfg.(*globalConfig).filterConfig, mConfig.filterConfig)
+		assert.Same(t, parentCfg.(*internalConfig).internalCache, mConfig.internalCache)
+		assert.Same(t, parentCfg.(*internalConfig).internalCache, childCfg.(*internalConfig).internalCache)
+		assert.Same(t, childCfg.(*internalConfig).internalCache, mConfig.internalCache)
+		assert.NotSame(t, parentCfg.(*internalConfig).filterConfig, mConfig.filterConfig)
+		assert.Same(t, childCfg.(*internalConfig).filterConfig, mConfig.filterConfig)
 	})
 
 	t.Run("with config | Always use Child config", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestConfigParser(t *testing.T) {
 		require.Nil(t, err)
 
 		mergedCfg := cp.Merge(parentCfg, childCfg)
-		mConfig, ok := mergedCfg.(*globalConfig)
+		mConfig, ok := mergedCfg.(*internalConfig)
 		assert.True(t, ok)
 
 		pMergedCfg, ok := (mConfig.filterConfig).(*dummyConfig)
@@ -144,18 +144,18 @@ func TestConfigParser(t *testing.T) {
 		assert.Equal(t, "child value", pMergedCfg.C)
 		assert.Empty(t, pMergedCfg.Arrays)
 
-		assert.Same(t, parentCfg.(*globalConfig).internalCache, mConfig.internalCache)
-		assert.Same(t, parentCfg.(*globalConfig).internalCache, childCfg.(*globalConfig).internalCache)
-		assert.Same(t, childCfg.(*globalConfig).internalCache, mConfig.internalCache)
-		assert.NotSame(t, parentCfg.(*globalConfig).filterConfig, mConfig.filterConfig)
-		assert.NotSame(t, parentCfg.(*globalConfig).filterConfig, childCfg.(*globalConfig).filterConfig)
+		assert.Same(t, parentCfg.(*internalConfig).internalCache, mConfig.internalCache)
+		assert.Same(t, parentCfg.(*internalConfig).internalCache, childCfg.(*internalConfig).internalCache)
+		assert.Same(t, childCfg.(*internalConfig).internalCache, mConfig.internalCache)
+		assert.NotSame(t, parentCfg.(*internalConfig).filterConfig, mConfig.filterConfig)
+		assert.NotSame(t, parentCfg.(*internalConfig).filterConfig, childCfg.(*internalConfig).filterConfig)
 		assert.NotSame(t, parentCfg, childCfg)
 		assert.NotSame(t, parentCfg, mConfig)
-		assert.Same(t, childCfg.(*globalConfig).filterConfig, mConfig.filterConfig)
+		assert.Same(t, childCfg.(*internalConfig).filterConfig, mConfig.filterConfig)
 		assert.Same(t, childCfg, mConfig)
 
-		pParentCfg := (parentCfg.(*globalConfig).filterConfig).(*dummyConfig)
-		pChildCfg := (childCfg.(*globalConfig).filterConfig).(*dummyConfig)
+		pParentCfg := (parentCfg.(*internalConfig).filterConfig).(*dummyConfig)
+		pChildCfg := (childCfg.(*internalConfig).filterConfig).(*dummyConfig)
 		assert.NotSame(t, pParentCfg.S, pChildCfg.S)
 		assert.NotSame(t, pParentCfg.S, pMergedCfg.S)
 		assert.Same(t, pChildCfg.S, pMergedCfg.S)

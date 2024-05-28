@@ -67,21 +67,24 @@ func httpFilterFactory(filter HttpFilter) api.StreamFilterFactory {
 	}
 
 	return func(cfg interface{}, cb api.FilterCallbackHandler) api.StreamFilter {
-		config, ok := cfg.(*globalConfig)
+		config, ok := cfg.(*internalConfig)
 		if !ok {
 			panic(fmt.Sprintf("httpFilterFactory: unexpected config type '%T', expecting '%T'", cfg, config))
 		}
 
-		log := newLogger(cb)
-		ctx, err := NewContext(cb, WithContextConfig(config), WithContextLogger(log))
+		logger := newLogger(cb)
+		ctx, err := NewContext(cb, contextOptions{
+			config: config,
+			logger: logger,
+		})
 		if err != nil {
-			log.Error(err, "failed to initialize context for filter, ignoring filter ...")
+			logger.Error(err, "failed to initialize context for filter, ignoring filter ...")
 			return NoOpHttpFilter
 		}
 
 		manager, err := buildHttpFilterManager(ctx, filter)
 		if err != nil {
-			log.Error(err, "failed to build HTTP filter manager, ignoring filter ...")
+			logger.Error(err, "failed to build HTTP filter manager, ignoring filter ...")
 			return NoOpHttpFilter
 		}
 

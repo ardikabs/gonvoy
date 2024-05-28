@@ -1,15 +1,18 @@
 package gonvoy
 
 import (
+	"errors"
 	"strings"
-	"sync"
 
-	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-type globalConfig struct {
+var (
+	errInternalConfigNotFound = errors.New("internal config not found")
+)
+
+type internalConfig struct {
 	filterConfig interface{}
 
 	callbacks     api.ConfigCallbacks
@@ -31,10 +34,10 @@ type globalConfig struct {
 	autoReloadRoute bool
 }
 
-func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfig {
-	gc := &globalConfig{
+func newInternalConfig(cc api.ConfigCallbacks, options ConfigOptions) *internalConfig {
+	gc := &internalConfig{
 		callbacks:     cc,
-		internalCache: newCache(),
+		internalCache: newInternalCache(),
 		gaugeMap:      make(map[string]api.GaugeMetric),
 		counterMap:    make(map[string]api.CounterMetric),
 		histogramMap:  make(map[string]api.HistogramMetric),
@@ -55,7 +58,7 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 
 }
 
-func (c *globalConfig) metricCounter(name string) api.CounterMetric {
+func (c *internalConfig) metricCounter(name string) api.CounterMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
 	counter, ok := c.counterMap[name]
 	if !ok {
@@ -65,7 +68,7 @@ func (c *globalConfig) metricCounter(name string) api.CounterMetric {
 	return counter
 }
 
-func (c *globalConfig) metricGauge(name string) api.GaugeMetric {
+func (c *internalConfig) metricGauge(name string) api.GaugeMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
 	gauge, ok := c.gaugeMap[name]
 	if !ok {
@@ -75,62 +78,43 @@ func (c *globalConfig) metricGauge(name string) api.GaugeMetric {
 	return gauge
 }
 
-func (c *globalConfig) metricHistogram(name string) api.HistogramMetric {
+func (c *internalConfig) metricHistogram(name string) api.HistogramMetric {
 	panic("NOT IMPLEMENTED")
 }
 
-// Cache is an interface that defines methods for storing and retrieving data in an internal cache.
-// It is designed to maintain data persistently throughout Envoy's lifespan.
-type Cache interface {
-	// Store allows you to save a value of any type under a key of any type.
-	//
-	// Please use caution! The Store function overwrites any existing data.
-	Store(key, value any)
-
-	// Load retrieves a value associated with a specific key and assigns it to the receiver.
-	//
-	// It returns true if a compatible value is successfully loaded,
-	// false if no value is found, or an error occurs during the process.
-	//
-	// If the receiver is not a pointer to the stored data type,
-	// Load will return an ErrIncompatibleReceiver.
-	//
-	// Example usage:
-	//   type mystruct struct{}
-	//
-	//   data := new(mystruct)
-	//   cache.Store("keyName", data)
-	//
-	//   receiver := new(mystruct)
-	//   _, _ = cache.Load("keyName", &receiver)
-	Load(key, receiver any) (ok bool, err error)
-}
-
-type inmemoryCache struct {
-	stash sync.Map
-}
-
-func newCache() *inmemoryCache {
-	return &inmemoryCache{}
-}
-
-func (c *inmemoryCache) Store(key, value any) {
-	c.stash.Store(key, value)
-}
-
-func (c *inmemoryCache) Load(key, receiver any) (bool, error) {
-	if receiver == nil {
-		return false, errs.ErrNilReceiver
+func validateFilterConfig(filterConfig interface{}) error {
+	type validator interface {
+		Validate() error
 	}
 
-	v, ok := c.stash.Load(key)
-	if !ok {
-		return false, nil
+	if validate, ok := filterConfig.(validator); ok {
+		return validate.Validate()
 	}
 
-	if !util.CastTo(receiver, v) {
-		return false, errs.ErrIncompatibleReceiver
+	return nil
+}
+
+func applyInternalConfig(c *context, cfg *internalConfig) error {
+	if cfg == nil {
+		return errInternalConfigNotFound
 	}
 
-	return true, nil
+	if err := validateFilterConfig(cfg.filterConfig); err != nil {
+		return err
+	}
+
+	c.filterConfig = cfg.filterConfig
+	c.cache = cfg.internalCache
+	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
+
+	c.autoReloadRoute = cfg.autoReloadRoute
+
+	c.strictBodyAccess = cfg.strictBodyAccess
+	c.requestBodyAccessRead = cfg.allowRequestBodyRead
+	c.requestBodyAccessWrite = cfg.allowRequestBodyWrite
+	c.responseBodyAccessRead = cfg.allowResponseBodyRead
+	c.responseBodyAccessWrite = cfg.allowResponseBodyWrite
+	c.preserveContentLengthOnRequest = cfg.preserveContentLengthOnRequest
+	c.preserveContentLengthOnResponse = cfg.preserveContentLengthOnResponse
+	return nil
 }

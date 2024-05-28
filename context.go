@@ -14,43 +14,53 @@ import (
 type HttpFilterContext interface {
 	// RequestHeader provides an interface to access and modify HTTP Request header, including
 	// add, overwrite, or delete existing header.
-	// It returns panic when the filter has not yet traversed the HTTP request or OnRequestHeader phase is disabled.
+	//
+	// A panic is returned when the filter has not yet traversed the HTTP request or OnRequestHeader phase is disabled.
 	// Please refer to the previous Envoy's HTTP filter behavior.
 	//
 	RequestHeader() Header
 
 	// ResponseHeader provides an interface to access and modify HTTP Response header, including
 	// add, overwrite, or delete existing header.
-	// It returns panic when OnResponseHeader phase is disabled or ResponseHeader accessed outside from the following phases:
+	//
+	// A panic is returned when OnResponseHeader phase is disabled or ResponseHeader accessed outside from the following phases:
 	// OnResponseHeader, OnResponseBody
 	//
 	ResponseHeader() Header
 
 	// RequestBodyBuffer provides an interface to access and manipulate an HTTP Request body.
-	// It returns panic when OnRequestBody phase is disabled or RequestBody accessed outside from the following phases:
+	//
+	// A panic is returned when OnRequestBody phase is disabled or RequestBody accessed outside from the following phases:
 	// OnRequestBody, OnResponseHeader, OnResponseBody
 	//
 	RequestBody() Body
 
 	// ResponseBody provides an interface access and manipulate an HTTP Response body.
-	// It returns panic when OnResponseBody phase is disabled or ResponseBody accessed outside from the following phases:
+	//
+	// A panic is returned when OnResponseBody phase is disabled or ResponseBody accessed outside from the following phases:
 	// OnResponseBody
 	//
 	ResponseBody() Body
 
 	// Request returns an http.Request struct, which is a read-only data.
-	// Attempting to modify this value will have no effect.
-	// Refers to RequestHeader and RequestBody for modification attempts.
-	// It returns panic when the filter has not yet traversed the HTTP request or OnRequestHeader phase is disabled.
-	// Please refer to the previous Envoy's HTTP filter behavior.
+	// Any attempts to alter this value will not affect to the actual request.
+	// For any modifications, please use RequestHeader or RequestBody.
+	//
+	// Note: The request body only available during the OnRequestBody phase.
+	//
+	// A panic is returned if the filter has not yet traversed the HTTP request or the Request body access setting is turned off.
+	// Please see to the previous Envoy's HTTP filter behavior.
 	//
 	Request() *http.Request
 
 	// Response returns an http.Response struct, which is a read-only data.
-	// Attempting to modify this value will have no effect.
-	// Refers to ResponseHeader and ResponseBody for modification attempts.
-	// It returns panic, when OnResponseHeader phase is disabled or Response accessed outside from the following phases:
-	// OnResponseHeader, OnResponseBody
+	// Any attempts to alter this value will not affect to the actual response.
+	// For any modifications, please use ResponseHeader or ResponseBody.
+	//
+	// Note: The response body only available during the OnResponseBody phase.
+	//
+	// A panic is returned if the Response body access setting is turned off or if Response is accessed outside of the following phases:
+	// OnResponseHeader, or OnResponseBody
 	//
 	Response() *http.Response
 

@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ardikabs/gonvoy/pkg/errs"
 	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
 	"github.com/stretchr/testify/assert"
 )
@@ -59,7 +58,7 @@ func TestBody_Write(t *testing.T) {
 		}
 
 		n, err := writer.Write(input)
-		assert.ErrorIs(t, err, errs.ErrOperationNotPermitted)
+		assert.ErrorIs(t, err, ErrOperationNotPermitted)
 		assert.Zero(t, n)
 	})
 
@@ -116,7 +115,7 @@ func TestBody_WriteString(t *testing.T) {
 		}
 
 		n, err := writer.WriteString(input)
-		assert.ErrorIs(t, err, errs.ErrOperationNotPermitted)
+		assert.ErrorIs(t, err, ErrOperationNotPermitted)
 		assert.Zero(t, n)
 	})
 }

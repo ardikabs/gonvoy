@@ -42,7 +42,7 @@ var PanicFilterTestCase = suite.TestCase{
 			payload := gjson.ParseBytes(body)
 
 			require.Equal(t, "RUNTIME_ERROR", payload.Get("code").Str)
-			require.Equal(t, "RUNTIME_ERROR", payload.Get("message").Str)
+			require.Equal(t, "Runtime Error", payload.Get("message").Str)
 			require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 			require.Eventually(t, func() bool {
@@ -61,7 +61,7 @@ var PanicFilterTestCase = suite.TestCase{
 			payload := gjson.ParseBytes(body)
 
 			require.Equal(t, "RUNTIME_ERROR", payload.Get("code").Str)
-			require.Equal(t, "RUNTIME_ERROR", payload.Get("message").Str)
+			require.Equal(t, "Runtime Error", payload.Get("message").Str)
 			require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 			require.Eventually(t, func() bool {

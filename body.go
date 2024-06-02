@@ -5,7 +5,6 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -37,7 +36,7 @@ type bodyWriter struct {
 
 func (b *bodyWriter) Write(p []byte) (n int, err error) {
 	if !b.writable {
-		return 0, fmt.Errorf("body is not writable, %w", errs.ErrOperationNotPermitted)
+		return 0, fmt.Errorf("body is not writable, %w", ErrOperationNotPermitted)
 	}
 
 	err = b.buffer.Set(p)
@@ -49,7 +48,7 @@ func (b *bodyWriter) Write(p []byte) (n int, err error) {
 
 func (b *bodyWriter) WriteString(s string) (n int, err error) {
 	if !b.writable {
-		return 0, fmt.Errorf("body is not writable, %w", errs.ErrOperationNotPermitted)
+		return 0, fmt.Errorf("body is not writable, %w", ErrOperationNotPermitted)
 	}
 
 	err = b.buffer.SetString(s)

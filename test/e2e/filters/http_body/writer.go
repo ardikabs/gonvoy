@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ardikabs/gonvoy"
-	"github.com/ardikabs/gonvoy/pkg/errs"
 )
 
 type BodyWriteFilter struct{}
@@ -48,7 +47,7 @@ func (h *BodyWriteFilterHandler) OnRequestHeader(c gonvoy.Context) error {
 
 	h.signature = header.Get("x-signature")
 	if h.signature == "" {
-		return fmt.Errorf("signature can not be empty, %w", errs.ErrBadRequest)
+		return fmt.Errorf("signature can not be empty, %w", gonvoy.ErrBadRequest)
 	}
 
 	return nil

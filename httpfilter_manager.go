@@ -3,7 +3,6 @@ package gonvoy
 import (
 	"fmt"
 
-	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
@@ -190,7 +189,16 @@ type HttpFilterResult struct {
 // and determines the action to be taken based on the result.
 func (res *HttpFilterResult) Finalize(c Context, errorHandler ErrorHandler) {
 	if r := recover(); r != nil {
-		res.Err = fmt.Errorf("%w; %v", errs.ErrPanic, r)
+		var err error
+
+		switch {
+		case fmt.Sprint(r) == "request has been finished":
+			err = ErrClientClosedRequest
+		default:
+			err = ErrRuntime
+		}
+
+		res.Err = fmt.Errorf("%v, %w", r, err)
 	}
 
 	if res.Err != nil {

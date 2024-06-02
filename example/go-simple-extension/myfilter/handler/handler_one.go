@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ardikabs/gonvoy"
-	"github.com/ardikabs/gonvoy/pkg/errs"
 )
 
 type HandlerOne struct {
@@ -23,7 +22,7 @@ func (h *HandlerOne) OnRequestHeader(c gonvoy.Context) error {
 	header := c.Request().Header
 
 	if header.Get("x-error") == "401" {
-		return fmt.Errorf("intentionally return unauthorized, %w", errs.ErrUnauthorized)
+		return fmt.Errorf("intentionally return unauthorized, %w", gonvoy.ErrUnauthorized)
 	}
 
 	if header.Get("x-error") == "5xx" {

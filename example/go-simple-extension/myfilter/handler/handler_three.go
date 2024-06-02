@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ardikabs/gonvoy"
-	"github.com/ardikabs/gonvoy/pkg/errs"
 )
 
 type HandlerThree struct {
@@ -42,7 +41,7 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 
 	reqBody := make(map[string]interface{})
 	if err := json.Unmarshal(c.RequestBody().Bytes(), &reqBody); err != nil {
-		return errs.ErrBadRequest
+		return gonvoy.ErrBadRequest
 	}
 
 	reqBody["newData"] = "newValue"
@@ -56,7 +55,7 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 
 	b, err := json.MarshalIndent(reqBody, "", "    ")
 	if err != nil {
-		return errs.ErrBadRequest
+		return gonvoy.ErrBadRequest
 	}
 
 	c.Log().Info("check request body", "payload", string(b))

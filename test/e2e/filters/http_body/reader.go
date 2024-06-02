@@ -67,7 +67,7 @@ func (h *BodyReadFilterHandler) OnRequestBody(c gonvoy.Context) error {
 
 		encoder := json.NewEncoder(body)
 		if err := encoder.Encode(newPayload); err != nil {
-			return err
+			return fmt.Errorf("request payload failed to encode, %w", err)
 		}
 	}
 
@@ -89,7 +89,7 @@ func (h *BodyReadFilterHandler) OnResponseBody(c gonvoy.Context) error {
 
 		encoder := json.NewEncoder(body)
 		if err := encoder.Encode(payload); err != nil {
-			return err
+			return fmt.Errorf("response payload failed to encode, %w", err)
 		}
 	}
 

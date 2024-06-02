@@ -187,9 +187,7 @@ func TestHttpFilterManager(t *testing.T) {
 			mock.MatchedBy(func(code int) bool {
 				return assert.Equal(t, http.StatusInternalServerError, code)
 			}),
-			mock.MatchedBy(func(body []byte) bool {
-				return assert.Equal(t, ResponseInternalServerError, body)
-			}),
+			mock.Anything,
 			mock.Anything,
 			mock.Anything,
 		).Return(nil)

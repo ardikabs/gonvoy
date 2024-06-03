@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +37,7 @@ func TestCache_StoreAndLoad(t *testing.T) {
 	t.Run("a nil receiver, returns an error", func(t *testing.T) {
 		ok, err := lc.Load("bar", nil)
 		assert.False(t, ok)
-		assert.ErrorIs(t, err, errs.ErrNilReceiver)
+		assert.ErrorIs(t, err, ErrNilReceiver)
 	})
 
 	t.Run("receiver has incompatibility data type with the source, returns an error", func(t *testing.T) {
@@ -49,7 +48,7 @@ func TestCache_StoreAndLoad(t *testing.T) {
 		dest := mystruct{}
 		ok, err := lc.Load("foobar", &dest)
 		assert.False(t, ok)
-		assert.ErrorIs(t, err, errs.ErrIncompatibleReceiver)
+		assert.ErrorIs(t, err, ErrIncompatibleReceiver)
 	})
 
 	t.Run("if no data found during a Load, then returns false without an error", func(t *testing.T) {

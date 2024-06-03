@@ -3,7 +3,6 @@ package gonvoy
 import (
 	"sync"
 
-	"github.com/ardikabs/gonvoy/pkg/errs"
 	"github.com/ardikabs/gonvoy/pkg/util"
 )
 
@@ -48,7 +47,7 @@ func (c *inmemoryCache) Store(key, value any) {
 
 func (c *inmemoryCache) Load(key, receiver any) (bool, error) {
 	if receiver == nil {
-		return false, errs.ErrNilReceiver
+		return false, ErrNilReceiver
 	}
 
 	v, ok := c.stash.Load(key)
@@ -57,7 +56,7 @@ func (c *inmemoryCache) Load(key, receiver any) (bool, error) {
 	}
 
 	if !util.CastTo(receiver, v) {
-		return false, errs.ErrIncompatibleReceiver
+		return false, ErrIncompatibleReceiver
 	}
 
 	return true, nil

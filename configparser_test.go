@@ -159,8 +159,42 @@ func TestConfigParser(t *testing.T) {
 		assert.NotSame(t, pParentCfg.S, pChildCfg.S)
 		assert.NotSame(t, pParentCfg.S, pMergedCfg.S)
 		assert.Same(t, pChildCfg.S, pMergedCfg.S)
-
 	})
+
+	t.Run("with config, mergeable without preserve_root | Parent and Child", func(t *testing.T) {
+		otherChildValue, err := structpb.NewStruct(map[string]interface{}{
+			"a": "child value",
+			"b": 500,
+		})
+
+		require.Nil(t, err)
+		otherChildConfigAny, err := anypb.New(&xds.TypedStruct{
+			Value: otherChildValue,
+		})
+		assert.NoError(t, err)
+		assert.NotNil(t, otherChildConfigAny)
+
+		cp := newConfigParser(ConfigOptions{
+			FilterConfig: new(dummyConfig),
+		})
+
+		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
+		require.NoError(t, err)
+		childCfg, err := cp.Parse(otherChildConfigAny, mockCC)
+		require.Nil(t, err)
+
+		mergedCfg := cp.Merge(parentCfg, childCfg)
+		mConfig, ok := mergedCfg.(*internalConfig)
+		assert.True(t, ok)
+
+		pMergedCfg, ok := (mConfig.filterConfig).(*dummyConfig)
+		assert.True(t, ok)
+		assert.Equal(t, "parent value", pMergedCfg.A)
+		assert.Equal(t, 500, pMergedCfg.B)
+		assert.Equal(t, "", pMergedCfg.C)
+		assert.Nil(t, pMergedCfg.S)
+	})
+
 }
 
 func TestConfigParser_mergeStruct(t *testing.T) {

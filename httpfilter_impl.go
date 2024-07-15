@@ -11,7 +11,7 @@ type httpFilterImpl struct {
 	srv HttpFilterServer
 }
 
-func (f *httpFilterImpl) OnLog() { f.srv.Finalize() }
+func (f *httpFilterImpl) OnLog() { f.srv.Complete() }
 
 func (f *httpFilterImpl) OnDestroy(reason api.DestroyReason) { f.srv = nil }
 

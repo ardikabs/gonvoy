@@ -225,7 +225,7 @@ func TestHttpFilterManager(t *testing.T) {
 		assert.Equal(t, api.Continue, mgr.ServeEncodeFilter(fakeSkipEncodePhase()).Status)
 	})
 
-	t.Run("trigger finalize", func(t *testing.T) {
+	t.Run("trigger filter completion", func(t *testing.T) {
 		mockContext := NewMockContext(t)
 		mockContext.EXPECT().Request().Return(&http.Request{})
 		mgr := newHttpFilterManager(mockContext)
@@ -235,6 +235,6 @@ func TestHttpFilterManager(t *testing.T) {
 			}(mockContext)
 		}
 
-		mgr.Finalize()
+		mgr.Complete()
 	})
 }

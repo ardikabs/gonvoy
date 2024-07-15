@@ -89,9 +89,9 @@ type HttpFilterServer interface {
 	//
 	ServeEncodeFilter(HttpFilterEncoderFunc) *HttpFilterResult
 
-	// Finalize is called when the HTTP filter server has finalized processing.
+	// Complete is called when the HTTP filter server has processed the request and issued a response.
 	//
-	Finalize()
+	Complete()
 }
 
 // HttpFilterCompletionFunc represents a function type for completing an HTTP filter.
@@ -161,7 +161,7 @@ func (m *httpFilterManager) ServeEncodeFilter(fn HttpFilterEncoderFunc) (res *Ht
 	return
 }
 
-func (m *httpFilterManager) Finalize() {
+func (m *httpFilterManager) Complete() {
 	if m.completer != nil {
 		m.completer()
 	}

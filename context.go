@@ -200,7 +200,7 @@ func validateFilterConfig(filterConfig interface{}) error {
 func applyConfig(c *context, cfg *globalConfig) {
 	c.filterConfig = cfg.filterConfig
 	c.cache = cfg.internalCache
-	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
+	c.metrics = newMetrics(cfg.defineCounterMetric, cfg.defineGaugeMetric, cfg.defineHistogramMetric)
 
 	c.strictBodyAccess = cfg.strictBodyAccess
 	c.requestBodyAccessRead = cfg.allowRequestBodyRead

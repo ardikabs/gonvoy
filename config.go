@@ -10,15 +10,10 @@ import (
 )
 
 type globalConfig struct {
-	filterConfig interface{}
-
+	filterConfig  interface{}
 	callbacks     api.ConfigCallbacks
 	internalCache Cache
-
-	metricPrefix string
-	gaugeMap     map[string]api.GaugeMetric
-	counterMap   map[string]api.CounterMetric
-	histogramMap map[string]api.HistogramMetric
+	metricPrefix  string
 
 	strictBodyAccess       bool
 	allowRequestBodyRead   bool
@@ -31,9 +26,6 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 	gc := &globalConfig{
 		callbacks:     cc,
 		internalCache: newCache(),
-		gaugeMap:      make(map[string]api.GaugeMetric),
-		counterMap:    make(map[string]api.CounterMetric),
-		histogramMap:  make(map[string]api.HistogramMetric),
 		metricPrefix:  options.MetricPrefix,
 
 		strictBodyAccess:       !options.DisableStrictBodyAccess,
@@ -47,27 +39,17 @@ func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfi
 
 }
 
-func (c *globalConfig) metricCounter(name string) api.CounterMetric {
+func (c *globalConfig) defineCounterMetric(name string) api.CounterMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricPrefix + name))
-	counter, ok := c.counterMap[name]
-	if !ok {
-		counter = c.callbacks.DefineCounterMetric(name)
-		c.counterMap[name] = counter
-	}
-	return counter
+	return c.callbacks.DefineCounterMetric(name)
 }
 
-func (c *globalConfig) metricGauge(name string) api.GaugeMetric {
+func (c *globalConfig) defineGaugeMetric(name string) api.GaugeMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricPrefix + name))
-	gauge, ok := c.gaugeMap[name]
-	if !ok {
-		gauge = c.callbacks.DefineGaugeMetric(name)
-		c.gaugeMap[name] = gauge
-	}
-	return gauge
+	return c.callbacks.DefineGaugeMetric(name)
 }
 
-func (c *globalConfig) metricHistogram(name string) api.HistogramMetric {
+func (c *globalConfig) defineHistogramMetric(name string) api.HistogramMetric {
 	panic("NOT IMPLEMENTED")
 }
 

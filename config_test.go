@@ -25,8 +25,8 @@ func TestConfiguration_Metrics(t *testing.T) {
 		MetricPrefix: "PREFIX ",
 	})
 
-	gc.metricCounter("foo_key=value_key1=value2")
-	gc.metricGauge("foo_key=value_key1=value2")
+	gc.defineCounterMetric("foo_key=value_key1=value2")
+	gc.defineGaugeMetric("foo_key=value_key1=value2")
 }
 
 func TestCache_StoreAndLoad(t *testing.T) {

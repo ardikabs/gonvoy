@@ -22,9 +22,12 @@ type Metrics interface {
 
 func newMetrics(counterFunc counterFunc, gaugeFunc gaugeFunc, histogramFunc histogramFunc) *metrics {
 	return &metrics{
-		counter:   counterFunc,
-		gauge:     gaugeFunc,
-		histogram: histogramFunc,
+		counterFunc:   counterFunc,
+		gaugeFunc:     gaugeFunc,
+		histogramFunc: histogramFunc,
+
+		counterMap: make(map[string]api.CounterMetric),
+		gaugeMap:   make(map[string]api.GaugeMetric),
 	}
 }
 
@@ -36,35 +39,59 @@ type (
 	histogramFunc func(name string) api.HistogramMetric
 
 	metrics struct {
-		counter   counterFunc
-		gauge     gaugeFunc
-		histogram histogramFunc
+		counterFunc   counterFunc
+		gaugeFunc     gaugeFunc
+		histogramFunc histogramFunc
+
+		counterMap map[string]api.CounterMetric
+		gaugeMap   map[string]api.GaugeMetric
 	}
 )
 
 func (m *metrics) Gauge(name string, labelKeyValues ...string) api.GaugeMetric {
-	fqn := fmt.Sprintf("%s_%s", name, formatMetricLabels(labelKeyValues...))
-	return m.gauge(fqn)
+	if m.gaugeFunc == nil {
+		panic("metric gauge handler is not set")
+	}
+
+	stats := createStatsName(name, labelKeyValues...)
+	gauge, ok := m.gaugeMap[stats]
+	if !ok {
+		gauge = m.gaugeFunc(stats)
+		m.gaugeMap[stats] = gauge
+	}
+
+	return gauge
 }
 
 func (m *metrics) Counter(name string, labelKeyValues ...string) api.CounterMetric {
-	fqn := fmt.Sprintf("%s_%s", name, formatMetricLabels(labelKeyValues...))
-	return m.counter(fqn)
+	if m.counterFunc == nil {
+		panic("metric counter handler is not set")
+	}
+
+	stats := createStatsName(name, labelKeyValues...)
+	counter, ok := m.counterMap[stats]
+	if !ok {
+		counter = m.counterFunc(stats)
+		m.counterMap[stats] = counter
+	}
+
+	return counter
 }
 
 func (m *metrics) Histogram(name string, labelKeyValues ...string) api.HistogramMetric {
 	panic("NOT IMPLEMENTED")
 }
 
-func formatMetricLabels(rawLabels ...string) string {
-	if len(rawLabels)%2 != 0 {
-		return ""
+// Create an Envoy stats name with the given name and labels.
+func createStatsName(name string, labels ...string) string {
+	if len(labels)%2 != 0 {
+		return fmt.Sprintf("%s_%s", name, "bad_labels")
 	}
 
 	var fmtLabels []string
-	for i := 0; i < len(rawLabels); i += 2 {
-		fmtLabels = append(fmtLabels, fmt.Sprintf("%s=%s", strings.Replace(rawLabels[i], "-", "_", -1), rawLabels[i+1]))
+	for i := 0; i < len(labels); i += 2 {
+		fmtLabels = append(fmtLabels, fmt.Sprintf("%s=%s", strings.Replace(labels[i], "-", "_", -1), labels[i+1]))
 	}
 
-	return strings.Join(fmtLabels, "_")
+	return fmt.Sprintf("%s_%s", name, strings.Join(fmtLabels, "_"))
 }

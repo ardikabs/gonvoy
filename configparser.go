@@ -135,6 +135,10 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 		p.rootGlobalConfig = newInternalConfig(cc, p.options)
 		p.rootGlobalConfig.filterConfig = filterCfg
 		return p.rootGlobalConfig, nil
+	} else if !util.IsNil(cc) {
+		// apparently config callbacks lifetime is not forever,
+		// hence we need to renew it, everytime parent or root plugin config is re-parsed.
+		p.rootGlobalConfig.callbacks = cc
 	}
 
 	copyGlobalConfig := *p.rootGlobalConfig

@@ -13,15 +13,10 @@ var (
 )
 
 type internalConfig struct {
-	filterConfig interface{}
-
+	filterConfig  interface{}
 	callbacks     api.ConfigCallbacks
 	internalCache Cache
-
 	metricsPrefix string
-	gaugeMap      map[string]api.GaugeMetric
-	counterMap    map[string]api.CounterMetric
-	histogramMap  map[string]api.HistogramMetric
 
 	strictBodyAccess                bool
 	allowRequestBodyRead            bool
@@ -36,12 +31,8 @@ type internalConfig struct {
 
 func newInternalConfig(cc api.ConfigCallbacks, options ConfigOptions) *internalConfig {
 	gc := &internalConfig{
-		callbacks:     cc,
-		internalCache: newInternalCache(),
-		gaugeMap:      make(map[string]api.GaugeMetric),
-		counterMap:    make(map[string]api.CounterMetric),
-		histogramMap:  make(map[string]api.HistogramMetric),
-
+		callbacks:       cc,
+		internalCache:   newInternalCache(),
 		autoReloadRoute: options.AutoReloadRoute,
 		metricsPrefix:   options.MetricsPrefix,
 
@@ -58,27 +49,17 @@ func newInternalConfig(cc api.ConfigCallbacks, options ConfigOptions) *internalC
 
 }
 
-func (c *internalConfig) metricCounter(name string) api.CounterMetric {
+func (c *internalConfig) defineCounterMetric(name string) api.CounterMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
-	counter, ok := c.counterMap[name]
-	if !ok {
-		counter = c.callbacks.DefineCounterMetric(name)
-		c.counterMap[name] = counter
-	}
-	return counter
+	return c.callbacks.DefineCounterMetric(name)
 }
 
-func (c *internalConfig) metricGauge(name string) api.GaugeMetric {
+func (c *internalConfig) defineGaugeMetric(name string) api.GaugeMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
-	gauge, ok := c.gaugeMap[name]
-	if !ok {
-		gauge = c.callbacks.DefineGaugeMetric(name)
-		c.gaugeMap[name] = gauge
-	}
-	return gauge
+	return c.callbacks.DefineGaugeMetric(name)
 }
 
-func (c *internalConfig) metricHistogram(name string) api.HistogramMetric {
+func (c *internalConfig) defineHistogramMetric(name string) api.HistogramMetric {
 	panic("NOT IMPLEMENTED")
 }
 
@@ -105,7 +86,7 @@ func applyInternalConfig(c *context, cfg *internalConfig) error {
 
 	c.filterConfig = cfg.filterConfig
 	c.cache = cfg.internalCache
-	c.metrics = newMetrics(cfg.metricCounter, cfg.metricGauge, cfg.metricHistogram)
+	c.metrics = newMetrics(cfg.defineCounterMetric, cfg.defineGaugeMetric, cfg.defineHistogramMetric)
 
 	c.autoReloadRoute = cfg.autoReloadRoute
 

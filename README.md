@@ -5,7 +5,7 @@
 [![Test](https://github.com/ardikabs/gonvoy/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/ardikabs/gonvoy/actions/workflows/test.yaml)
 [![Codecov](https://codecov.io/gh/ardikabs/gonvoy/branch/main/graph/badge.svg)](https://codecov.io/gh/ardikabs/gonvoy)
 
-A Go framework to write an HTTP Filter extension on Envoy Proxy. It leverages the Envoy [HTTP Golang Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/golang_filter) as its foundation.
+A thin Go framework to write an HTTP Filter extension on Envoy Proxy. It leverages the Envoy [HTTP Golang Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/golang_filter) as its foundation.
 
 ## Features
 
@@ -49,33 +49,33 @@ go get github.com/ardikabs/gonvoy
 * Clone the project.
 
     ```bash
-    $ git clone -b plugin git@github.com:ardkabs/gonvoy.git
+    git clone -b plugin git@github.com:ardkabs/gonvoy.git
     ```
 
 * Create a meaningful branch
 
     ```bash
-    $ git checkout -b <your-meaningful-branch>
+    git checkout -b <your-meaningful-branch>
     ```
 
 * Test your changes.
 
     ```bash
-    $ make test
+    make test
     ```
 
 * We highly recommend instead of only run test, please also do audit which include formatting, linting, vetting, and testing.
 
     ```bash
-    $ make audit
+    make audit
     ```
 
 * Add, commit, and push changes to repository
 
     ```bash
-    $ git add .
-    $ git commit -s -m "<conventional commit style>"
-    $ git push origin <your-meaningful-branch>
+    git add .
+    git commit -s -m "<conventional commit style>"
+    git push origin <your-meaningful-branch>
     ```
 
     For writing commit message, please use [conventionalcommits](https://www.conventionalcommits.org/en/v1.0.0/) as a reference.
@@ -87,7 +87,7 @@ go get github.com/ardikabs/gonvoy
 #### Unit Test
 
 ```bash
-$ make test
+make test
 ```
 
 ### Try It

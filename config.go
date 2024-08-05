@@ -29,9 +29,8 @@ type internalConfig struct {
 	autoReloadRoute bool
 }
 
-func newInternalConfig(cc api.ConfigCallbacks, options ConfigOptions) *internalConfig {
+func newInternalConfig(options ConfigOptions) *internalConfig {
 	gc := &internalConfig{
-		callbacks:       cc,
 		internalCache:   newInternalCache(),
 		autoReloadRoute: options.AutoReloadRoute,
 		metricsPrefix:   options.MetricsPrefix,

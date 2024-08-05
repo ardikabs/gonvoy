@@ -8,6 +8,7 @@ import (
 
 	"github.com/ardikabs/gonvoy/pkg/util"
 	xds "github.com/cncf/xds/go/xds/type/v3"
+	"github.com/tidwall/gjson"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -102,13 +103,36 @@ type configParser struct {
 
 func newConfigParser(options ConfigOptions) *configParser {
 	return &configParser{
-		options: options,
+		options:          options,
+		rootGlobalConfig: newInternalConfig(options),
 	}
 }
 
-func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (interface{}, error) {
-	if util.IsNil(p.options.FilterConfig) {
-		return newInternalConfig(cc, p.options), nil
+func (p *configParser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (interface{}, error) {
+	// Parse the filter configuration if it is provided
+	filterConfig, err := p.parseFilterConfig(any)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle the root (parent) plugin configuration
+	if callbacks != nil {
+		// Renew the config callbacks and filter config once root plugin configuration updated
+		p.rootGlobalConfig.callbacks = callbacks
+		p.rootGlobalConfig.filterConfig = filterConfig
+		return p.rootGlobalConfig, nil
+	}
+
+	// Create a copy of the root global config for the child filter config
+	// This shares all attributes except the filter config
+	copyGlobalConfig := *p.rootGlobalConfig
+	copyGlobalConfig.filterConfig = filterConfig
+	return &copyGlobalConfig, nil
+}
+
+func (p *configParser) parseFilterConfig(any *anypb.Any) (filterCfg interface{}, err error) {
+	if any.GetValue() == nil {
+		return nil, nil
 	}
 
 	configStruct := &xds.TypedStruct{}
@@ -122,36 +146,33 @@ func (p *configParser) Parse(any *anypb.Any, cc api.ConfigCallbackHandler) (inte
 		return nil, fmt.Errorf("configparser: parse failed; %w", err)
 	}
 
-	filterCfg, err := util.NewFrom(p.options.FilterConfig)
-	if err != nil {
-		return nil, fmt.Errorf("configparser: parse failed; %w", err)
+	if util.IsNil(p.options.FilterConfig) {
+		filterCfg = gjson.ParseBytes(b)
+	} else {
+		filterCfg, err = util.NewFrom(p.options.FilterConfig)
+		if err != nil {
+			return nil, fmt.Errorf("configparser: parse failed; %w", err)
+		}
+
+		if err := json.Unmarshal(b, &filterCfg); err != nil {
+			return nil, fmt.Errorf("configparser: parse failed; %w", err)
+		}
 	}
 
-	if err := json.Unmarshal(b, &filterCfg); err != nil {
-		return nil, fmt.Errorf("configparser: parse failed; %w", err)
-	}
-
-	if p.rootGlobalConfig == nil {
-		p.rootGlobalConfig = newInternalConfig(cc, p.options)
-		p.rootGlobalConfig.filterConfig = filterCfg
-		return p.rootGlobalConfig, nil
-	} else if !util.IsNil(cc) {
-		// apparently config callbacks lifetime is not forever,
-		// hence we need to renew it, everytime parent or root plugin config is re-parsed.
-		p.rootGlobalConfig.callbacks = cc
-	}
-
-	copyGlobalConfig := *p.rootGlobalConfig
-	copyGlobalConfig.filterConfig = filterCfg
-	return &copyGlobalConfig, nil
+	return filterCfg, nil
 }
 
 func (p *configParser) Merge(parent, child interface{}) interface{} {
-	origParentGlobalConfig := parent.(*internalConfig)
-	origChildGlobalConfig := child.(*internalConfig)
+	origParentGlobalConfig, parentOK := parent.(*internalConfig)
+	origChildGlobalConfig, childOK := child.(*internalConfig)
 
-	if util.IsNil(origParentGlobalConfig.filterConfig) {
-		return parent
+	if !parentOK && !childOK {
+		panic("configparser: merge failed; both parent and child configs uses unknown data types")
+	}
+
+	if util.IsNil(p.options.FilterConfig) {
+		origChildGlobalConfig.filterConfig = p.mergeLiteral(origParentGlobalConfig.filterConfig, origChildGlobalConfig.filterConfig)
+		return origChildGlobalConfig
 	}
 
 	mergedFilterCfg, err := p.mergeStruct(origParentGlobalConfig.filterConfig, origChildGlobalConfig.filterConfig)
@@ -165,6 +186,33 @@ func (p *configParser) Merge(parent, child interface{}) interface{} {
 
 	origChildGlobalConfig.filterConfig = mergedFilterCfg
 	return origChildGlobalConfig
+}
+
+func (p *configParser) mergeLiteral(parent, child interface{}) gjson.Result {
+	parentJSON, parentJSONValid := parent.(gjson.Result)
+	childJSON, childJSONValid := child.(gjson.Result)
+	if !parentJSONValid && !childJSONValid {
+		return gjson.Result{}
+	}
+
+	parentJSONMap, parentMapValid := parentJSON.Value().(map[string]interface{})
+	childJSONMap, childMapValid := childJSON.Value().(map[string]interface{})
+	if !parentMapValid && !childMapValid {
+		return gjson.Result{}
+	}
+
+	for k, v := range parentJSONMap {
+		if _, ok := childJSONMap[k]; !ok {
+			childJSONMap[k] = v
+		}
+	}
+
+	jsonBytes, err := json.Marshal(childJSONMap)
+	if err != nil {
+		return gjson.Result{}
+	}
+
+	return gjson.ParseBytes(jsonBytes)
 }
 
 func (p *configParser) mergeStruct(parent, child interface{}) (interface{}, error) {

@@ -7,6 +7,7 @@ import (
 	xds "github.com/cncf/xds/go/xds/type/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -67,9 +68,9 @@ func TestConfigParser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, childConfigAny)
 
-	t.Run("no config", func(t *testing.T) {
+	t.Run("empty config", func(t *testing.T) {
 		cp := newConfigParser(ConfigOptions{})
-		parentCfg, err := cp.Parse(nil, mockCC)
+		parentCfg, err := cp.Parse(&anypb.Any{}, mockCC)
 		require.NoError(t, err)
 
 		pConfig, ok := parentCfg.(*internalConfig)
@@ -77,7 +78,49 @@ func TestConfigParser(t *testing.T) {
 		assert.Nil(t, pConfig.filterConfig)
 	})
 
-	t.Run("with config | Parent only", func(t *testing.T) {
+	t.Run("filter config unset, fallback to map | Parent Only", func(t *testing.T) {
+		cp := newConfigParser(ConfigOptions{})
+		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
+		require.NoError(t, err)
+
+		pConfig, ok := parentCfg.(*internalConfig)
+		assert.True(t, ok)
+		assert.NotEmpty(t, pConfig.filterConfig)
+		assert.IsType(t, gjson.Result{}, pConfig.filterConfig)
+
+		filterCfg, ok := pConfig.filterConfig.(gjson.Result)
+		assert.True(t, ok)
+
+		assert.Equal(t, "parent value", filterCfg.Get("a").Str)
+		assert.Equal(t, int64(300), filterCfg.Get("b").Int())
+		assert.Equal(t, "parent value", filterCfg.Get("c").Str)
+	})
+
+	t.Run("filter config unset, fallback to map | Parent and Child", func(t *testing.T) {
+		cp := newConfigParser(ConfigOptions{})
+		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
+		require.NoError(t, err)
+
+		childCfg, err := cp.Parse(childConfigAny, nil)
+		require.Nil(t, err)
+
+		mergedCfg := cp.Merge(parentCfg, childCfg)
+		mergedInternalConfig, ok := mergedCfg.(*internalConfig)
+		assert.True(t, ok)
+
+		filterCfg, ok := mergedInternalConfig.filterConfig.(gjson.Result)
+		assert.True(t, ok)
+
+		assert.EqualValues(t, "child value", filterCfg.Get("a").Str)
+		assert.EqualValues(t, int64(500), filterCfg.Get("b").Int())
+		assert.EqualValues(t, "child value", filterCfg.Get("c").Str)
+		assert.EqualValues(t, map[string]interface{}{
+			"a": "foo",
+			"b": float64(100),
+		}, filterCfg.Get("s").Value())
+	})
+
+	t.Run("with filter config | Parent only", func(t *testing.T) {
 		cp := newConfigParser(ConfigOptions{
 			FilterConfig: new(dummyConfig),
 		})
@@ -94,35 +137,36 @@ func TestConfigParser(t *testing.T) {
 		assert.Equal(t, []string{"parent", "value"}, pFilterCfg.Arrays)
 	})
 
-	t.Run("with config | Parent and Child", func(t *testing.T) {
+	t.Run("with filter config | Parent and Child", func(t *testing.T) {
 		cp := newConfigParser(ConfigOptions{
 			FilterConfig: new(dummyConfig),
 		})
 
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
-		childCfg, err := cp.Parse(childConfigAny, mockCC)
+		childCfg, err := cp.Parse(childConfigAny, nil)
 		require.Nil(t, err)
 
 		mergedCfg := cp.Merge(parentCfg, childCfg)
-		mConfig, ok := mergedCfg.(*internalConfig)
+		mergedInternalConfig, ok := mergedCfg.(*internalConfig)
 		assert.True(t, ok)
 
-		pMergedCfg, ok := (mConfig.filterConfig).(*dummyConfig)
+		pMergedCfg, ok := (mergedInternalConfig.filterConfig).(*dummyConfig)
 		assert.True(t, ok)
 		assert.Equal(t, "parent value", pMergedCfg.A)
 		assert.Equal(t, 500, pMergedCfg.B)
 		assert.Equal(t, "child value", pMergedCfg.C)
 		assert.Equal(t, []string{"parent", "value"}, pMergedCfg.Arrays)
 
-		assert.Same(t, parentCfg.(*internalConfig).internalCache, mConfig.internalCache)
-		assert.Same(t, parentCfg.(*internalConfig).internalCache, childCfg.(*internalConfig).internalCache)
-		assert.Same(t, childCfg.(*internalConfig).internalCache, mConfig.internalCache)
-		assert.NotSame(t, parentCfg.(*internalConfig).filterConfig, mConfig.filterConfig)
-		assert.Same(t, childCfg.(*internalConfig).filterConfig, mConfig.filterConfig)
+		assert.Same(t, parentCfg.(*internalConfig).internalCache, mergedInternalConfig.internalCache)
+		assert.Same(t, mergedInternalConfig.internalCache, childCfg.(*internalConfig).internalCache)
+		assert.Same(t, parentCfg.(*internalConfig).callbacks, mergedInternalConfig.callbacks)
+		assert.Same(t, mergedInternalConfig.callbacks, childCfg.(*internalConfig).callbacks)
+		assert.NotSame(t, parentCfg.(*internalConfig).filterConfig, mergedInternalConfig.filterConfig)
+		assert.Same(t, mergedInternalConfig.filterConfig, childCfg.(*internalConfig).filterConfig)
 	})
 
-	t.Run("with config | Always use Child config", func(t *testing.T) {
+	t.Run("with filter config | Always use Child config", func(t *testing.T) {
 		cp := newConfigParser(ConfigOptions{
 			FilterConfig:         new(dummyConfig),
 			AlwaysUseChildConfig: true,
@@ -130,29 +174,30 @@ func TestConfigParser(t *testing.T) {
 
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
-		childCfg, err := cp.Parse(childConfigAny, mockCC)
+		childCfg, err := cp.Parse(childConfigAny, nil)
 		require.Nil(t, err)
 
 		mergedCfg := cp.Merge(parentCfg, childCfg)
-		mConfig, ok := mergedCfg.(*internalConfig)
+		mergedInternalConfig, ok := mergedCfg.(*internalConfig)
 		assert.True(t, ok)
 
-		pMergedCfg, ok := (mConfig.filterConfig).(*dummyConfig)
+		pMergedCfg, ok := (mergedInternalConfig.filterConfig).(*dummyConfig)
 		assert.True(t, ok)
 		assert.Equal(t, "child value", pMergedCfg.A)
 		assert.Equal(t, 500, pMergedCfg.B)
 		assert.Equal(t, "child value", pMergedCfg.C)
 		assert.Empty(t, pMergedCfg.Arrays)
 
-		assert.Same(t, parentCfg.(*internalConfig).internalCache, mConfig.internalCache)
-		assert.Same(t, parentCfg.(*internalConfig).internalCache, childCfg.(*internalConfig).internalCache)
-		assert.Same(t, childCfg.(*internalConfig).internalCache, mConfig.internalCache)
-		assert.NotSame(t, parentCfg.(*internalConfig).filterConfig, mConfig.filterConfig)
+		assert.Same(t, parentCfg.(*internalConfig).internalCache, mergedInternalConfig.internalCache)
+		assert.Same(t, mergedInternalConfig.internalCache, childCfg.(*internalConfig).internalCache)
+		assert.Same(t, parentCfg.(*internalConfig).callbacks, mergedInternalConfig.callbacks)
+		assert.Same(t, mergedInternalConfig.callbacks, childCfg.(*internalConfig).callbacks)
+		assert.NotSame(t, parentCfg.(*internalConfig).filterConfig, mergedInternalConfig.filterConfig)
 		assert.NotSame(t, parentCfg.(*internalConfig).filterConfig, childCfg.(*internalConfig).filterConfig)
 		assert.NotSame(t, parentCfg, childCfg)
-		assert.NotSame(t, parentCfg, mConfig)
-		assert.Same(t, childCfg.(*internalConfig).filterConfig, mConfig.filterConfig)
-		assert.Same(t, childCfg, mConfig)
+		assert.NotSame(t, parentCfg, mergedInternalConfig)
+		assert.Same(t, mergedInternalConfig.filterConfig, childCfg.(*internalConfig).filterConfig)
+		assert.Same(t, childCfg, mergedInternalConfig)
 
 		pParentCfg := (parentCfg.(*internalConfig).filterConfig).(*dummyConfig)
 		pChildCfg := (childCfg.(*internalConfig).filterConfig).(*dummyConfig)
@@ -161,7 +206,7 @@ func TestConfigParser(t *testing.T) {
 		assert.Same(t, pChildCfg.S, pMergedCfg.S)
 	})
 
-	t.Run("with config, mergeable without preserve_root | Parent and Child", func(t *testing.T) {
+	t.Run("with filter config, mergeable without preserve_root | Parent and Child", func(t *testing.T) {
 		otherChildValue, err := structpb.NewStruct(map[string]interface{}{
 			"a": "child value",
 			"b": 500,
@@ -180,14 +225,14 @@ func TestConfigParser(t *testing.T) {
 
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
-		childCfg, err := cp.Parse(otherChildConfigAny, mockCC)
+		childCfg, err := cp.Parse(otherChildConfigAny, nil)
 		require.Nil(t, err)
 
 		mergedCfg := cp.Merge(parentCfg, childCfg)
-		mConfig, ok := mergedCfg.(*internalConfig)
+		mergedInternalConfig, ok := mergedCfg.(*internalConfig)
 		assert.True(t, ok)
 
-		pMergedCfg, ok := (mConfig.filterConfig).(*dummyConfig)
+		pMergedCfg, ok := (mergedInternalConfig.filterConfig).(*dummyConfig)
 		assert.True(t, ok)
 		assert.Equal(t, "parent value", pMergedCfg.A)
 		assert.Equal(t, 500, pMergedCfg.B)

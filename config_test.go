@@ -18,10 +18,11 @@ func TestConfiguration_Metrics(t *testing.T) {
 		return assert.Equal(t, "prefix_foo_key=value_key1=value2", name)
 	})).Return(mock_envoy.NewGaugeMetric(t))
 
-	gc := newInternalConfig(cc, ConfigOptions{
+	gc := newInternalConfig(ConfigOptions{
 		MetricsPrefix: "PREFIX ",
 	})
 
+	gc.callbacks = cc
 	gc.defineCounterMetric("foo_key=value_key1=value2")
 	gc.defineGaugeMetric("foo_key=value_key1=value2")
 }

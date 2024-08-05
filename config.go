@@ -22,9 +22,8 @@ type globalConfig struct {
 	allowResponseBodyWrite bool
 }
 
-func newGlobalConfig(cc api.ConfigCallbacks, options ConfigOptions) *globalConfig {
+func newGlobalConfig(options ConfigOptions) *globalConfig {
 	gc := &globalConfig{
-		callbacks:     cc,
 		internalCache: newCache(),
 		metricPrefix:  options.MetricPrefix,
 

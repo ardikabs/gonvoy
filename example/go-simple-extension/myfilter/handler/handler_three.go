@@ -11,11 +11,11 @@ import (
 )
 
 type HandlerThree struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 	RequestHeaders map[string]string
 }
 
-func (h *HandlerThree) OnRequestHeader(c gonvoy.Context) error {
+func (h *HandlerThree) OnRequestHeader(c gaetway.Context) error {
 	log := c.Log().WithName("handlerThree")
 
 	for k, v := range h.RequestHeaders {
@@ -33,15 +33,15 @@ func (h *HandlerThree) OnRequestHeader(c gonvoy.Context) error {
 	return nil
 }
 
-func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
-	if ct := c.Request().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
+func (h *HandlerThree) OnRequestBody(c gaetway.Context) error {
+	if ct := c.Request().Header.Get(gaetway.HeaderContentType); !strings.Contains(ct, gaetway.MIMEApplicationJSON) {
 		c.Log().Info("payload size", "size", len(c.RequestBody().Bytes()))
 		return nil
 	}
 
 	reqBody := make(map[string]interface{})
 	if err := json.Unmarshal(c.RequestBody().Bytes(), &reqBody); err != nil {
-		return gonvoy.ErrBadRequest
+		return gaetway.ErrBadRequest
 	}
 
 	reqBody["newData"] = "newValue"
@@ -55,7 +55,7 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 
 	b, err := json.MarshalIndent(reqBody, "", "    ")
 	if err != nil {
-		return gonvoy.ErrBadRequest
+		return gaetway.ErrBadRequest
 	}
 
 	c.Log().Info("check request body", "payload", string(b))
@@ -63,38 +63,38 @@ func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
 	return nil
 }
 
-func (h *HandlerThree) OnResponseHeader(c gonvoy.Context) error {
+func (h *HandlerThree) OnResponseHeader(c gaetway.Context) error {
 	switch sc := c.Response().StatusCode; sc {
 	case http.StatusUnauthorized:
-		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
-		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
+		headers := gaetway.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		details := gaetway.MustGetProperty(c, "response.code_details", gaetway.DefaultResponseCodeDetails)
 		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
-			gonvoy.LocalReplyWithHTTPHeaders(headers),
-			gonvoy.LocalReplyWithRCDetails(details))
+			gaetway.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
+			gaetway.LocalReplyWithHTTPHeaders(headers),
+			gaetway.LocalReplyWithRCDetails(details))
 
 	case http.StatusTooManyRequests:
-		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
-		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
+		headers := gaetway.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		details := gaetway.MustGetProperty(c, "response.code_details", gaetway.DefaultResponseCodeDetails)
 		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
-			gonvoy.LocalReplyWithHTTPHeaders(headers),
-			gonvoy.LocalReplyWithRCDetails(details))
+			gaetway.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
+			gaetway.LocalReplyWithHTTPHeaders(headers),
+			gaetway.LocalReplyWithRCDetails(details))
 
 	case http.StatusServiceUnavailable:
-		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
-		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
+		headers := gaetway.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
+		details := gaetway.MustGetProperty(c, "response.code_details", gaetway.DefaultResponseCodeDetails)
 		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
-			gonvoy.LocalReplyWithHTTPHeaders(headers),
-			gonvoy.LocalReplyWithRCDetails(details))
+			gaetway.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
+			gaetway.LocalReplyWithHTTPHeaders(headers),
+			gaetway.LocalReplyWithRCDetails(details))
 	}
 
 	return nil
 }
 
-func (h *HandlerThree) OnResponseBody(c gonvoy.Context) error {
-	if ct := c.Response().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
+func (h *HandlerThree) OnResponseBody(c gaetway.Context) error {
+	if ct := c.Response().Header.Get(gaetway.HeaderContentType); !strings.Contains(ct, gaetway.MIMEApplicationJSON) {
 		return nil
 	}
 

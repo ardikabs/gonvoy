@@ -14,7 +14,7 @@ packages:
       ResponseHeaderMap:
       CounterMetric:
       GaugeMetric:
-  github.com/ardikabs/gonvoy:
+  github.com/ardikabs/gaetway:
     config:
       dir: .
       inpackage: true

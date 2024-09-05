@@ -1,4 +1,4 @@
-package gonvoy
+package gaetway
 
 import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"

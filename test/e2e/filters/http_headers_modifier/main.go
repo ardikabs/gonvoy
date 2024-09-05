@@ -7,11 +7,11 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
+	gaetway.RunHttpFilter(new(Filter), gaetway.ConfigOptions{
 		FilterConfig: new(Config),
 	})
 
-	gonvoy.RunHttpFilter(new(Echoserver), gonvoy.ConfigOptions{})
+	gaetway.RunHttpFilter(new(Echoserver), gaetway.ConfigOptions{})
 }
 
 func main() {}
@@ -22,7 +22,7 @@ func (Filter) Name() string {
 	return "http_headers_modifier"
 }
 
-func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
+func (Filter) OnBegin(c gaetway.RuntimeContext, ctrl gaetway.HttpFilterController) error {
 	cfg, ok := c.GetFilterConfig().(*Config)
 	if !ok {
 		return fmt.Errorf("unexpected configuration type %T, expecting %T", c.GetFilterConfig(), cfg)
@@ -36,18 +36,18 @@ func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController)
 	return nil
 }
 
-func (Filter) OnComplete(c gonvoy.Context) error {
+func (Filter) OnComplete(c gaetway.Context) error {
 	return nil
 }
 
 type Handler struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 
 	RequestHeaders  map[string]string
 	ResponseHeaders map[string]string
 }
 
-func (h *Handler) OnRequestHeader(c gonvoy.Context) error {
+func (h *Handler) OnRequestHeader(c gaetway.Context) error {
 	for k, v := range h.RequestHeaders {
 		c.RequestHeader().Set(k, v)
 	}
@@ -55,7 +55,7 @@ func (h *Handler) OnRequestHeader(c gonvoy.Context) error {
 	return nil
 }
 
-func (h *Handler) OnResponseHeader(c gonvoy.Context) error {
+func (h *Handler) OnResponseHeader(c gaetway.Context) error {
 	for k, v := range h.ResponseHeaders {
 		c.ResponseHeader().Set(k, v)
 	}

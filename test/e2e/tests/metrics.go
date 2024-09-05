@@ -83,7 +83,7 @@ var MetricsTestCase = suite.TestCase{
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				expectedPayload := fmt.Sprintf("envoy_mymetrics_header_appears_total{header_value=\"foobar\",reporter=\"gonvoy\"} %d", expectedCalls)
+				expectedPayload := fmt.Sprintf("envoy_mymetrics_header_appears_total{header_value=\"foobar\",reporter=\"gaetway\"} %d", expectedCalls)
 
 				return strings.Contains(string(body), expectedPayload)
 			}, kit.WaitDuration, kit.TickDuration, "failed to find the metrics")

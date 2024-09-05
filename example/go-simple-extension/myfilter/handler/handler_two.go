@@ -9,10 +9,10 @@ import (
 )
 
 type HandlerTwo struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 }
 
-func (h *HandlerTwo) OnRequestHeader(c gonvoy.Context) error {
+func (h *HandlerTwo) OnRequestHeader(c gaetway.Context) error {
 	log := c.Log().WithName("handlerTwo")
 
 	c.RequestHeader().Add("x-user-id", "0")
@@ -21,15 +21,15 @@ func (h *HandlerTwo) OnRequestHeader(c gonvoy.Context) error {
 	header := c.Request().Header
 
 	if header.Get("x-error") == "403" {
-		return c.String(http.StatusForbidden, "access denied", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
+		return c.String(http.StatusForbidden, "access denied", gaetway.LocalReplyWithHTTPHeaders(gaetway.NewGatewayHeaders()))
 	}
 
 	if header.Get("x-error") == "429" {
-		return c.String(http.StatusTooManyRequests, "rate limit exceeded", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
+		return c.String(http.StatusTooManyRequests, "rate limit exceeded", gaetway.LocalReplyWithHTTPHeaders(gaetway.NewGatewayHeaders()))
 	}
 
 	if header.Get("x-error") == "503" {
-		return c.String(http.StatusServiceUnavailable, "service unavailable", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
+		return c.String(http.StatusServiceUnavailable, "service unavailable", gaetway.LocalReplyWithHTTPHeaders(gaetway.NewGatewayHeaders()))
 	}
 
 	data := new(globaldata)
@@ -43,6 +43,6 @@ func (h *HandlerTwo) OnRequestHeader(c gonvoy.Context) error {
 	return nil
 }
 
-func (h *HandlerTwo) OnResponseHeader(c gonvoy.Context) error {
+func (h *HandlerTwo) OnResponseHeader(c gaetway.Context) error {
 	return nil
 }

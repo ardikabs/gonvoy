@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(new(BodyReadFilter), gonvoy.ConfigOptions{
+	gaetway.RunHttpFilter(new(BodyReadFilter), gaetway.ConfigOptions{
 		FilterConfig: new(Config),
 
 		DisableStrictBodyAccess: true,
@@ -13,7 +13,7 @@ func init() {
 		EnableResponseBodyRead:  true,
 	})
 
-	gonvoy.RunHttpFilter(new(BodyWriteFilter), gonvoy.ConfigOptions{
+	gaetway.RunHttpFilter(new(BodyWriteFilter), gaetway.ConfigOptions{
 		FilterConfig: new(Config),
 
 		DisableStrictBodyAccess: true,
@@ -21,7 +21,7 @@ func init() {
 		EnableResponseBodyWrite: true,
 	})
 
-	gonvoy.RunHttpFilter(new(Echoserver), gonvoy.ConfigOptions{
+	gaetway.RunHttpFilter(new(Echoserver), gaetway.ConfigOptions{
 		DisableStrictBodyAccess: true,
 		EnableRequestBodyRead:   true,
 	})

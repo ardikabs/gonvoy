@@ -10,20 +10,20 @@ func (Echoserver) Name() string {
 	return "echoserver"
 }
 
-func (Echoserver) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
+func (Echoserver) OnBegin(c gaetway.RuntimeContext, ctrl gaetway.HttpFilterController) error {
 	ctrl.AddHandler(EchoHandler{})
 	return nil
 }
 
-func (Echoserver) OnComplete(c gonvoy.Context) error {
+func (Echoserver) OnComplete(c gaetway.Context) error {
 	return nil
 }
 
 type EchoHandler struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 }
 
-func (EchoHandler) OnRequestHeader(c gonvoy.Context) error {
+func (EchoHandler) OnRequestHeader(c gaetway.Context) error {
 	for k, v := range c.Request().Header {
 		c.Log().Info("request header --->", k, v)
 	}

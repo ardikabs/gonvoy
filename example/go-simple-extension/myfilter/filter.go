@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
+	gaetway.RunHttpFilter(new(Filter), gaetway.ConfigOptions{
 		FilterConfig:            new(Config),
 		MetricsPrefix:           "myfilter_",
 		AutoReloadRoute:         true,
@@ -23,13 +23,13 @@ func init() {
 
 type Filter struct{}
 
-var _ gonvoy.HttpFilter = &Filter{}
+var _ gaetway.HttpFilter = &Filter{}
 
 func (f *Filter) Name() string {
 	return "myfilter"
 }
 
-func (f *Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
+func (f *Filter) OnBegin(c gaetway.RuntimeContext, ctrl gaetway.HttpFilterController) error {
 	fcfg := c.GetFilterConfig()
 	cfg, ok := fcfg.(*Config)
 	if !ok {
@@ -42,11 +42,11 @@ func (f *Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterControll
 	return nil
 }
 
-func (f *Filter) OnComplete(c gonvoy.Context) error {
+func (f *Filter) OnComplete(c gaetway.Context) error {
 	c.Metrics().Counter("requests_total",
-		"host", gonvoy.MustGetProperty(c, "request.host", "-"),
-		"method", gonvoy.MustGetProperty(c, "request.method", "-"),
-		"status_code", gonvoy.MustGetProperty(c, "response.code", "-"),
+		"host", gaetway.MustGetProperty(c, "request.host", "-"),
+		"method", gaetway.MustGetProperty(c, "request.method", "-"),
+		"status_code", gaetway.MustGetProperty(c, "response.code", "-"),
 	).Increment(1)
 
 	return nil

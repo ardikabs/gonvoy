@@ -36,7 +36,7 @@ var HttpBodyTestCase = suite.TestCase{
 				req, err := http.NewRequest(http.MethodPost, kit.GetEnvoyHost()+"/listeners", bytes.NewReader([]byte("foo bar")))
 				require.NoError(t, err)
 
-				req.Header.Set("content-type", gonvoy.MIMEApplicationForm)
+				req.Header.Set("content-type", gaetway.MIMEApplicationForm)
 				req.Header.Set("x-inspect-body", "true")
 				resp, err := http.DefaultClient.Do(req)
 				require.NoError(t, err)
@@ -50,7 +50,7 @@ var HttpBodyTestCase = suite.TestCase{
 			req, err := http.NewRequest(http.MethodPost, kit.GetEnvoyHost()+"/listeners", bytes.NewReader([]byte("foo bar")))
 			require.NoError(t, err)
 
-			req.Header.Set("content-type", gonvoy.MIMEApplicationForm)
+			req.Header.Set("content-type", gaetway.MIMEApplicationForm)
 			req.Header.Set("x-inspect-body", "true")
 			req.Header.Set("x-try-write", "request")
 
@@ -97,7 +97,7 @@ var HttpBodyTestCase = suite.TestCase{
 			req, err := http.NewRequest(http.MethodPost, kit.GetEnvoyHost()+"/server_info", bytes.NewReader([]byte("foo bar")))
 			require.NoError(t, err)
 
-			req.Header.Set("content-type", gonvoy.MIMEApplicationForm)
+			req.Header.Set("content-type", gaetway.MIMEApplicationForm)
 			req.Header.Set("x-modify-body", "true")
 			req.Header.Set("x-signature", signature)
 			req.Header.Set("x-mode", "WRITE")

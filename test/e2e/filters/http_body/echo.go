@@ -12,20 +12,20 @@ func (Echoserver) Name() string {
 	return "echoserver"
 }
 
-func (Echoserver) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
+func (Echoserver) OnBegin(c gaetway.RuntimeContext, ctrl gaetway.HttpFilterController) error {
 	ctrl.AddHandler(EchoHandler{})
 	return nil
 }
 
-func (Echoserver) OnComplete(c gonvoy.Context) error {
+func (Echoserver) OnComplete(c gaetway.Context) error {
 	return nil
 }
 
 type EchoHandler struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 }
 
-func (EchoHandler) OnRequestBody(c gonvoy.Context) error {
+func (EchoHandler) OnRequestBody(c gaetway.Context) error {
 	body := c.RequestBody()
 	payload := make(map[string]interface{})
 	if err := json.Unmarshal(body.Bytes(), &payload); err != nil {

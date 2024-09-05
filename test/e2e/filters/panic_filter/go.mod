@@ -2,7 +2,7 @@ module panic_filter
 
 go 1.22.1
 
-require github.com/ardikabs/gonvoy v0.3.0
+require github.com/ardikabs/gaetway v0.3.0
 
 require (
 	cel.dev/expr v0.15.0 // indirect

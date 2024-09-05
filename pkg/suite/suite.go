@@ -35,10 +35,10 @@ type TestSuiteOptions struct {
 	// - {filter} -> filter name
 	// - {filename} -> file name, which are envoy.yaml and filter.so. Both can be overriden through the TestCase.
 	// Example usage:
-	//   FilterLocation: "/home/ardikabs/Workspaces/gonvoy/e2e/filters/{filter}/{filename}" ->
-	//       1. Given 'filter' as the filter name, for a filter named 'helloworld', it translates to /home/ardikabs/Workspaces/gonvoy/e2e/filters/helloworld
-	//       2. For the envoy.yaml file, it translates to /home/ardikabs/Workspaces/gonvoy/e2e/filters/helloworld/envoy.yaml
-	//       3. For the filter.so file, it translates to /home/ardikabs/Workspaces/gonvoy/e2e/filters/helloworld/filter.so
+	//   FilterLocation: "/home/ardikabs/Workspaces/gaetway/e2e/filters/{filter}/{filename}" ->
+	//       1. Given 'filter' as the filter name, for a filter named 'helloworld', it translates to /home/ardikabs/Workspaces/gaetway/e2e/filters/helloworld
+	//       2. For the envoy.yaml file, it translates to /home/ardikabs/Workspaces/gaetway/e2e/filters/helloworld/envoy.yaml
+	//       3. For the filter.so file, it translates to /home/ardikabs/Workspaces/gaetway/e2e/filters/helloworld/filter.so
 	FilterLocation string
 }
 

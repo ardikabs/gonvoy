@@ -1,4 +1,4 @@
-package gonvoy
+package gaetway
 
 import (
 	"bytes"
@@ -53,7 +53,7 @@ type logSink struct {
 	depth int
 }
 
-// newLogger creates a new logr.Logger implementation for Gonvoy.
+// newLogger creates a new logr.Logger implementation for Gaetway.
 func newLogger(callback api.FilterCallbacks) logr.Logger {
 	out := &logWriter{buf: &bytes.Buffer{}}
 

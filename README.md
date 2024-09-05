@@ -1,9 +1,9 @@
-# Gonvoy
+# Gaetway
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/ardikabs/gonvoy.svg)](https://pkg.go.dev/github.com/ardikabs/gonvoy)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ardikabs/gonvoy)](https://goreportcard.com/report/github.com/ardikabs/gonvoy)
-[![Test](https://github.com/ardikabs/gonvoy/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/ardikabs/gonvoy/actions/workflows/test.yaml)
-[![Codecov](https://codecov.io/gh/ardikabs/gonvoy/branch/main/graph/badge.svg)](https://codecov.io/gh/ardikabs/gonvoy)
+[![Go Reference](https://pkg.go.dev/badge/github.com/ardikabs/gaetway.svg)](https://pkg.go.dev/github.com/ardikabs/gaetway)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ardikabs/gaetway)](https://goreportcard.com/report/github.com/ardikabs/gaetway)
+[![Test](https://github.com/ardikabs/gaetway/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/ardikabs/gaetway/actions/workflows/test.yaml)
+[![Codecov](https://codecov.io/gh/ardikabs/gaetway/branch/main/graph/badge.svg)](https://codecov.io/gh/ardikabs/gaetway)
 
 A thin Go framework to write an HTTP Filter extension on Envoy Proxy. It leverages the Envoy [HTTP Golang Filter](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/golang_filter) as its foundation.
 
@@ -21,17 +21,17 @@ A thin Go framework to write an HTTP Filter extension on Envoy Proxy. It leverag
 
 ### Compatibility Matrix
 
-| Gonvoy | Envoy Proxy |
+| Gaetway | Envoy Proxy |
 |-----------------|-----------------|
 | v0.1 |v1.27 |
 | v0.2 | v1.29 |
 | v0.3 | v1.29 |
-| [latest](https://github.com/ardikabs/gonvoy) | v1.30 |
+| [latest](https://github.com/ardikabs/gaetway) | v1.30 |
 
 ## Installation
 
 ```bash
-go get github.com/ardikabs/gonvoy
+go get github.com/ardikabs/gaetway
 ```
 
 ## Development Guide
@@ -49,7 +49,7 @@ go get github.com/ardikabs/gonvoy
 * Clone the project.
 
     ```bash
-    git clone -b plugin git@github.com:ardkabs/gonvoy.git
+    git clone -b plugin git@github.com:ardikabs/gaetway.git
     ```
 
 * Create a meaningful branch

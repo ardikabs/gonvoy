@@ -10,10 +10,10 @@ import (
 )
 
 type HandlerOne struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 }
 
-func (h *HandlerOne) OnRequestHeader(c gonvoy.Context) error {
+func (h *HandlerOne) OnRequestHeader(c gaetway.Context) error {
 	log := c.Log().WithName("handlerOne").WithName("outer").WithName("inner")
 
 	c.RequestHeader().Add("x-key-id", "0")
@@ -22,7 +22,7 @@ func (h *HandlerOne) OnRequestHeader(c gonvoy.Context) error {
 	header := c.Request().Header
 
 	if header.Get("x-error") == "401" {
-		return fmt.Errorf("intentionally return unauthorized, %w", gonvoy.ErrUnauthorized)
+		return fmt.Errorf("intentionally return unauthorized, %w", gaetway.ErrUnauthorized)
 	}
 
 	if header.Get("x-error") == "5xx" {
@@ -35,7 +35,7 @@ func (h *HandlerOne) OnRequestHeader(c gonvoy.Context) error {
 
 	if header.Get("x-error") == "200" {
 		if err := func() error {
-			return c.JSON(http.StatusOK, gonvoy.NewMinimalJSONResponse("SUCCESS", "SUCCESS"), nil)
+			return c.JSON(http.StatusOK, gaetway.NewMinimalJSONResponse("SUCCESS", "SUCCESS"), nil)
 		}(); err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func (h *HandlerOne) OnRequestHeader(c gonvoy.Context) error {
 	return nil
 }
 
-func (h *HandlerOne) OnResponseHeader(c gonvoy.Context) error {
+func (h *HandlerOne) OnResponseHeader(c gaetway.Context) error {
 	c.ResponseHeader().Set("via", "gateway.ardikabs.com")
 	return nil
 }

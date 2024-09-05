@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{})
+	gaetway.RunHttpFilter(new(Filter), gaetway.ConfigOptions{})
 }
 
 func main() {}
@@ -16,20 +16,20 @@ func (Filter) Name() string {
 	return "panic_filter"
 }
 
-func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
+func (Filter) OnBegin(c gaetway.RuntimeContext, ctrl gaetway.HttpFilterController) error {
 	ctrl.AddHandler(Handler{})
 	return nil
 }
 
-func (Filter) OnComplete(c gonvoy.Context) error {
+func (Filter) OnComplete(c gaetway.Context) error {
 	return nil
 }
 
 type Handler struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 }
 
-func (h Handler) OnRequestHeader(c gonvoy.Context) error {
+func (h Handler) OnRequestHeader(c gaetway.Context) error {
 	if c.Request().Header.Get("x-panic-at") == "header" {
 		panic("panic during request header handling")
 	}
@@ -37,7 +37,7 @@ func (h Handler) OnRequestHeader(c gonvoy.Context) error {
 	return nil
 }
 
-func (h Handler) OnResponseHeader(c gonvoy.Context) error {
+func (h Handler) OnResponseHeader(c gaetway.Context) error {
 	if c.Response().Header.Get("x-panic-at") == "header" {
 		panic("panic during response header handling")
 	}

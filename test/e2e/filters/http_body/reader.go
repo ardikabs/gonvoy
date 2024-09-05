@@ -13,7 +13,7 @@ func (BodyReadFilter) Name() string {
 	return "http_body_reader"
 }
 
-func (BodyReadFilter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
+func (BodyReadFilter) OnBegin(c gaetway.RuntimeContext, ctrl gaetway.HttpFilterController) error {
 	cfg, ok := c.GetFilterConfig().(*Config)
 	if !ok {
 		return fmt.Errorf("unexpected configuration type %T, expecting %T", c.GetFilterConfig(), cfg)
@@ -27,18 +27,18 @@ func (BodyReadFilter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterCon
 	return nil
 }
 
-func (BodyReadFilter) OnComplete(c gonvoy.Context) error {
+func (BodyReadFilter) OnComplete(c gaetway.Context) error {
 	return nil
 }
 
 type BodyReadFilterHandler struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 
 	tryWriteOnRequest  bool
 	tryWriteOnResponse bool
 }
 
-func (h *BodyReadFilterHandler) OnRequestHeader(c gonvoy.Context) error {
+func (h *BodyReadFilterHandler) OnRequestHeader(c gaetway.Context) error {
 	header := c.Request().Header
 
 	if v := header.Get("x-inspect-body"); v != "true" {
@@ -56,7 +56,7 @@ func (h *BodyReadFilterHandler) OnRequestHeader(c gonvoy.Context) error {
 	return nil
 }
 
-func (h *BodyReadFilterHandler) OnRequestBody(c gonvoy.Context) error {
+func (h *BodyReadFilterHandler) OnRequestBody(c gaetway.Context) error {
 	body := c.RequestBody()
 
 	c.Log().Info("request body payload --->", "data", body.Bytes(), "size", len(body.Bytes()), "mode", "READ")
@@ -74,7 +74,7 @@ func (h *BodyReadFilterHandler) OnRequestBody(c gonvoy.Context) error {
 	return nil
 }
 
-func (h *BodyReadFilterHandler) OnResponseBody(c gonvoy.Context) error {
+func (h *BodyReadFilterHandler) OnResponseBody(c gaetway.Context) error {
 	body := c.ResponseBody()
 
 	payload := make(map[string]interface{})

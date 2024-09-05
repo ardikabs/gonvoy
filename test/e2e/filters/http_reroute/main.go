@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
+	gaetway.RunHttpFilter(new(Filter), gaetway.ConfigOptions{
 		AutoReloadRoute: true,
 	})
 }
@@ -20,20 +20,20 @@ func (Filter) Name() string {
 	return "http_reroute"
 }
 
-func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
+func (Filter) OnBegin(c gaetway.RuntimeContext, ctrl gaetway.HttpFilterController) error {
 	ctrl.AddHandler(Handler{})
 	return nil
 }
 
-func (Filter) OnComplete(c gonvoy.Context) error {
+func (Filter) OnComplete(c gaetway.Context) error {
 	return nil
 }
 
 type Handler struct {
-	gonvoy.PassthroughHttpFilterHandler
+	gaetway.PassthroughHttpFilterHandler
 }
 
-func (h Handler) OnRequestHeader(c gonvoy.Context) error {
+func (h Handler) OnRequestHeader(c gaetway.Context) error {
 	header := c.Request().Header
 
 	if v := header.Get("x-route-to"); v == "staticreply" {

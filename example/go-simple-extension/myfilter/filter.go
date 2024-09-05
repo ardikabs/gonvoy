@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"go-simple-extension/myfilter/handler"
 
-	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gaetway"
 )
 
 func init() {

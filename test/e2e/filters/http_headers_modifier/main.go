@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gaetway"
 )
 
 func init() {

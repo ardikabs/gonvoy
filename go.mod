@@ -1,4 +1,4 @@
-module github.com/ardikabs/gonvoy
+module github.com/ardikabs/gaetway
 
 go 1.22.1
 

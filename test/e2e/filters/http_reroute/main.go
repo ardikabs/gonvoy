@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gaetway"
 )
 
 func init() {

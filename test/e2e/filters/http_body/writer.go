@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gaetway"
 )
 
 type BodyWriteFilter struct{}

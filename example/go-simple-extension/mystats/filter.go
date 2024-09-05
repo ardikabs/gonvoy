@@ -1,7 +1,7 @@
 package mystats
 
 import (
-	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gaetway"
 )
 
 func init() {

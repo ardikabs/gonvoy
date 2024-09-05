@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
+	mock_envoy "github.com/ardikabs/gaetway/test/mock/envoy"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/stretchr/testify/mock"
 )

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gaetway"
 )
 
 type HandlerThree struct {

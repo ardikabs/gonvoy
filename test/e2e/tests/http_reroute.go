@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ardikabs/gonvoy/pkg/suite"
+	"github.com/ardikabs/gaetway/pkg/suite"
 	"github.com/stretchr/testify/require"
 )
 

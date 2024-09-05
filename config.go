@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/ardikabs/gonvoy/pkg/util"
+	"github.com/ardikabs/gaetway/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 

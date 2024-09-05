@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ardikabs/gonvoy/pkg/util"
+	"github.com/ardikabs/gaetway/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

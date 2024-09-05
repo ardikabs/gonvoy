@@ -3,7 +3,7 @@ package types_test
 import (
 	"testing"
 
-	. "github.com/ardikabs/gonvoy/pkg/types"
+	. "github.com/ardikabs/gaetway/pkg/types"
 	"github.com/stretchr/testify/assert"
 )
 

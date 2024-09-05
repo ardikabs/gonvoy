@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gaetway"
 )
 
 type HandlerTwo struct {

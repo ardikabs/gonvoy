@@ -3,7 +3,7 @@ package gonvoy
 import (
 	"sync"
 
-	"github.com/ardikabs/gonvoy/pkg/util"
+	"github.com/ardikabs/gaetway/pkg/util"
 )
 
 // Cache is an interface that defines methods for storing and retrieving data in an internal cache.

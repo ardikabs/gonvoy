@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gaetway"
 )
 
 type Echoserver struct{}

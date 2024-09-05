@@ -1,6 +1,6 @@
 package main
 
-import "github.com/ardikabs/gonvoy"
+import "github.com/ardikabs/gaetway"
 
 func init() {
 	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{})

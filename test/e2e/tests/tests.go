@@ -3,6 +3,6 @@
 
 package tests
 
-import "github.com/ardikabs/gonvoy/pkg/suite"
+import "github.com/ardikabs/gaetway/pkg/suite"
 
 var TestCases = []suite.TestCase{}

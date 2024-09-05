@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ardikabs/gonvoy/pkg/util"
+	"github.com/ardikabs/gaetway/pkg/util"
 	xds "github.com/cncf/xds/go/xds/type/v3"
 	"github.com/tidwall/gjson"
 

@@ -20,10 +20,10 @@ var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 //			BaseConfig: new(UserHttpFilterConfig),
 //		})
 //	}
-func RunHttpFilter(filterName string, filterFactory func() HttpFilter, options ConfigOptions) {
+func RunHttpFilter(filterName string, filterFactoryFunc func() HttpFilter, options ConfigOptions) {
 	envoy.RegisterHttpFilterFactoryAndConfigParser(
 		filterName,
-		httpFilterFactory(filterFactory),
+		httpFilterFactory(filterFactoryFunc),
 		newConfigParser(options),
 	)
 }
@@ -55,9 +55,9 @@ type HttpFilter interface {
 	OnComplete(c Context) error
 }
 
-func httpFilterFactory(filterFactory func() HttpFilter) api.StreamFilterFactory {
-	if util.IsNil(filterFactory()) {
-		panic("httpFilterFactory: httpFilter shouldn't be a nil")
+func httpFilterFactory(filterFactoryFunc func() HttpFilter) api.StreamFilterFactory {
+	if util.IsNil(filterFactoryFunc()) {
+		panic("httpFilterFactory: filterFactoryFunc shouldn't return nil")
 	}
 
 	return func(cfg interface{}, cb api.FilterCallbackHandler) api.StreamFilter {
@@ -76,7 +76,7 @@ func httpFilterFactory(filterFactory func() HttpFilter) api.StreamFilterFactory 
 			return NoOpHttpFilter
 		}
 
-		manager, err := buildHttpFilterManager(ctx, filterFactory)
+		manager, err := buildHttpFilterManager(ctx, filterFactoryFunc)
 		if err != nil {
 			logger.Error(err, "failed to build HTTP filter manager, ignoring filter ...")
 			return NoOpHttpFilter
@@ -86,10 +86,10 @@ func httpFilterFactory(filterFactory func() HttpFilter) api.StreamFilterFactory 
 	}
 }
 
-func buildHttpFilterManager(c Context, filterFactory func() HttpFilter) (*httpFilterManager, error) {
+func buildHttpFilterManager(c Context, filterFactoryFunc func() HttpFilter) (*httpFilterManager, error) {
 	manager := newHttpFilterManager(c)
 
-	newFilter := filterFactory()
+	newFilter := filterFactoryFunc()
 
 	if err := newFilter.OnBegin(c, manager); err != nil {
 		return nil, fmt.Errorf("failed to start HTTP filter, %w", err)

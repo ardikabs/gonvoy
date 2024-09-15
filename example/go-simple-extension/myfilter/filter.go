@@ -13,7 +13,7 @@ func init() {
 	gonvoy.RunHttpFilter(
 		filterName,
 		func() gonvoy.HttpFilter {
-			return &Filter{}
+			return new(Filter)
 		},
 		gonvoy.ConfigOptions{
 			FilterConfig:            new(Config),

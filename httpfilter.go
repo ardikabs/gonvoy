@@ -89,13 +89,13 @@ func httpFilterFactory(filterFactory func() HttpFilter) api.StreamFilterFactory 
 func buildHttpFilterManager(c Context, filterFactory func() HttpFilter) (*httpFilterManager, error) {
 	manager := newHttpFilterManager(c)
 
-	filter := filterFactory()
+	newFilter := filterFactory()
 
-	if err := filter.OnBegin(c, manager); err != nil {
+	if err := newFilter.OnBegin(c, manager); err != nil {
 		return nil, fmt.Errorf("failed to start HTTP filter, %w", err)
 	}
 
-	manager.completer = func() { httpFilterOnComplete(c, filter) }
+	manager.completer = func() { httpFilterOnComplete(c, newFilter) }
 	return manager, nil
 }
 

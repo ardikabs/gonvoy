@@ -7,7 +7,7 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-const filterName = "http_body_reader"
+const bodyReadFilterName = "http_body_reader"
 
 type BodyReadFilter struct{}
 

@@ -5,7 +5,8 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(filterName,
+	gonvoy.RunHttpFilter(
+		bodyReadFilterName,
 		func() gonvoy.HttpFilter {
 			return new(BodyReadFilter)
 		},
@@ -18,7 +19,8 @@ func init() {
 		},
 	)
 
-	gonvoy.RunHttpFilter(filterName,
+	gonvoy.RunHttpFilter(
+		bodyWriteFilterName,
 		func() gonvoy.HttpFilter {
 			return new(BodyWriteFilter)
 		},
@@ -31,7 +33,8 @@ func init() {
 		},
 	)
 
-	gonvoy.RunHttpFilter(filterName,
+	gonvoy.RunHttpFilter(
+		echoServerName,
 		func() gonvoy.HttpFilter {
 			return new(Echoserver)
 		},

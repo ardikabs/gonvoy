@@ -6,11 +6,9 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-const filterName = "custom_err_response"
-
 func init() {
 	gonvoy.RunHttpFilter(
-		filterName,
+		customErrResponseFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
 		},
@@ -20,8 +18,9 @@ func init() {
 
 func main() {}
 
-type Filter struct{}
+const customErrResponseFilterName = "custom_err_response"
 
+type Filter struct{}
 
 func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	ctrl.AddHandler(Handler{})

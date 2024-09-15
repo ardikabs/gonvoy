@@ -4,11 +4,9 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-const filterName = "panic_filter"
-
 func init() {
 	gonvoy.RunHttpFilter(
-		filterName,
+		panicFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
 		},
@@ -17,6 +15,8 @@ func init() {
 }
 
 func main() {}
+
+const panicFilterName = "panic_filter"
 
 type Filter struct{}
 

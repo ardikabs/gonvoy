@@ -6,11 +6,9 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-const filterName = "http_headers_modifier"
-
 func init() {
 	gonvoy.RunHttpFilter(
-		filterName,
+		headersModifierFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
 		},
@@ -20,7 +18,7 @@ func init() {
 	)
 
 	gonvoy.RunHttpFilter(
-		filterName,
+		echoServerName,
 		func() gonvoy.HttpFilter {
 			return new(Echoserver)
 		},
@@ -29,6 +27,8 @@ func init() {
 }
 
 func main() {}
+
+const headersModifierFilterName = "http_headers_modifier"
 
 type Filter struct{}
 

@@ -4,11 +4,9 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-const filterName = "mymetrics"
-
 func init() {
 	gonvoy.RunHttpFilter(
-		filterName,
+		metricsFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
 		},
@@ -19,6 +17,8 @@ func init() {
 }
 
 func main() {}
+
+const metricsFilterName = "mymetrics"
 
 type Filter struct{}
 

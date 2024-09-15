@@ -2,17 +2,17 @@ package main
 
 import "github.com/ardikabs/gonvoy"
 
-const filterName = "helloworld"
-
 func init() {
 	gonvoy.RunHttpFilter(
-		filterName,
+		helloWorldFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
 		},
 		gonvoy.ConfigOptions{},
 	)
 }
+
+const helloWorldFilterName = "helloworld"
 
 type Filter struct{}
 

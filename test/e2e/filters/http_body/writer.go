@@ -8,11 +8,9 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-type BodyWriteFilter struct{}
+const bodyWriteFilterName = "http_body_writer"
 
-func (BodyWriteFilter) Name() string {
-	return "http_body_writer"
-}
+type BodyWriteFilter struct{}
 
 func (BodyWriteFilter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	cfg, ok := c.GetFilterConfig().(*Config)

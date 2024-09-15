@@ -6,11 +6,9 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-const filterName = "http_reroute"
-
 func init() {
 	gonvoy.RunHttpFilter(
-		filterName,
+		rerouteFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
 		},
@@ -21,6 +19,8 @@ func init() {
 }
 
 func main() {}
+
+const rerouteFilterName = "http_reroute"
 
 type Filter struct{}
 

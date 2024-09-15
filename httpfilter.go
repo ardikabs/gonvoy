@@ -20,13 +20,23 @@ var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 //			BaseConfig: new(UserHttpFilterConfig),
 //		})
 //	}
-func RunHttpFilter(filterName string, filterFactoryFunc func() HttpFilter, options ConfigOptions) {
+func RunHttpFilter(filterName string, filterFactoryFunc HttpFilterFactory, options ConfigOptions) {
 	envoy.RegisterHttpFilterFactoryAndConfigParser(
 		filterName,
 		httpFilterFactory(filterFactoryFunc),
 		newConfigParser(options),
 	)
 }
+
+// HttpFilterFactory defines a factory func for creating an HttpFilter.
+//
+// It is passed to RunHttpFilter & buildHttpFilterManager and called in
+// buildHttpFilterManager to create a new HTTP filter on each request.
+//
+// It should be defined within the init() func of the HTTP filter and
+// must return a struct that satisfies HttpFilter. It may also be used
+// to inject dependencies into this struct, if required by the handler.
+type HttpFilterFactory func() HttpFilter
 
 // HttpFilter defines an interface for an HTTP filter used in Envoy.
 // It provides methods for managing filter names, startup, and completion.
@@ -55,7 +65,7 @@ type HttpFilter interface {
 	OnComplete(c Context) error
 }
 
-func httpFilterFactory(filterFactoryFunc func() HttpFilter) api.StreamFilterFactory {
+func httpFilterFactory(filterFactoryFunc HttpFilterFactory) api.StreamFilterFactory {
 	if util.IsNil(filterFactoryFunc()) {
 		panic("httpFilterFactory: filterFactoryFunc shouldn't return nil")
 	}
@@ -86,7 +96,7 @@ func httpFilterFactory(filterFactoryFunc func() HttpFilter) api.StreamFilterFact
 	}
 }
 
-func buildHttpFilterManager(c Context, filterFactoryFunc func() HttpFilter) (*httpFilterManager, error) {
+func buildHttpFilterManager(c Context, filterFactoryFunc HttpFilterFactory) (*httpFilterManager, error) {
 	manager := newHttpFilterManager(c)
 
 	newFilter := filterFactoryFunc()

@@ -3,6 +3,7 @@ package gonvoy
 import (
 	"fmt"
 
+	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	envoy "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
 )
@@ -55,6 +56,10 @@ type HttpFilter interface {
 }
 
 func httpFilterFactory(filterFactory func() HttpFilter) api.StreamFilterFactory {
+	if util.IsNil(filterFactory()) {
+		panic("httpFilterFactory: httpFilter shouldn't be a nil")
+	}
+
 	return func(cfg interface{}, cb api.FilterCallbackHandler) api.StreamFilter {
 		config, ok := cfg.(*internalConfig)
 		if !ok {

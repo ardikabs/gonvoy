@@ -4,17 +4,21 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
+const filterName = "panic_filter"
+
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{})
+	gonvoy.RunHttpFilter(
+		filterName,
+		func() gonvoy.HttpFilter {
+			return new(Filter)
+		},
+		gonvoy.ConfigOptions{},
+	)
 }
 
 func main() {}
 
 type Filter struct{}
-
-func (Filter) Name() string {
-	return "panic_filter"
-}
 
 func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	ctrl.AddHandler(Handler{})

@@ -7,27 +7,31 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
+const filterName = "myfilter"
+
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
-		FilterConfig:            new(Config),
-		MetricsPrefix:           "myfilter_",
-		AutoReloadRoute:         true,
-		DisableStrictBodyAccess: true,
-		EnableRequestBodyWrite:  true,
-		// EnableResponseBodyRead:         true,
-		// DisableChunkedEncodingRequest:  true,
-		// DisableChunkedEncodingResponse: true,
-	})
+	gonvoy.RunHttpFilter(
+		filterName,
+		func() gonvoy.HttpFilter {
+			return &Filter{}
+		},
+		gonvoy.ConfigOptions{
+			FilterConfig:            new(Config),
+			MetricsPrefix:           "myfilter_",
+			AutoReloadRoute:         true,
+			DisableStrictBodyAccess: true,
+			EnableRequestBodyWrite:  true,
+			// EnableResponseBodyRead:         true,
+			// DisableChunkedEncodingRequest:  true,
+			// DisableChunkedEncodingResponse: true,
+		},
+	)
 
 }
 
 type Filter struct{}
 
 var _ gonvoy.HttpFilter = &Filter{}
-
-func (f *Filter) Name() string {
-	return "myfilter"
-}
 
 func (f *Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	fcfg := c.GetFilterConfig()

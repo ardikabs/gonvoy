@@ -6,21 +6,31 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
-		FilterConfig: new(Config),
-	})
+const filterName = "http_headers_modifier"
 
-	gonvoy.RunHttpFilter(new(Echoserver), gonvoy.ConfigOptions{})
+func init() {
+	gonvoy.RunHttpFilter(
+		filterName,
+		func() gonvoy.HttpFilter {
+			return new(Filter)
+		},
+		gonvoy.ConfigOptions{
+			FilterConfig: new(Config),
+		},
+	)
+
+	gonvoy.RunHttpFilter(
+		filterName,
+		func() gonvoy.HttpFilter {
+			return new(Echoserver)
+		},
+		gonvoy.ConfigOptions{},
+	)
 }
 
 func main() {}
 
 type Filter struct{}
-
-func (Filter) Name() string {
-	return "http_headers_modifier"
-}
 
 func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	cfg, ok := c.GetFilterConfig().(*Config)

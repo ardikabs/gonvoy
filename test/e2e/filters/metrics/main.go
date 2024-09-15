@@ -4,19 +4,23 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
+const filterName = "mymetrics"
+
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
-		MetricsPrefix: "mymetrics_",
-	})
+	gonvoy.RunHttpFilter(
+		filterName,
+		func() gonvoy.HttpFilter {
+			return new(Filter)
+		},
+		gonvoy.ConfigOptions{
+			MetricsPrefix: "mymetrics_",
+		},
+	)
 }
 
 func main() {}
 
 type Filter struct{}
-
-func (Filter) Name() string {
-	return "mymetrics"
-}
 
 func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	ctrl.AddHandler(Handler{})

@@ -7,11 +7,9 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-type BodyReadFilter struct{}
+const filterName = "http_body_reader"
 
-func (BodyReadFilter) Name() string {
-	return "http_body_reader"
-}
+type BodyReadFilter struct{}
 
 func (BodyReadFilter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	cfg, ok := c.GetFilterConfig().(*Config)

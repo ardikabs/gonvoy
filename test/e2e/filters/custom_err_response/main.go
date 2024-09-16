@@ -7,16 +7,20 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{})
+	gonvoy.RunHttpFilter(
+		customErrResponseFilterName,
+		func() gonvoy.HttpFilter {
+			return new(Filter)
+		},
+		gonvoy.ConfigOptions{},
+	)
 }
 
 func main() {}
 
-type Filter struct{}
+const customErrResponseFilterName = "custom_err_response"
 
-func (Filter) Name() string {
-	return "custom_err_response"
-}
+type Filter struct{}
 
 func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	ctrl.AddHandler(Handler{})

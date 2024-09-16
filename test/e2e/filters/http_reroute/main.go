@@ -7,18 +7,22 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
-		AutoReloadRoute: true,
-	})
+	gonvoy.RunHttpFilter(
+		rerouteFilterName,
+		func() gonvoy.HttpFilter {
+			return new(Filter)
+		},
+		gonvoy.ConfigOptions{
+			AutoReloadRoute: true,
+		},
+	)
 }
 
 func main() {}
 
-type Filter struct{}
+const rerouteFilterName = "http_reroute"
 
-func (Filter) Name() string {
-	return "http_reroute"
-}
+type Filter struct{}
 
 func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	ctrl.AddHandler(Handler{})

@@ -5,18 +5,22 @@ import (
 )
 
 func init() {
-	gonvoy.RunHttpFilter(new(Filter), gonvoy.ConfigOptions{
-		MetricsPrefix: "mymetrics_",
-	})
+	gonvoy.RunHttpFilter(
+		metricsFilterName,
+		func() gonvoy.HttpFilter {
+			return new(Filter)
+		},
+		gonvoy.ConfigOptions{
+			MetricsPrefix: "mymetrics_",
+		},
+	)
 }
 
 func main() {}
 
-type Filter struct{}
+const metricsFilterName = "mymetrics"
 
-func (Filter) Name() string {
-	return "mymetrics"
-}
+type Filter struct{}
 
 func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	ctrl.AddHandler(Handler{})

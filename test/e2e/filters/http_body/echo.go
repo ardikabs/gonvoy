@@ -6,11 +6,9 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-type Echoserver struct{}
+const echoServerName = "echoserver"
 
-func (Echoserver) Name() string {
-	return "echoserver"
-}
+type Echoserver struct{}
 
 func (Echoserver) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
 	ctrl.AddHandler(EchoHandler{})

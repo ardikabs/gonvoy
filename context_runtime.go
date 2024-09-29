@@ -8,11 +8,11 @@ import (
 )
 
 func (c *context) StreamInfo() api.StreamInfo {
-	return c.callback.StreamInfo()
+	return c.cb.StreamInfo()
 }
 
 func (c *context) GetProperty(name, defaultVal string) (string, error) {
-	value, err := c.callback.GetProperty(name)
+	value, err := c.cb.GetProperty(name)
 	if err != nil {
 		if errors.Is(err, api.ErrValueNotFound) {
 			return defaultVal, nil

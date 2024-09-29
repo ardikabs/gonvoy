@@ -4,12 +4,12 @@ go 1.22.1
 
 require (
 	github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b
-	github.com/envoyproxy/envoy v1.30.1
+	github.com/envoyproxy/envoy v1.31.2
 	github.com/go-logr/logr v1.4.1
 	github.com/rs/zerolog v1.32.0
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.17.1
-	google.golang.org/protobuf v1.34.0
+	google.golang.org/protobuf v1.34.1
 	k8s.io/apimachinery v0.30.1
 )
 

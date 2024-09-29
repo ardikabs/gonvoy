@@ -140,7 +140,11 @@ func (m *httpFilterManager) AddHandler(handler HttpFilterHandler) {
 }
 
 func (m *httpFilterManager) ServeDecodeFilter(fn HttpFilterDecoderFunc) (res *HttpFilterResult) {
-	res = initHttpFilterResult()
+	if fCtx, ok := m.ctx.(*context); ok {
+		fCtx.pcb = fCtx.cb.DecoderFilterCallbacks()
+	}
+
+	res = newHttpFilterResult()
 	defer res.Finalize(m.ctx, m.errorHandler)
 	if m.first == nil {
 		return
@@ -151,7 +155,11 @@ func (m *httpFilterManager) ServeDecodeFilter(fn HttpFilterDecoderFunc) (res *Ht
 }
 
 func (m *httpFilterManager) ServeEncodeFilter(fn HttpFilterEncoderFunc) (res *HttpFilterResult) {
-	res = initHttpFilterResult()
+	if fCtx, ok := m.ctx.(*context); ok {
+		fCtx.pcb = fCtx.cb.EncoderFilterCallbacks()
+	}
+
+	res = newHttpFilterResult()
 	defer res.Finalize(m.ctx, m.errorHandler)
 	if m.last == nil {
 		return
@@ -167,7 +175,7 @@ func (m *httpFilterManager) Complete() {
 	}
 }
 
-func initHttpFilterResult() *HttpFilterResult {
+func newHttpFilterResult() *HttpFilterResult {
 	return &HttpFilterResult{
 		Action: ActionSkip,
 		Status: api.Continue,

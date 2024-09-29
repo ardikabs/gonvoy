@@ -215,13 +215,13 @@ type Context interface {
 }
 
 // NewContext creates a new context object for the filter.
-func NewContext(cb api.FilterCallbacks, o contextOptions) (Context, error) {
+func NewContext(cb api.FilterCallbackHandler, o contextOptions) (Context, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
 
 	c := &context{
-		callback:   cb,
+		cb:         cb,
 		statusType: api.Continue,
 	}
 
@@ -233,7 +233,8 @@ func NewContext(cb api.FilterCallbacks, o contextOptions) (Context, error) {
 }
 
 type context struct {
-	callback api.FilterCallbacks
+	cb  api.FilterCallbackHandler
+	pcb api.FilterProcessCallbacks
 
 	reqHeaderMap       api.RequestHeaderMap
 	respHeaderMap      api.ResponseHeaderMap

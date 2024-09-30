@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	gonvoy.RunHttpFilter(
+	envoy.RegisterHttpFilter(
 		headersModifierFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
@@ -17,8 +18,8 @@ func init() {
 		},
 	)
 
-	gonvoy.RunHttpFilter(
-		echoServerName,
+	envoy.RegisterHttpFilter(
+		echoServerFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Echoserver)
 		},

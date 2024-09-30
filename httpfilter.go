@@ -5,28 +5,9 @@ import (
 
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
-	envoy "github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http"
 )
 
 var NoOpHttpFilter = &api.PassThroughStreamFilter{}
-
-// RunHttpFilter is an entrypoint for onboarding User's HTTP filters at runtime.
-// It must be declared inside `func init()` blocks in main package.
-// Example usage:
-//
-//	package main
-//	func init() {
-//		RunHttpFilter(filterName, filterFactory, ConfigOptions{
-//			BaseConfig: new(UserHttpFilterConfig),
-//		})
-//	}
-func RunHttpFilter(filterName string, filterFactoryFunc HttpFilterFactory, options ConfigOptions) {
-	envoy.RegisterHttpFilterFactoryAndConfigParser(
-		filterName,
-		httpFilterFactory(filterFactoryFunc),
-		newConfigParser(options),
-	)
-}
 
 // HttpFilterFactory defines a factory func for creating an HttpFilter.
 //
@@ -36,7 +17,7 @@ func RunHttpFilter(filterName string, filterFactoryFunc HttpFilterFactory, optio
 // It should be defined within the init() func of the HTTP filter and
 // must return a struct that satisfies HttpFilter. It may also be used
 // to inject dependencies into this struct, if required by the handler.
-type HttpFilterFactory func() HttpFilter
+type HttpFilterFactoryFunc func() HttpFilter
 
 // HttpFilter defines an interface for an HTTP filter used in Envoy.
 // It provides methods for managing filter names, startup, and completion.
@@ -65,7 +46,7 @@ type HttpFilter interface {
 	OnComplete(c Context) error
 }
 
-func httpFilterFactory(filterFactoryFunc HttpFilterFactory) api.StreamFilterFactory {
+func NewHttpFilterFactory(filterFactoryFunc HttpFilterFactoryFunc) api.StreamFilterFactory {
 	if util.IsNil(filterFactoryFunc()) {
 		panic("httpFilterFactory: filterFactoryFunc shouldn't return nil")
 	}
@@ -96,7 +77,7 @@ func httpFilterFactory(filterFactoryFunc HttpFilterFactory) api.StreamFilterFact
 	}
 }
 
-func buildHttpFilterManager(c Context, filterFactoryFunc HttpFilterFactory) (*httpFilterManager, error) {
+func buildHttpFilterManager(c Context, filterFactoryFunc HttpFilterFactoryFunc) (*httpFilterManager, error) {
 	manager := newHttpFilterManager(c)
 
 	newFilter := filterFactoryFunc()

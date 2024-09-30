@@ -4,11 +4,12 @@ import (
 	"net/http"
 
 	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	gonvoy.RunHttpFilter(
-		customErrResponseFilterName,
+	envoy.RegisterHttpFilter(
+		FilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
 		},
@@ -18,7 +19,7 @@ func init() {
 
 func main() {}
 
-const customErrResponseFilterName = "custom_err_response"
+const FilterName = "custom_err_response"
 
 type Filter struct{}
 

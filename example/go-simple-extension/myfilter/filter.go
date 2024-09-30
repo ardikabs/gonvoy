@@ -5,12 +5,13 @@ import (
 	"go-simple-extension/myfilter/handler"
 
 	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 const filterName = "myfilter"
 
 func init() {
-	gonvoy.RunHttpFilter(
+	envoy.RegisterHttpFilter(
 		filterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)

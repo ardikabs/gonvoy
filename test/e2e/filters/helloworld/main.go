@@ -1,10 +1,13 @@
 package main
 
-import "github.com/ardikabs/gonvoy"
+import (
+	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/envoy"
+)
 
 func init() {
-	gonvoy.RunHttpFilter(
-		helloWorldFilterName,
+	envoy.RegisterHttpFilter(
+		FilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)
 		},
@@ -12,7 +15,7 @@ func init() {
 	)
 }
 
-const helloWorldFilterName = "helloworld"
+const FilterName = "helloworld"
 
 type Filter struct{}
 

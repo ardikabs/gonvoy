@@ -101,7 +101,7 @@ type configParser struct {
 	rootGlobalConfig *internalConfig
 }
 
-func newConfigParser(options ConfigOptions) *configParser {
+func NewConfigParser(options ConfigOptions) api.StreamFilterConfigParser {
 	return &configParser{
 		options:          options,
 		rootGlobalConfig: newInternalConfig(options),

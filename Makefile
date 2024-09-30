@@ -1,5 +1,5 @@
 SHELL				:= /bin/bash
-GOLANGCI_VERSION	= 1.57.2
+GOLANGCI_VERSION	= 1.61.0
 GOLANG_FILES		= $(shell go list ./... | grep -vE '/vendor|/mock'|xargs echo)
 
 .PHONY: help

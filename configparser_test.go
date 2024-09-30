@@ -69,7 +69,7 @@ func TestConfigParser(t *testing.T) {
 	assert.NotNil(t, childConfigAny)
 
 	t.Run("empty config", func(t *testing.T) {
-		cp := newConfigParser(ConfigOptions{})
+		cp := NewConfigParser(ConfigOptions{})
 		parentCfg, err := cp.Parse(&anypb.Any{}, mockCC)
 		require.NoError(t, err)
 
@@ -79,7 +79,7 @@ func TestConfigParser(t *testing.T) {
 	})
 
 	t.Run("filter config unset, fallback to map | Parent Only", func(t *testing.T) {
-		cp := newConfigParser(ConfigOptions{})
+		cp := NewConfigParser(ConfigOptions{})
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
 
@@ -97,7 +97,7 @@ func TestConfigParser(t *testing.T) {
 	})
 
 	t.Run("filter config unset, fallback to map | Parent and Child", func(t *testing.T) {
-		cp := newConfigParser(ConfigOptions{})
+		cp := NewConfigParser(ConfigOptions{})
 		parentCfg, err := cp.Parse(parentConfigAny, mockCC)
 		require.NoError(t, err)
 
@@ -121,7 +121,7 @@ func TestConfigParser(t *testing.T) {
 	})
 
 	t.Run("with filter config | Parent only", func(t *testing.T) {
-		cp := newConfigParser(ConfigOptions{
+		cp := NewConfigParser(ConfigOptions{
 			FilterConfig: new(dummyConfig),
 		})
 
@@ -138,7 +138,7 @@ func TestConfigParser(t *testing.T) {
 	})
 
 	t.Run("with filter config | Parent and Child", func(t *testing.T) {
-		cp := newConfigParser(ConfigOptions{
+		cp := NewConfigParser(ConfigOptions{
 			FilterConfig: new(dummyConfig),
 		})
 
@@ -167,7 +167,7 @@ func TestConfigParser(t *testing.T) {
 	})
 
 	t.Run("with filter config | Always use Child config", func(t *testing.T) {
-		cp := newConfigParser(ConfigOptions{
+		cp := NewConfigParser(ConfigOptions{
 			FilterConfig:         new(dummyConfig),
 			AlwaysUseChildConfig: true,
 		})
@@ -219,7 +219,7 @@ func TestConfigParser(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, otherChildConfigAny)
 
-		cp := newConfigParser(ConfigOptions{
+		cp := NewConfigParser(ConfigOptions{
 			FilterConfig: new(dummyConfig),
 		})
 

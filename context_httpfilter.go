@@ -18,7 +18,7 @@ func (c *context) RequestHeader() Header {
 
 	h := &header{HeaderMap: c.reqHeaderMap}
 	if c.autoReloadRoute {
-		h.clearRouteCache = c.callback.ClearRouteCache
+		h.clearRouteCache = c.cb.ClearRouteCache
 	}
 
 	return h
@@ -64,7 +64,7 @@ func (c *context) SetRequestHost(host string) {
 	c.reqHeaderMap.SetHost(host)
 
 	if c.autoReloadRoute {
-		c.callback.ClearRouteCache()
+		c.cb.ClearRouteCache()
 	}
 }
 
@@ -72,7 +72,7 @@ func (c *context) SetRequestMethod(method string) {
 	c.reqHeaderMap.SetMethod(method)
 
 	if c.autoReloadRoute {
-		c.callback.ClearRouteCache()
+		c.cb.ClearRouteCache()
 	}
 }
 
@@ -80,7 +80,7 @@ func (c *context) SetRequestPath(path string) {
 	c.reqHeaderMap.SetPath(path)
 
 	if c.autoReloadRoute {
-		c.callback.ClearRouteCache()
+		c.cb.ClearRouteCache()
 	}
 }
 
@@ -226,7 +226,7 @@ func (c *context) IsResponseBodyWritable() bool {
 func (c *context) SendResponse(code int, bodyText string, opts ...LocalReplyOption) error {
 	reply := NewLocalReplyOptions(opts...)
 
-	c.callback.SendLocalReply(code, bodyText, reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
+	c.pcb.SendLocalReply(code, bodyText, reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
 	c.committed = true
 	c.statusType = reply.statusType
 
@@ -246,7 +246,7 @@ func (c *context) JSON(code int, body []byte, opts ...LocalReplyOption) error {
 
 	reply.headers.Set(HeaderContentType, MIMEApplicationJSON)
 
-	c.callback.SendLocalReply(code, string(body), reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
+	c.pcb.SendLocalReply(code, string(body), reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
 	c.committed = true
 	c.statusType = reply.statusType
 
@@ -262,7 +262,7 @@ func (c *context) String(code int, s string, opts ...LocalReplyOption) error {
 	}
 
 	reply.headers.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
-	c.callback.SendLocalReply(code, s, reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
+	c.pcb.SendLocalReply(code, s, reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
 	c.committed = true
 	c.statusType = reply.statusType
 
@@ -276,7 +276,7 @@ func (c *context) SkipNextPhase() error {
 }
 
 func (c *context) ReloadRoute() {
-	c.callback.ClearRouteCache()
+	c.cb.ClearRouteCache()
 }
 
 // checkRequestBodyAccessibility checks the accessibility of the request body based on the request header.

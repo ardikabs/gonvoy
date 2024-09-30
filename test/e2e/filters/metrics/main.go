@@ -2,10 +2,11 @@ package main
 
 import (
 	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	gonvoy.RunHttpFilter(
+	envoy.RegisterHttpFilter(
 		metricsFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)

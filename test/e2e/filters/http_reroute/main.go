@@ -4,10 +4,11 @@ import (
 	"net/http"
 
 	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	gonvoy.RunHttpFilter(
+	envoy.RegisterHttpFilter(
 		rerouteFilterName,
 		func() gonvoy.HttpFilter {
 			return new(Filter)

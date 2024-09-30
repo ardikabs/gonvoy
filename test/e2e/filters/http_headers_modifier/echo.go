@@ -4,7 +4,7 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-const echoServerName = "echoserver"
+const echoServerFilterName = "echoserver"
 
 type Echoserver struct{}
 

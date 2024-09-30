@@ -11,6 +11,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type envoyLogger interface {
+	Log(level api.LogType, msg string)
+}
+
 // logWriter is a custom implementation of io.Writer that writes log messages to a buffer.
 type logWriter struct {
 	mu  sync.Mutex
@@ -44,7 +48,7 @@ var _ logr.LogSink = &logSink{}
 
 // logSink is a logr.LogSink implementation that sends log messages to the Envoy context via FilterCallbacks.
 type logSink struct {
-	callback api.FilterCallbacks
+	l envoyLogger
 
 	logger    *zerolog.Logger
 	logWriter *logWriter
@@ -54,7 +58,7 @@ type logSink struct {
 }
 
 // newLogger creates a new logr.Logger implementation for Gonvoy.
-func newLogger(callback api.FilterCallbacks) logr.Logger {
+func newLogger(el envoyLogger) logr.Logger {
 	out := &logWriter{buf: &bytes.Buffer{}}
 
 	writer := zerolog.ConsoleWriter{
@@ -71,7 +75,7 @@ func newLogger(callback api.FilterCallbacks) logr.Logger {
 
 	logger := zerolog.New(writer).Level(zerolog.InfoLevel).With().Caller().Stack().Logger()
 	logSink := &logSink{
-		callback:  callback,
+		l:         el,
 		logWriter: out,
 		logger:    &logger,
 	}
@@ -114,7 +118,7 @@ func (ls *logSink) msg(level api.LogType, e *zerolog.Event, msg string, keysAndV
 	e.CallerSkipFrame(ls.depth)
 	e.Msg(msg)
 
-	ls.callback.Log(level, ls.logWriter.String())
+	ls.l.Log(level, ls.logWriter.String())
 }
 
 // WithName returns a new LogSink with the specified name appended, it splits with "/".

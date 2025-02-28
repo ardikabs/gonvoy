@@ -11,7 +11,9 @@ type httpFilterImpl struct {
 	srv HttpFilterServer
 }
 
-func (f *httpFilterImpl) OnLog() { f.srv.Complete() }
+func (f *httpFilterImpl) OnLog(api.RequestHeaderMap, api.RequestTrailerMap, api.ResponseHeaderMap, api.ResponseTrailerMap) {
+	f.srv.Complete()
+}
 
 func (f *httpFilterImpl) OnDestroy(reason api.DestroyReason) { f.srv = nil }
 
@@ -133,5 +135,7 @@ func (f *httpFilterImpl) handleResponseBody(buffer api.BufferInstance, endStream
 
 func (*httpFilterImpl) DecodeTrailers(api.RequestTrailerMap) api.StatusType  { return api.Continue }
 func (*httpFilterImpl) EncodeTrailers(api.ResponseTrailerMap) api.StatusType { return api.Continue }
-func (*httpFilterImpl) OnLogDownstreamPeriodic()                             {}
-func (*httpFilterImpl) OnLogDownstreamStart()                                {}
+func (*httpFilterImpl) OnLogDownstreamPeriodic(api.RequestHeaderMap, api.RequestTrailerMap, api.ResponseHeaderMap, api.ResponseTrailerMap) {
+}
+func (*httpFilterImpl) OnLogDownstreamStart(api.RequestHeaderMap) {}
+func (*httpFilterImpl) OnStreamComplete()                         {}

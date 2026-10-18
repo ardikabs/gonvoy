@@ -3,8 +3,8 @@
 filter=$1
 with_build=${2-}
 
-defaultGoImageVersion=golang:1.22-bullseye
-defaultEnvoyImageVersion=envoyproxy/envoy:contrib-v1.30-latest
+defaultGoImageVersion=golang:1.26.5-bookworm
+defaultEnvoyImageVersion=envoyproxy/envoy:contrib-v1.40-latest
 
 if [[ "${with_build:+yes}" == "yes" ]]; then
   docker run --rm \

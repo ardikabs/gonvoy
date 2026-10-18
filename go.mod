@@ -1,6 +1,6 @@
 module github.com/ardikabs/gonvoy
 
-go 1.23.1
+go 1.26.5
 
 require (
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78

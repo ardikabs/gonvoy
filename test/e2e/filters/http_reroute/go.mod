@@ -1,6 +1,6 @@
 module http_reroute
 
-go 1.23.1
+go 1.26.5
 
 require github.com/ardikabs/gonvoy v0.3.5
 

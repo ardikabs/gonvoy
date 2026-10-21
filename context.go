@@ -84,46 +84,6 @@ type HttpFilterContext interface {
 	//
 	SetRequestPath(path string)
 
-	// LoadRequestHeaders is a low-level API, it loads HTTP request headers from Envoy during DecodeHeaders phase
-	//
-	LoadRequestHeaders(api.RequestHeaderMap)
-
-	// LoadResponseHeaders is a low-level API, it loads HTTP response headers from Envoy during EncodeHeaders phase
-	//
-	LoadResponseHeaders(api.ResponseHeaderMap)
-
-	// LoadRequestBody is a low-level API, it loads HTTP request body from Envoy during DecodeData phase
-	//
-	LoadRequestBody(buffer api.BufferInstance, endStream bool)
-
-	// LoadResponseBody is a low-level API, it loads HTTP response body from Envoy during EncodeData phase
-	//
-	LoadResponseBody(buffer api.BufferInstance, endStream bool)
-
-	// IsRequestBodyAccessible checks if the request body is accessible for reading or writing.
-	//
-	IsRequestBodyAccessible() bool
-
-	// IsRequestBodyReadable specifies whether an HTTP Request body is readable or not.
-	//
-	IsRequestBodyReadable() bool
-
-	// IsRequestBodyWritable specifies whether an HTTP Request body is writeable or not.
-	//
-	IsRequestBodyWritable() bool
-
-	// IsResponseBodyAccessible checks if the response body is accessible for reading or writing.
-	//
-	IsResponseBodyAccessible() bool
-
-	// IsResponseBodyReadable specifies whether an HTTP Response body is readable or not.
-	//
-	IsResponseBodyReadable() bool
-
-	// IsResponseBodyWritable specifies whether an HTTP Response body is writeable or not.
-	//
-	IsResponseBodyWritable() bool
-
 	// SendResponse dispatches a response with a specified status code, body, and optional localreply options.
 	// Use the JSON() method when you need to respond with a JSON content-type.
 	// For plain text responses, use the String() method.
@@ -161,28 +121,16 @@ type HttpFilterContext interface {
 // RuntimeContext represents the runtime context for the filter in Envoy.
 // It provides various methods to interact with the Envoy proxy and retrieve information about the HTTP traffic.
 type RuntimeContext interface {
+	// Property fetches an Envoy attribute based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
+	// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
+	//
+	Property(name, defaultVal string) (string, error)
+
 	// GetProperty is a helper function to fetch Envoy attributes based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
 	// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
 	//
+	// Deprecated: use Property instead.
 	GetProperty(name, defaultVal string) (string, error)
-
-	// StreamInfo offers an interface for retrieving comprehensive details about the incoming HTTP traffic, including
-	// information such as the route name, filter chain name, dynamic metadata, and more.
-	// It provides direct access to low-level Envoy information, so it's important to use it with a clear understanding of your intent.
-	//
-	StreamInfo() api.StreamInfo
-
-	// GetFilterConfig returns the filter configuration associated with the route.
-	// It defaults to the parent filter configuration if no route filter configuration was found.
-	// Otherwise, once typed_per_filter_config present in the route then it will return the child filter configuration.
-	// Whether these filter configurations can be merged depends on the filter configuration struct tags.
-	//
-	GetFilterConfig() interface{}
-
-	// GetCache returns a Cache.
-	// Use this Cache when variable initialization is expensive or requires a statefulness.
-	//
-	GetCache() Cache
 
 	// Log provides a logger from the plugin to the Envoy Log. It accessible under Envoy `http` and/or `golang` component.
 	// Additionally, only debug, info, and error log levels are being taken into account.
@@ -195,12 +143,33 @@ type RuntimeContext interface {
 	Metrics() Metrics
 }
 
-// Context represents the interface for a context within the filter.
-// It extends the RuntimeContext and HttpFilterContext interfaces.
-type Context interface {
-	RuntimeContext
+// hostContext carries runtime host hooks used by the filter runtime and tests.
+// It is not part of the documented user surface; reach it through
+// FilterConfig, FilterCache, or the phase methods that need it.
+type hostContext interface {
+	Context
 
-	HttpFilterContext
+	// LoadRequestHeaders is a low-level API, it loads HTTP request headers from Envoy during DecodeHeaders phase
+	//
+	LoadRequestHeaders(api.RequestHeaderMap)
+
+	// LoadResponseHeaders is a low-level API, it loads HTTP response headers from Envoy during EncodeHeaders phase
+	//
+	LoadResponseHeaders(api.ResponseHeaderMap)
+
+	// LoadRequestBody is a low-level API, it loads HTTP request body from Envoy during DecodeData phase
+	//
+	LoadRequestBody(buffer api.BufferInstance, endStream bool)
+
+	// LoadResponseBody is a low-level API, it loads HTTP response body from Envoy during EncodeData phase
+	//
+	LoadResponseBody(buffer api.BufferInstance, endStream bool)
+
+	// StreamInfo offers an interface for retrieving comprehensive details about the incoming HTTP traffic, including
+	// information such as the route name, filter chain name, dynamic metadata, and more.
+	// It provides direct access to low-level Envoy information, so it's important to use it with a clear understanding of your intent.
+	//
+	StreamInfo() api.StreamInfo
 
 	// StatusType is a low-level API used to specify the type of status to be communicated to Envoy.
 	//
@@ -212,6 +181,14 @@ type Context interface {
 	//
 	// Returns true if the context has already committed, false otherwise.
 	Committed() bool
+}
+
+// Context represents the interface for a context within the filter.
+// It extends the RuntimeContext and HttpFilterContext interfaces.
+type Context interface {
+	RuntimeContext
+
+	HttpFilterContext
 }
 
 // NewContext creates a new context object for the filter.

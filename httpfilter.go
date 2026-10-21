@@ -51,6 +51,25 @@ func NewHttpFilterFactory(filterFactoryFunc HttpFilterFactoryFunc) api.StreamFil
 		panic("httpFilterFactory: filterFactoryFunc shouldn't return nil")
 	}
 
+	return streamFilterFactory(func(ctx Context) (*httpFilterManager, error) {
+		return buildHttpFilterManager(ctx, filterFactoryFunc)
+	})
+}
+
+// NewFilterChainFactory builds a StreamFilterFactory from a user Filter.
+// A Composer builds its per-request chain through Use; any other Filter
+// runs as a single filter.
+func NewFilterChainFactory(newFilter func() Filter) api.StreamFilterFactory {
+	if newFilter == nil || util.IsNil(newFilter()) {
+		panic("filterChainFactory: newFilter shouldn't return nil")
+	}
+
+	return streamFilterFactory(func(ctx Context) (*httpFilterManager, error) {
+		return buildFilterChainManager(ctx, newFilter)
+	})
+}
+
+func streamFilterFactory(build func(Context) (*httpFilterManager, error)) api.StreamFilterFactory {
 	return func(cfg interface{}, cb api.FilterCallbackHandler) api.StreamFilter {
 		config, ok := cfg.(*internalConfig)
 		if !ok {
@@ -67,7 +86,7 @@ func NewHttpFilterFactory(filterFactoryFunc HttpFilterFactoryFunc) api.StreamFil
 			return NoOpHttpFilter
 		}
 
-		manager, err := buildHttpFilterManager(ctx, filterFactoryFunc)
+		manager, err := build(ctx)
 		if err != nil {
 			logger.Error(err, "failed to build HTTP filter manager, ignoring filter ...")
 			return NoOpHttpFilter
@@ -88,6 +107,55 @@ func buildHttpFilterManager(c Context, filterFactoryFunc HttpFilterFactoryFunc) 
 
 	manager.completer = func() { httpFilterOnComplete(c, newFilter) }
 	return manager, nil
+}
+
+// buildFilterChainManager builds a filter manager from a user Filter.
+// A Composer builds its per-request chain through Use; any other Filter
+// runs as a single filter. A Use error ignores the filter and logs,
+// matching OnBegin failure. The composer owns position zero of its own
+// chain: its implemented phases and OnComplete always run first, then the
+// Use filters. Do not list the composer in its own Use slice.
+func buildFilterChainManager(c Context, newFilter func() Filter) (*httpFilterManager, error) {
+	manager := newHttpFilterManager(c)
+
+	f := newFilter()
+	if util.IsNil(f) {
+		panic("filterChainManager: newFilter shouldn't return nil")
+	}
+
+	if comp, ok := f.(Composer); ok {
+		filters, err := comp.Use(c)
+		if err != nil {
+			c.Log().Error(err, "failed to build HTTP filter chain, ignoring filter ...")
+			return manager, nil
+		}
+
+		// The composer owns position zero of its own chain: its implemented
+		// phases and OnComplete always run first, then the Use filters.
+		// There is no way to skip yourself; leave methods unimplemented instead.
+		manager.AddFilter(f)
+		for _, sf := range filters {
+			manager.AddFilter(sf)
+		}
+
+		return manager, nil
+	}
+
+	manager.AddFilter(f)
+	return manager, nil
+}
+
+func httpFilterChainOnComplete(ctx Context, filters []Filter) {
+	for _, f := range filters {
+		cf, ok := f.(CompleteFilter)
+		if !ok {
+			continue
+		}
+
+		if err := cf.OnComplete(ctx); err != nil {
+			ctx.Log().Error(err, "failed to complete HTTP filter execution")
+		}
+	}
 }
 
 func httpFilterOnComplete(ctx Context, filter HttpFilter) {

@@ -33,6 +33,58 @@ A thin Go framework to write an HTTP Filter extension on Envoy Proxy. It leverag
 go get github.com/ardikabs/gonvoy
 ```
 
+## Quickstart
+
+One handler, plain `net/http` shape. Copy `example/helloworld` and change the function:
+
+```go
+package main
+
+import (
+	"net/http"
+
+	"github.com/ardikabs/gonvoy"
+	"github.com/ardikabs/gonvoy/pkg/envoy"
+)
+
+func init() {
+	envoy.Handle("hello", gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
+		w.Header().Set("x-hello", "world")
+	}))
+}
+
+func main() {}
+```
+
+For layered handling, wrap it — `next.ServeHTTP` sends the request upstream, and
+code after it runs when the upstream response arrives:
+
+```go
+func Auth(next gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+envoy.Handle("auth", gonvoy.Use(Auth))
+```
+
+Build it as a shared library and point Envoy at it:
+
+```bash
+go build -o filter.so -buildmode=c-shared *.go
+```
+
+Need config, body access, metrics, or routing? See `example/go-simple-extension`
+for the same shape with `WithConfig`, `ReadRequestBody`, `Reroute`, and
+`MetricPrefix` options. Return `http.Error(w, ...)` to answer directly;
+anything unhandled keeps flowing, and a panic still becomes a 500 that
+keeps Envoy up.
+
 ## Development Guide
 
 ### Prerequisites

@@ -111,6 +111,7 @@ type httpFilterManager struct {
 	errorHandler ErrorHandler
 	first        HttpFilterProcessor
 	last         HttpFilterProcessor
+	chain        []Filter
 	completer    HttpFilterCompletionFunc
 }
 
@@ -137,6 +138,29 @@ func (m *httpFilterManager) AddHandler(handler HttpFilterHandler) {
 	proc.SetPrevious(m.last)
 	m.last.SetNext(proc)
 	m.last = proc
+}
+
+// AddFilter adds a user Filter to the controller,
+// which should be run during filter startup.
+// It's important to note the order when adding filters.
+// While HTTP requests follow FIFO sequences, HTTP responses follow LIFO sequences.
+func (m *httpFilterManager) AddFilter(f Filter) {
+	if util.IsNil(f) {
+		return
+	}
+
+	proc := newFilterProcessor(f)
+	if m.first == nil {
+		m.first = proc
+		m.last = proc
+		m.chain = append(m.chain, f)
+		return
+	}
+
+	proc.SetPrevious(m.last)
+	m.last.SetNext(proc)
+	m.last = proc
+	m.chain = append(m.chain, f)
 }
 
 func (m *httpFilterManager) ServeDecodeFilter(fn HttpFilterDecoderFunc) (res *HttpFilterResult) {
@@ -172,7 +196,10 @@ func (m *httpFilterManager) ServeEncodeFilter(fn HttpFilterEncoderFunc) (res *Ht
 func (m *httpFilterManager) Complete() {
 	if m.completer != nil {
 		m.completer()
+		return
 	}
+
+	httpFilterChainOnComplete(m.ctx, m.chain)
 }
 
 func newHttpFilterResult() *HttpFilterResult {
@@ -216,7 +243,9 @@ func (res *HttpFilterResult) Finalize(c Context, errorHandler ErrorHandler) {
 
 	switch res.Action {
 	case ActionContinue:
-		res.Status = c.StatusType()
+		if hc, ok := c.(hostContext); ok {
+			res.Status = hc.StatusType()
+		}
 	case ActionPause:
 		res.Status = api.StopAndBuffer
 	case ActionWait:

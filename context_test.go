@@ -5,20 +5,21 @@ import (
 	"testing"
 
 	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-func fakeDummyContext(t *testing.T, config *internalConfig) Context {
+func fakeDummyContext(t *testing.T, config *internalConfig) *context {
 	fc := mock_envoy.NewFilterCallbackHandler(t)
 	c, err := NewContext(fc, contextOptions{config: config})
 	if errors.Is(err, errInternalConfigNotFound) {
-		return c
+		return mustCastToContext(c)
 	}
 
 	require.NoError(t, err)
-	return c
+	return mustCastToContext(c)
 }
 
 func TestContext(t *testing.T) {
@@ -155,4 +156,56 @@ func TestContext(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestContext_Property(t *testing.T) {
+	testcases := []struct {
+		name        string
+		value       string
+		valueErr    error
+		defaultVal  string
+		expected    string
+		expectError bool
+	}{
+		{
+			name:     "found value",
+			value:    "example.com",
+			expected: "example.com",
+		},
+		{
+			name:       "not found returns default",
+			valueErr:   api.ErrValueNotFound,
+			defaultVal: "-",
+			expected:   "-",
+		},
+		{
+			name:       "empty value returns default",
+			defaultVal: "-",
+			expected:   "-",
+		},
+	}
+
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fc := mock_envoy.NewFilterCallbackHandler(t)
+			fc.EXPECT().GetProperty("request.host").Return(tc.value, tc.valueErr)
+
+			c, err := NewContext(fc, contextOptions{config: &internalConfig{}})
+			if !errors.Is(err, errInternalConfigNotFound) {
+				require.NoError(t, err)
+			}
+
+			got, err := c.Property("request.host", tc.defaultVal)
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
 }

@@ -4,12 +4,13 @@ import "errors"
 
 var (
 	// List of errors related to HTTP operations.
+	// HTTP reason phrases are intentionally capitalized.
 	//
-	ErrInternalServer      = errors.New("Internal Server Error")
-	ErrBadRequest          = errors.New("Bad Request")
+	ErrInternalServer      = errors.New("Internal Server Error") //nolint:staticcheck // HTTP reason phrase
+	ErrBadRequest          = errors.New("Bad Request")           //nolint:staticcheck // HTTP reason phrase
 	ErrUnauthorized        = errors.New("Unauthorized")
-	ErrAccessDenied        = errors.New("Access Denied")
-	ErrClientClosedRequest = errors.New("Client Closed Request")
+	ErrAccessDenied        = errors.New("Access Denied")         //nolint:staticcheck // HTTP reason phrase
+	ErrClientClosedRequest = errors.New("Client Closed Request") //nolint:staticcheck // HTTP reason phrase
 
 	// List of errors related to runtime operations.
 	//

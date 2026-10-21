@@ -2,6 +2,7 @@ package gonvoy
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"runtime"
@@ -13,7 +14,7 @@ import (
 
 func (c *context) RequestHeader() Header {
 	if c.reqHeaderMap == nil {
-		panic("The Request Header has not been set up yet. Likely because the filter has not traversed the HTTP request yet. Please refer to the previous HTTP filter behavior.")
+		panic(fmt.Errorf("request header is not accessible in this phase, %w", ErrOperationNotPermitted))
 	}
 
 	h := &header{HeaderMap: c.reqHeaderMap}
@@ -26,7 +27,7 @@ func (c *context) RequestHeader() Header {
 
 func (c *context) ResponseHeader() Header {
 	if c.respHeaderMap == nil {
-		panic("The Response Header has not been set up yet. It is only accessible during the OnResponseHeader or OnResponseBody phases")
+		panic(fmt.Errorf("response header is not accessible in this phase, %w", ErrOperationNotPermitted))
 	}
 
 	return &header{HeaderMap: c.respHeaderMap}
@@ -34,7 +35,7 @@ func (c *context) ResponseHeader() Header {
 
 func (c *context) RequestBody() Body {
 	if c.reqBufferInstance == nil {
-		panic("The Request Body has not been set up yet. Likely because the filter has not traversed the HTTP request yet, or it is being accessed in an incorrect phase, such as outside of OnRequestBody. Please refer to the previous HTTP filter behavior")
+		panic(fmt.Errorf("request body is not accessible in this phase, %w", ErrOperationNotPermitted))
 	}
 
 	return &bodyWriter{
@@ -48,7 +49,7 @@ func (c *context) RequestBody() Body {
 
 func (c *context) ResponseBody() Body {
 	if c.respBufferInstance == nil {
-		panic("The Response Body has not been set up yet. It is only accessible during OnResponseBody phase.")
+		panic(fmt.Errorf("response body is not accessible in this phase, %w", ErrOperationNotPermitted))
 	}
 
 	return &bodyWriter{
@@ -161,7 +162,7 @@ func (c *context) LoadResponseBody(buffer api.BufferInstance, endStream bool) {
 
 func (c *context) Request() *http.Request {
 	if c.httpReq == nil {
-		panic("an HTTP Request has not been set up yet. Likely because the filter has not yet traversed the HTTP request or OnRequestHeader is disabled. Please refer to the previous HTTP filter behavior.")
+		panic(fmt.Errorf("http request is not accessible in this phase, %w", ErrOperationNotPermitted))
 	}
 
 	return c.httpReq
@@ -169,7 +170,7 @@ func (c *context) Request() *http.Request {
 
 func (c *context) Response() *http.Response {
 	if c.httpResp == nil {
-		panic("an HTTP Response has not been set up yet. It is only available during the OnResponseHeader and OnResponseBody phases.")
+		panic(fmt.Errorf("http response is not accessible in this phase, %w", ErrOperationNotPermitted))
 	}
 
 	return c.httpResp

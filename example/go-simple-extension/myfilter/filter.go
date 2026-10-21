@@ -1,7 +1,8 @@
 package httpfilter
 
 import (
-	"fmt"
+	"net/http"
+
 	"go-simple-extension/myfilter/handler"
 
 	"github.com/ardikabs/gonvoy"
@@ -11,48 +12,35 @@ import (
 const filterName = "myfilter"
 
 func init() {
-	envoy.RegisterHttpFilter(
-		filterName,
-		func() gonvoy.HttpFilter {
-			return new(Filter)
-		},
-		gonvoy.ConfigOptions{
-			FilterConfig:            new(Config),
-			MetricsPrefix:           "myfilter_",
-			AutoReloadRoute:         true,
-			DisableStrictBodyAccess: true,
-			EnableRequestBodyWrite:  true,
-			// EnableResponseBodyRead:         true,
-			// DisableChunkedEncodingRequest:  true,
-			// DisableChunkedEncodingResponse: true,
-		},
+	envoy.Handle(filterName,
+		gonvoy.Use(
+			CountRequests,
+			handler.One,
+			handler.Two,
+			handler.Three,
+		),
+		gonvoy.WithConfig(new(handler.Config)),
+		gonvoy.MetricPrefix("myfilter_"),
+		gonvoy.ReloadRoute(),
+		gonvoy.OpenBodyAccess(),
+		gonvoy.ReadRequestBody(),
+		gonvoy.WriteRequestBody(),
 	)
-
 }
 
-type Filter struct{}
+// CountRequests records a per-request counter after the chain runs,
+// mirroring the old OnComplete hook.
+func CountRequests(next gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
 
-var _ gonvoy.HttpFilter = &Filter{}
+		host, _ := gonvoy.Attr(r, "request.host", "-")
+		method, _ := gonvoy.Attr(r, "request.method", "-")
 
-func (f *Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
-	fcfg := c.GetFilterConfig()
-	cfg, ok := fcfg.(*Config)
-	if !ok {
-		return fmt.Errorf("unexpected configuration type %T, expecting %T", fcfg, cfg)
-	}
-
-	ctrl.AddHandler(&handler.HandlerOne{})
-	ctrl.AddHandler(&handler.HandlerTwo{})
-	ctrl.AddHandler(&handler.HandlerThree{RequestHeaders: cfg.RequestHeaders})
-	return nil
-}
-
-func (f *Filter) OnComplete(c gonvoy.Context) error {
-	c.Metrics().Counter("requests_total",
-		"host", gonvoy.MustGetProperty(c, "request.host", "-"),
-		"method", gonvoy.MustGetProperty(c, "request.method", "-"),
-		"status_code", gonvoy.MustGetProperty(c, "response.code", "-"),
-	).Increment(1)
-
-	return nil
+		gonvoy.Stats(r).Counter("requests_total",
+			"host", host,
+			"method", method,
+			"status_code", "-",
+		).Increment(1)
+	})
 }

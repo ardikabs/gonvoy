@@ -8,41 +8,39 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-type HandlerTwo struct {
-	gonvoy.PassthroughHttpFilterHandler
-}
+func Two(next gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
+		log := gonvoy.Log(r).WithName("handlerTwo")
 
-func (h *HandlerTwo) OnRequestHeader(c gonvoy.Context) error {
-	log := c.Log().WithName("handlerTwo")
+		r.Header.Add("x-user-id", "0")
+		r.Header.Add("x-user-id", "1")
 
-	c.RequestHeader().Add("x-user-id", "0")
-	c.RequestHeader().Add("x-user-id", "1")
+		header := r.Header
 
-	header := c.Request().Header
+		if header.Get("x-error") == "403" {
+			plain(w, http.StatusForbidden, "access denied")
+			return
+		}
 
-	if header.Get("x-error") == "403" {
-		return c.String(http.StatusForbidden, "access denied", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
-	}
+		if header.Get("x-error") == "429" {
+			plain(w, http.StatusTooManyRequests, "rate limit exceeded")
+			return
+		}
 
-	if header.Get("x-error") == "429" {
-		return c.String(http.StatusTooManyRequests, "rate limit exceeded", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
-	}
+		if header.Get("x-error") == "503" {
+			plain(w, http.StatusServiceUnavailable, "service unavailable")
+			return
+		}
 
-	if header.Get("x-error") == "503" {
-		return c.String(http.StatusServiceUnavailable, "service unavailable", gonvoy.LocalReplyWithHTTPHeaders(gonvoy.NewGatewayHeaders()))
-	}
+		data := new(globaldata)
+		if ok, err := gonvoy.SharedCache(r).Load(GLOBAL, &data); ok && err == nil {
+			data.Time2 = time.Now()
+			log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
+			gonvoy.SharedCache(r).Store(GLOBAL, data)
+		}
 
-	data := new(globaldata)
-	if ok, err := c.GetCache().Load(GLOBAL, &data); ok && err == nil {
-		data.Time2 = time.Now()
-		log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
-		c.GetCache().Store(GLOBAL, data)
-	}
+		log.Info("handling request", "host", r.Host, "path", r.URL.Path, "method", r.Method, "query", r.URL.Query())
 
-	log.Info("handling request", "host", c.Request().Host, "path", c.Request().URL.Path, "method", c.Request().Method, "query", c.Request().URL.Query())
-	return nil
-}
-
-func (h *HandlerTwo) OnResponseHeader(c gonvoy.Context) error {
-	return nil
+		next.ServeHTTP(w, r)
+	})
 }

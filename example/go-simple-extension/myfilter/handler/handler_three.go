@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -10,105 +12,93 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-type HandlerThree struct {
-	gonvoy.PassthroughHttpFilterHandler
-	RequestHeaders map[string]string
+func Three(next gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
+		log := gonvoy.Log(r).WithName("handlerThree")
+
+		var reqHeaders map[string]string
+		if cfg, err := gonvoy.Config[*Config](r); err == nil && cfg != nil {
+			reqHeaders = cfg.RequestHeaders
+		}
+
+		for k, v := range reqHeaders {
+			r.Header.Set(k, v)
+		}
+
+		data := new(globaldata)
+		if ok, err := gonvoy.SharedCache(r).Load(GLOBAL, &data); ok && err == nil {
+			data.Time3 = time.Now()
+			log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
+			gonvoy.SharedCache(r).Store(GLOBAL, data)
+		}
+
+		log.Info("handling request", "request", r.Header)
+
+		if ct := r.Header.Get(gonvoy.HeaderContentType); strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			reqBody := make(map[string]interface{})
+			if err := json.Unmarshal(body, &reqBody); err != nil {
+				badRequest(w, "unexpected payload")
+				return
+			}
+
+			reqBody["newData"] = "newValue"
+			reqBody["handlerName"] = "HandlerThree"
+			reqBody["phase"] = "HTTPRequest"
+
+			replaced, err := json.Marshal(reqBody)
+			if err != nil {
+				badRequest(w, "unexpected payload")
+				return
+			}
+
+			r.Body = io.NopCloser(bytes.NewReader(replaced))
+		} else {
+			log.Info("payload size", "size", len(mustReadAll(r)))
+		}
+
+		next.ServeHTTP(w, r)
+
+		if ct := w.Header().Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
+			return
+		}
+
+		resp, err := gonvoy.ResponseBody(r)
+		if err != nil {
+			return
+		}
+
+		raw, err := io.ReadAll(resp)
+		if err != nil {
+			return
+		}
+
+		respBody := make(map[string]interface{})
+		if err := json.Unmarshal(raw, &respBody); err != nil {
+			gonvoy.Log(r).Error(err, fmt.Sprintf("expecting data type %T, got %v", respBody, string(raw)))
+			gonvoy.Log(r).Info("skipping response body manipulation ...")
+			return
+		}
+
+		respBody["newData"] = "newValue"
+		respBody["handlerName"] = "HandlerThree"
+		respBody["phase"] = "HTTPResponse"
+
+		changed, err := json.Marshal(respBody)
+		if err != nil {
+			return
+		}
+
+		_, _ = w.Write(changed)
+	})
 }
 
-func (h *HandlerThree) OnRequestHeader(c gonvoy.Context) error {
-	log := c.Log().WithName("handlerThree")
-
-	for k, v := range h.RequestHeaders {
-		c.RequestHeader().Set(k, v)
-	}
-
-	data := new(globaldata)
-	if ok, err := c.GetCache().Load(GLOBAL, &data); ok && err == nil {
-		data.Time3 = time.Now()
-		log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
-		c.GetCache().Store(GLOBAL, data)
-	}
-
-	log.Info("handling request", "request", c.RequestHeader().Export())
-	return nil
-}
-
-func (h *HandlerThree) OnRequestBody(c gonvoy.Context) error {
-	if ct := c.Request().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
-		c.Log().Info("payload size", "size", len(c.RequestBody().Bytes()))
-		return nil
-	}
-
-	reqBody := make(map[string]interface{})
-	if err := json.Unmarshal(c.RequestBody().Bytes(), &reqBody); err != nil {
-		return gonvoy.ErrBadRequest
-	}
-
-	reqBody["newData"] = "newValue"
-	reqBody["handlerName"] = "HandlerThree"
-	reqBody["phase"] = "HTTPRequest"
-
-	if c.IsRequestBodyWritable() {
-		enc := json.NewEncoder(c.RequestBody())
-		return enc.Encode(reqBody)
-	}
-
-	b, err := json.MarshalIndent(reqBody, "", "    ")
-	if err != nil {
-		return gonvoy.ErrBadRequest
-	}
-
-	c.Log().Info("check request body", "payload", string(b))
-
-	return nil
-}
-
-func (h *HandlerThree) OnResponseHeader(c gonvoy.Context) error {
-	switch sc := c.Response().StatusCode; sc {
-	case http.StatusUnauthorized:
-		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
-		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
-		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "UNAUTHORIZED"),
-			gonvoy.LocalReplyWithHTTPHeaders(headers),
-			gonvoy.LocalReplyWithRCDetails(details))
-
-	case http.StatusTooManyRequests:
-		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
-		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
-		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("TOO_MANY_REQUESTS", "TOO_MANY_REQUESTS"),
-			gonvoy.LocalReplyWithHTTPHeaders(headers),
-			gonvoy.LocalReplyWithRCDetails(details))
-
-	case http.StatusServiceUnavailable:
-		headers := gonvoy.NewGatewayHeadersWithEnvoyHeader(c.ResponseHeader())
-		details := gonvoy.MustGetProperty(c, "response.code_details", gonvoy.DefaultResponseCodeDetails)
-		return c.JSON(sc,
-			gonvoy.NewMinimalJSONResponse("SERVICE_UNAVAILABLE", "SERVICE_UNAVAILABLE"),
-			gonvoy.LocalReplyWithHTTPHeaders(headers),
-			gonvoy.LocalReplyWithRCDetails(details))
-	}
-
-	return nil
-}
-
-func (h *HandlerThree) OnResponseBody(c gonvoy.Context) error {
-	if ct := c.Response().Header.Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
-		return nil
-	}
-
-	respBody := make(map[string]interface{})
-	if err := json.Unmarshal(c.ResponseBody().Bytes(), &respBody); err != nil {
-		c.Log().Error(err, fmt.Sprintf("expecting data type %T, got %v", respBody, string(c.ResponseBody().Bytes())))
-		c.Log().Info("skipping response body manipulation ...")
-		return nil
-	}
-
-	respBody["newData"] = "newValue"
-	respBody["handlerName"] = "HandlerThree"
-	respBody["phase"] = "HTTPResponse"
-
-	enc := json.NewEncoder(c.ResponseBody())
-	return enc.Encode(respBody)
+func mustReadAll(r *http.Request) []byte {
+	b, _ := io.ReadAll(r.Body)
+	return b
 }

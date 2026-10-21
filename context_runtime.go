@@ -12,6 +12,12 @@ func (c *context) StreamInfo() api.StreamInfo {
 }
 
 func (c *context) GetProperty(name, defaultVal string) (string, error) {
+	return c.Property(name, defaultVal)
+}
+
+// Property fetches an Envoy attribute based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
+// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
+func (c *context) Property(name, defaultVal string) (string, error) {
 	value, err := c.cb.GetProperty(name)
 	if err != nil {
 		if errors.Is(err, api.ErrValueNotFound) {

@@ -25,6 +25,18 @@ func init() {
 				r.Method = http.MethodPost
 			}
 
+			if v := header.Get("x-refresh"); v == "true" {
+				gonvoy.RefreshRouteCache(r.Context())
+				gonvoy.Terminal{}.ServeHTTP(w, r)
+				return
+			}
+
+			if v := header.Get("x-override-to"); v != "" {
+				gonvoy.OverrideUpstreamHost(r, v, true)
+				gonvoy.Terminal{}.ServeHTTP(w, r)
+				return
+			}
+
 			if r.Header.Get("x-route-to") != "" || r.Header.Get("x-path-changed-to") != "" || r.Header.Get("x-changed-host") == "true" {
 				gonvoy.Reroute(r)
 			}

@@ -189,6 +189,7 @@ func (f *bridgeFilter) applyPendingBody(ex *bridgeExchange, buffer api.BufferIns
 func (f *bridgeFilter) applyResponseDecision(ex *bridgeExchange, header api.ResponseHeaderMap, buffer api.BufferInstance, endStream bool, sig brSignal) api.StatusType {
 	c := f.ctx
 	f.flushMetrics(ex)
+	f.applyDrain(ex)
 
 	switch sig {
 	case brNeedBody:
@@ -414,6 +415,7 @@ func (ex *bridgeExchange) drainDecision() (brSignal, bool) {
 // asked for more body, in which case more is guaranteed to arrive.
 func (f *bridgeFilter) applyRequestDecision(ex *bridgeExchange, header api.RequestHeaderMap, buffer api.BufferInstance, endStream bool, sig brSignal) api.StatusType {
 	f.flushMetrics(ex)
+	f.applyDrain(ex)
 
 	switch sig {
 	case brNeedBody:
@@ -456,7 +458,9 @@ func (f *bridgeFilter) propagateRequestLine(ex *bridgeExchange, live api.Request
 func (f *bridgeFilter) applyProceed(ex *bridgeExchange, header api.RequestHeaderMap, buffer api.BufferInstance, endStream bool) api.StatusType {
 	c := f.ctx
 
-	f.applyRequestMutations(ex, header)
+	if err := f.applyRequestMutations(ex, header); err != nil {
+		return f.errorHandler(c, err)
+	}
 
 	if len(ex.replacedBody) > 0 {
 		if !c.IsRequestBodyWritable() {
@@ -512,7 +516,10 @@ func (f *bridgeFilter) applyDone(ex *bridgeExchange) api.StatusType {
 	if !w.wroteHeader && len(w.body) == 0 {
 		// No answer written: mutations still apply, mirroring immediate
 		// setters, and the stream continues upstream.
-		f.applyRequestMutations(ex, nil)
+		if err := f.applyRequestMutations(ex, nil); err != nil {
+			return f.errorHandler(f.ctx, err)
+		}
+
 		return api.Continue
 	}
 
@@ -520,9 +527,11 @@ func (f *bridgeFilter) applyDone(ex *bridgeExchange) api.StatusType {
 }
 
 // applyRequestMutations pushes handler-side request mutations (headers,
-// path/host/method) to the live Envoy map. It runs on every
-// request-completion path, mirroring the old immediate setters.
-func (f *bridgeFilter) applyRequestMutations(ex *bridgeExchange, header api.RequestHeaderMap) {
+// path/host/method, upstream override, route reload) to the live Envoy
+// map. It runs on every request-completion path, mirroring the old
+// immediate setters. An upstream-override failure is the only error:
+// Envoy rejects hosts that are not an IP address with a port.
+func (f *bridgeFilter) applyRequestMutations(ex *bridgeExchange, header api.RequestHeaderMap) error {
 	c := f.ctx
 
 	var live api.HeaderMap = header
@@ -545,8 +554,32 @@ func (f *bridgeFilter) applyRequestMutations(ex *bridgeExchange, header api.Requ
 		f.propagateRequestLine(ex, reqMap)
 	}
 
-	if ex.reroute || (c.autoReloadRoute && f.requestMutated(ex)) {
+	if ex.hasOverride {
+		if err := c.cb.DecoderFilterCallbacks().SetUpstreamOverrideHost(ex.overrideHost, ex.overrideStrict); err != nil {
+			return fmt.Errorf("failed to override upstream host, %w", err)
+		}
+	}
+
+	if ex.refreshRoute && !ex.refreshDone {
+		ex.refreshDone = true
+		c.cb.RefreshRouteCache()
+	} else if ex.reroute || (c.autoReloadRoute && f.requestMutated(ex)) {
 		c.ReloadRoute()
+	}
+
+	return nil
+}
+
+// applyDrain marks the connection for drain after the current request
+// completes. It runs on every decision point so a flag set at any phase
+// takes effect exactly once. A nil stream info (unit tests) still consumes
+// the flag without calling Envoy.
+func (f *bridgeFilter) applyDrain(ex *bridgeExchange) {
+	if ex.drain && !ex.drainApplied {
+		ex.drainApplied = true
+		if ex.streamInfo != nil {
+			ex.streamInfo.DrainConnectionUponCompletion()
+		}
 	}
 }
 
@@ -624,6 +657,18 @@ func (f *bridgeFilter) newExchange(header api.RequestHeaderMap, endStream bool) 
 		ex.origPath = r.URL.Path
 	}
 
+	if si := c.cb.StreamInfo(); si != nil {
+		ex.streamInfo = si
+		if sc := si.DownstreamSslConnection(); sc != nil {
+			ex.tls = snapshotTLS(sc)
+			ex.tlsOK = true
+		}
+	}
+
+	ex.secretLookup = func(name string) (string, bool) {
+		return c.cb.SecretManager().GetGenericSecret(name)
+	}
+
 	ex.hooks = bridgeHooks{
 		attr: func(name string) (string, bool) {
 			ex.attrMu.Lock()
@@ -631,7 +676,14 @@ func (f *bridgeFilter) newExchange(header api.RequestHeaderMap, endStream bool) 
 			v, ok := ex.attrs[name]
 			return v, ok
 		},
-		reroute:     func() { ex.reroute = true },
+		reroute: func() { ex.reroute = true },
+		overrideUpstream: func(host string, strict bool) {
+			ex.overrideHost, ex.overrideStrict, ex.hasOverride = host, strict, true
+		},
+		drain: func() { ex.drain = true },
+		secret: func(name string) (string, bool) {
+			return ex.requestSecret(name)
+		},
 		log:         func() logr.Logger { return c.Log() },
 		sharedCache: func() Cache { return c.GetCache() },
 		emitMetric: func(op MetricOp) {

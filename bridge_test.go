@@ -45,6 +45,7 @@ func fakeBridgeContext(t *testing.T, req, resp string) *context {
 	fc.EXPECT().DecoderFilterCallbacks().Return(fakeDecoderCallbacks{}).Maybe()
 	fc.EXPECT().EncoderFilterCallbacks().Return(fakeEncoderCallbacks{}).Maybe()
 	fc.EXPECT().GetProperty(mock.Anything).Return("", nil).Maybe()
+	fc.EXPECT().StreamInfo().Return(nil).Maybe()
 
 	c, err := NewContext(fc, contextOptions{config: &internalConfig{
 		internalCache:          newInternalCache(),
@@ -404,6 +405,7 @@ func TestBridgeAccessors_Wired(t *testing.T) {
 	fc.EXPECT().DecoderFilterCallbacks().Return(fakeDecoderCallbacks{}).Maybe()
 	fc.EXPECT().EncoderFilterCallbacks().Return(fakeEncoderCallbacks{}).Maybe()
 	fc.EXPECT().GetProperty(mock.Anything).Return("", nil).Maybe()
+	fc.EXPECT().StreamInfo().Return(nil).Maybe()
 
 	c, err := NewContext(fc, contextOptions{
 		logger: logr.Discard(),

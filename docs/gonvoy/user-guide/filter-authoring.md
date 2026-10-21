@@ -152,7 +152,7 @@ envoy.Handle("guard",
 )
 ```
 
-Route config merges into listener config field by field. Fields tagged `envoy:"mergeable"` take part; `envoy:"preserve_root"` keeps the listener value when the route value is empty. Use `gonvoy.RouteConfigWins()` to let the route replace the listener config wholesale, and `gonvoy.OnConfigError(envoy.UseListener)` to fall back to the listener config when a merge fails (the default stops the plugin).
+Route config merges into listener config field by field. Fields tagged `envoy:"mergeable"` take part; `envoy:"preserve_root"` keeps the listener value when the route value is empty. Use `gonvoy.RouteConfigWins()` to let the route replace the listener config wholesale, and `gonvoy.OnConfigError(gonvoy.UseListener)` to fall back to the listener config when a merge fails (the default stops the plugin).
 
 ## Changing the route
 

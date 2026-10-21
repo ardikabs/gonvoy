@@ -48,6 +48,16 @@ func newInternalConfig(options ConfigOptions) *internalConfig {
 
 }
 
+// Destroy releases resources held by the filter config. It forwards to the
+// user config when it implements Destroy. The framework may call Destroy
+// once per config instance it created (parent and merged route configs
+// share nothing), so a user Destroy must be idempotent.
+func (c *internalConfig) Destroy() {
+	if d, ok := c.filterConfig.(interface{ Destroy() }); ok {
+		d.Destroy()
+	}
+}
+
 func (c *internalConfig) defineCounterMetric(name string) api.CounterMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
 	return c.callbacks.DefineCounterMetric(name)

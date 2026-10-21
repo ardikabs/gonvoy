@@ -133,6 +133,20 @@ var HttpBodyTestCase = suite.TestCase{
 			require.Equal(t, signature, payload["signature"])
 			require.Contains(t, payload, "isModified")
 			require.Contains(t, payload, "modifiedAt")
+
+			t.Run("ReadSecret - fetch generic secret", func(t *testing.T) {
+				req, err := http.NewRequest(http.MethodGet, kit.GetEnvoyHost()+"/server_info", nil)
+				require.NoError(t, err)
+
+				req.Header.Set("x-mode", "READ")
+				req.Header.Set("x-get-secret", "e2e-token")
+
+				resp, err := http.DefaultClient.Do(req)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				require.Equal(t, "s3cr3t", resp.Header.Get("x-secret-value"))
+			})
 		})
 	},
 }

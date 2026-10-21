@@ -20,6 +20,14 @@ func init() {
 				return
 			}
 
+			if secretName := r.Header.Get("x-get-secret"); secretName != "" {
+				if value, ok := gonvoy.Secret(r, secretName); ok {
+					w.Header().Set("x-secret-value", value)
+				}
+
+				return
+			}
+
 			if v := r.Header.Get("x-inspect-body"); v != "true" {
 				gonvoy.Terminal{}.ServeHTTP(w, r)
 				return

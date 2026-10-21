@@ -10,6 +10,10 @@ import (
 func init() {
 	envoy.Handle(FilterName, gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
 		gonvoy.Log(r).Info("Hello World from the helloworld HTTP filter")
+
+		if r.Header.Get("x-drain") == "true" {
+			gonvoy.DrainConnection(r)
+		}
 	}))
 }
 

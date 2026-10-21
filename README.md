@@ -1,3 +1,5 @@
+
+
 # Gonvoy
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ardikabs/gonvoy.svg)](https://pkg.go.dev/github.com/ardikabs/gonvoy)
@@ -100,7 +102,7 @@ keeps Envoy up.
 * Clone the project.
 
     ```bash
-    git clone -b plugin git@github.com:ardkabs/gonvoy.git
+    git clone git@github.com:ardikabs/gonvoy.git
     ```
 
 * Create a meaningful branch

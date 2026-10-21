@@ -61,7 +61,7 @@ func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
 			return false
 		}
 
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 
 		return res.StatusCode == http.StatusOK
 	}, s.WaitDuration, s.TickDuration, "Envoy failed to start") {
@@ -73,7 +73,7 @@ func (s *TestSuiteKit) StartEnvoy(t *testing.T) (kill func()) {
 		if err != nil {
 			return false
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		return true
 	}, s.WaitDuration, s.TickDuration, "Envoy is not ready yet") {
 		t.Fatalf("Envoy unhealthy: %s", buf.String())

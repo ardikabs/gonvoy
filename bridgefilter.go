@@ -1,0 +1,709 @@
+package gonvoy
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/ardikabs/gonvoy/pkg/util"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
+	"github.com/go-logr/logr"
+)
+
+// bridgeFilter is an api.StreamFilter driving one net/http middleware chain
+// per request. It owns a *context for Envoy I/O and runs user code on a
+// separate goroutine against snapshots. All C calls happen on callback
+// threads; the goroutine touches only Go memory plus Log.
+type bridgeFilter struct {
+	ctx *context
+	h   Handler
+
+	exchange *bridgeExchange
+
+	errorHandler func(Context, error) api.StatusType
+	sendReply    func(ex *bridgeExchange, status int, body []byte) api.StatusType
+}
+
+// NewHandlerChainFactory builds a StreamFilterFactory serving h for every request.
+// The handler runs once per request; returning without writing or calling
+// next continues upstream. Plugin config, body access, and metrics come
+// from the parsed route config, the same as the phase-based path.
+func NewHandlerChainFactory(h Handler) api.StreamFilterFactory {
+	if util.IsNil(h) {
+		panic("handlerChainFactory: handler shouldn't be nil")
+	}
+
+	return func(cfg interface{}, cb api.FilterCallbackHandler) api.StreamFilter {
+		config, ok := cfg.(*internalConfig)
+		if !ok {
+			panic(fmt.Sprintf("handlerChainFactory: unexpected config type '%T', expecting '%T'", cfg, config))
+		}
+
+		logger := newLogger(cb)
+		ctx, err := NewContext(cb, contextOptions{
+			config: config,
+			logger: logger,
+		})
+		if err != nil {
+			logger.Error(err, "failed to initialize context for filter, ignoring filter ...")
+			return NoOpHttpFilter
+		}
+
+		return newBridgeFilter(mustCastToContext(ctx), h)
+	}
+}
+
+func newBridgeFilter(c *context, h Handler) *bridgeFilter {
+	f := &bridgeFilter{
+		ctx:          c,
+		h:            h,
+		errorHandler: func(c Context, err error) api.StatusType { return DefaultErrorHandler(c, err) },
+	}
+	f.sendReply = f.defaultSendReply
+	return f
+}
+
+// defaultSendReply emits a local reply through the context.
+func (f *bridgeFilter) defaultSendReply(ex *bridgeExchange, status int, body []byte) api.StatusType {
+	c := f.ctx
+
+	if status == 0 {
+		status = http.StatusOK
+	}
+
+	f.flushMetrics(ex)
+
+	if err := c.SendResponse(status, string(body), LocalReplyWithHTTPHeaders(ex.w.Header())); err != nil {
+		c.Log().Error(err, "failed to send local reply")
+	}
+
+	return api.LocalReply
+}
+
+// EncodeHeaders snapshots the upstream response and resumes the handler.
+// It always unblocks a parked next(); if the handler has not proceeded,
+// the response streams through unmodified.
+func (f *bridgeFilter) EncodeHeaders(header api.ResponseHeaderMap, endStream bool) api.StatusType {
+	ex := f.exchange
+	if ex == nil {
+		return api.Continue
+	}
+
+	c := f.ctx
+	c.pcb = c.cb.EncoderFilterCallbacks()
+	c.LoadResponseHeaders(header)
+
+	code, _ := header.Status()
+	ex.respCode = code
+	ex.respHeader = snapshotRequestHeaders(header)
+	ex.liveRespHeader = header
+	ex.respReader = &gatedRespReader{ex: ex, enabled: c.IsResponseBodyReadable() || c.IsResponseBodyWritable()}
+	if c.IsResponseBodyWritable() {
+		_ = shouldOmitContentLengthOnResponse(c, header)
+	}
+	ex.feedRespBody(nil, endStream)
+	ex.respReadyOnce.Do(func() { close(ex.respReady) })
+
+	f.refreshAttrs(ex, ex.req, true)
+	f.flushMetrics(ex)
+
+	if ex.gDone.Load() && !ex.nextCalled.Load() {
+		if sig, ok := ex.drainDecision(); ok {
+			return f.applyResponseDecision(ex, header, nil, endStream, sig)
+		}
+
+		applyHeaderSets(header, ex.w.Header())
+		return api.Continue
+	}
+
+	sig, ok := ex.awaitSignal()
+	if !ok {
+		return api.StopAndBuffer
+	}
+
+	return f.applyResponseDecision(ex, header, nil, endStream, sig)
+}
+
+// EncodeData feeds buffered response bytes and applies the handler's next
+// decision. Without response body access the body streams through untouched.
+func (f *bridgeFilter) EncodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	ex := f.exchange
+	if ex == nil {
+		return api.Continue
+	}
+
+	f.flushMetrics(ex)
+
+	if ex.gDone.Load() {
+		if sig, ok := ex.drainDecision(); ok {
+			return f.applyResponseDecision(ex, nil, buffer, endStream, sig)
+		}
+
+		return f.applyPendingBody(ex, buffer, endStream)
+	}
+
+	if f.bufferResponseBody() {
+		ex.feedRespBody(buffer.Bytes(), endStream)
+	}
+
+	sig, ok := ex.awaitSignal()
+	if !ok {
+		return api.StopNoBuffer
+	}
+
+	return f.applyResponseDecision(ex, nil, buffer, endStream, sig)
+}
+
+// bufferResponseBody reports whether upstream response bytes are buffered
+// for the handler to read or replace.
+func (f *bridgeFilter) bufferResponseBody() bool {
+	return f.ctx.IsResponseBodyReadable() || f.ctx.IsResponseBodyWritable()
+}
+
+// applyPendingBody applies a stashed after-next replacement once the
+// upstream body is complete. Body-only writes never survive past the
+// response they were written into.
+func (f *bridgeFilter) applyPendingBody(ex *bridgeExchange, buffer api.BufferInstance, endStream bool) api.StatusType {
+	w := ex.w
+
+	if len(w.body) > 0 && !w.explicit && f.bufferResponseBody() {
+		if !f.ctx.IsResponseBodyWritable() {
+			return f.errorHandler(f.ctx, fmt.Errorf("response body is not writable, %w", ErrOperationNotPermitted))
+		}
+
+		if !endStream || buffer == nil {
+			return api.StopAndBuffer
+		}
+
+		body := append([]byte(nil), w.body...)
+		w.body = nil
+
+		if err := buffer.Set(body); err != nil {
+			return f.errorHandler(f.ctx, err)
+		}
+	}
+
+	return api.Continue
+}
+
+// applyResponseDecision applies G's after-next signal on the W thread.
+func (f *bridgeFilter) applyResponseDecision(ex *bridgeExchange, header api.ResponseHeaderMap, buffer api.BufferInstance, endStream bool, sig brSignal) api.StatusType {
+	c := f.ctx
+	f.flushMetrics(ex)
+
+	switch sig {
+	case brNeedBody:
+		return api.StopAndBuffer
+	case brFailed:
+		return f.errorHandler(c, ex.failErr)
+	case brProceed:
+		return api.Continue
+	case brDone:
+		return f.applyAfterNext(ex, header, buffer, endStream)
+	}
+
+	return api.Continue
+}
+
+// applyAfterNext handles a returned handler after next was called.
+// Any write becomes a full local reply; otherwise the upstream response
+// flows through with the handler's header mutations applied.
+func (f *bridgeFilter) applyAfterNext(ex *bridgeExchange, header api.ResponseHeaderMap, buffer api.BufferInstance, endStream bool) api.StatusType {
+	c := f.ctx
+	w := ex.w
+
+	if !w.wroteHeader && len(w.body) == 0 {
+		if header != nil {
+			if ex.nextCalled.Load() && ex.nextWriter != nil {
+				applyHeaderDiff(header, ex.respHeader, ex.nextWriter.Header())
+			} else {
+				applyHeaderSets(header, w.Header())
+			}
+		}
+
+		return api.Continue
+	}
+
+	// An explicit status always wins a full local reply. A body-only write
+	// replaces the buffered upstream body when there is one to replace
+	// into; with nowhere to put it, it becomes a full reply instead.
+	if w.explicit || !f.bufferResponseBody() || (buffer == nil && endStream) {
+		status := w.status
+		if status == 0 {
+			status = ex.respCode
+		}
+
+		return f.sendReply(ex, status, w.body)
+	}
+
+	if !c.IsResponseBodyWritable() {
+		return f.errorHandler(c, fmt.Errorf("response body is not writable, %w", ErrOperationNotPermitted))
+	}
+
+	if buffer != nil && endStream {
+		if err := buffer.Set(w.body); err != nil {
+			return f.errorHandler(c, err)
+		}
+
+		w.body = nil
+		return api.Continue
+	}
+
+	return api.StopAndBuffer
+}
+
+// applyHeaderSets adds every header without removing existing ones.
+// Used when there is no upstream snapshot to diff against.
+func applyHeaderSets(live api.HeaderMap, current http.Header) {
+	for k, v := range current {
+		live.Del(k)
+		for _, vv := range v {
+			live.Add(k, vv)
+		}
+	}
+}
+
+// DecodeTrailers treats trailers as the end of the request body.
+// DecodeTrailers treats trailers as the end of the request body, feeding
+// EOF and applying the handler's decision like any other data callback.
+func (f *bridgeFilter) DecodeTrailers(api.RequestTrailerMap) api.StatusType {
+	ex := f.exchange
+	if ex == nil {
+		return api.Continue
+	}
+
+	if ex.gDone.Load() {
+		if sig, ok := ex.drainDecision(); ok {
+			return f.applyRequestDecision(ex, nil, nil, true, sig)
+		}
+
+		return api.Continue
+	}
+
+	ex.feedBody(nil, true)
+
+	sig, ok := ex.awaitSignal()
+	if !ok {
+		return api.StopNoBuffer
+	}
+
+	return f.applyRequestDecision(ex, nil, nil, true, sig)
+}
+
+// EncodeTrailers treats trailers as the end of the response body.
+func (f *bridgeFilter) EncodeTrailers(api.ResponseTrailerMap) api.StatusType {
+	ex := f.exchange
+	if ex == nil {
+		return api.Continue
+	}
+
+	if ex.gDone.Load() {
+		if sig, ok := ex.drainDecision(); ok {
+			return f.applyResponseDecision(ex, nil, nil, true, sig)
+		}
+
+		return api.Continue
+	}
+
+	if f.bufferResponseBody() {
+		ex.feedRespBody(nil, true)
+	}
+
+	sig, ok := ex.awaitSignal()
+	if !ok {
+		return api.StopNoBuffer
+	}
+
+	return f.applyResponseDecision(ex, nil, nil, true, sig)
+}
+
+// OnDestroy unblocks the handler goroutine and drops queued work.
+func (f *bridgeFilter) OnDestroy(api.DestroyReason) {
+	if ex := f.exchange; ex != nil {
+		ex.destroy()
+	}
+
+	f.exchange = nil
+}
+
+// OnLog flushes metrics at access-log time.
+func (f *bridgeFilter) OnLog(api.RequestHeaderMap, api.RequestTrailerMap, api.ResponseHeaderMap, api.ResponseTrailerMap) {
+	if ex := f.exchange; ex != nil {
+		f.flushMetrics(ex)
+	}
+}
+
+// OnLogDownstreamStart is a no-op for the bridge.
+func (f *bridgeFilter) OnLogDownstreamStart(api.RequestHeaderMap) {}
+
+// OnLogDownstreamPeriodic is a no-op for the bridge.
+func (f *bridgeFilter) OnLogDownstreamPeriodic(api.RequestHeaderMap, api.RequestTrailerMap, api.ResponseHeaderMap, api.ResponseTrailerMap) {
+}
+
+// OnStreamComplete flushes metrics at stream completion.
+func (f *bridgeFilter) OnStreamComplete() {
+	if ex := f.exchange; ex != nil {
+		f.flushMetrics(ex)
+	}
+}
+
+// DecodeHeaders snapshots the request, starts the handler, and applies its
+// first decision. It never blocks on future data: a handler that blocks on
+// the body gets StopAndBuffer, everything else is decided immediately.
+func (f *bridgeFilter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
+	c := f.ctx
+	c.pcb = c.cb.DecoderFilterCallbacks()
+
+	ex := f.newExchange(header, endStream)
+	f.exchange = ex
+	go ex.runHandler()
+
+	sig, ok := ex.awaitSignal()
+	if !ok {
+		return api.StopAndBuffer
+	}
+
+	return f.applyRequestDecision(ex, header, nil, endStream, sig)
+}
+
+// DecodeData feeds body bytes and applies the handler's next decision.
+func (f *bridgeFilter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
+	ex := f.exchange
+	if ex == nil || ex.proceedUpstream.Load() {
+		return f.streamRequestBody(ex, buffer, endStream)
+	}
+
+	if ex.gDone.Load() {
+		if sig, ok := ex.drainDecision(); ok {
+			return f.applyRequestDecision(ex, nil, buffer, endStream, sig)
+		}
+
+		return api.Continue
+	}
+
+	ex.feedBody(buffer.Bytes(), endStream)
+
+	sig, ok := ex.awaitSignal()
+	if !ok {
+		return api.StopNoBuffer
+	}
+
+	return f.applyRequestDecision(ex, nil, buffer, endStream, sig)
+}
+
+// drainDecision consumes one terminal signal left behind by an already
+// finished handler, typically after a wait timed out. Stale body requests
+// are ignored since G will never act on them. Returns false when there is
+// nothing to apply.
+func (ex *bridgeExchange) drainDecision() (brSignal, bool) {
+	for {
+		select {
+		case sig := <-ex.sigCh:
+			if sig == brNeedBody {
+				continue
+			}
+
+			return sig, true
+		default:
+			return 0, false
+		}
+	}
+}
+
+// applyRequestDecision applies G's signal on the W thread. It is called with
+// fresh data in hand, so G always has something to decide on except when it
+// asked for more body, in which case more is guaranteed to arrive.
+func (f *bridgeFilter) applyRequestDecision(ex *bridgeExchange, header api.RequestHeaderMap, buffer api.BufferInstance, endStream bool, sig brSignal) api.StatusType {
+	f.flushMetrics(ex)
+
+	switch sig {
+	case brNeedBody:
+		return api.StopAndBuffer
+	case brFailed:
+		return f.errorHandler(f.ctx, ex.failErr)
+	case brProceed:
+		return f.applyProceed(ex, header, buffer, endStream)
+	case brDone:
+		return f.applyDone(ex)
+	}
+
+	return api.Continue
+}
+
+// propagateRequestLine applies handler-mutated request-line fields (path,
+// host, method) to the live Envoy map. Plain header diffing cannot do this:
+// :path, :authority, and :method are pseudo-headers outside http.Header.
+// Mirrors SetRequestPath/SetRequestHost/SetRequestMethod.
+func (f *bridgeFilter) propagateRequestLine(ex *bridgeExchange, live api.RequestHeaderMap) {
+	path := ""
+	if ex.req.URL != nil {
+		path = ex.req.URL.Path
+	}
+
+	if path != ex.origPath {
+		live.SetPath(path)
+	}
+
+	if ex.req.Host != ex.origHost {
+		live.SetHost(ex.req.Host)
+	}
+
+	if ex.req.Method != ex.origMethod {
+		live.SetMethod(ex.req.Method)
+	}
+}
+
+// applyProceed continues upstream: header diff, reroute, body replacement.
+func (f *bridgeFilter) applyProceed(ex *bridgeExchange, header api.RequestHeaderMap, buffer api.BufferInstance, endStream bool) api.StatusType {
+	c := f.ctx
+
+	f.applyRequestMutations(ex, header)
+
+	if len(ex.replacedBody) > 0 {
+		if !c.IsRequestBodyWritable() {
+			return f.errorHandler(c, fmt.Errorf("request body is not writable, %w", ErrOperationNotPermitted))
+		}
+
+		if buffer != nil && endStream {
+			if err := buffer.Set(ex.replacedBody); err != nil {
+				return f.errorHandler(c, err)
+			}
+			ex.replacedBody = nil
+		} else if buffer == nil && endStream {
+			c.cb.DecoderFilterCallbacks().AddData(ex.replacedBody, false)
+			ex.replacedBody = nil
+		}
+	}
+
+	return api.Continue
+}
+
+// requestMutated reports whether the handler changed routing-relevant
+// request state since DecodeHeaders.
+func (f *bridgeFilter) requestMutated(ex *bridgeExchange) bool {
+	path := ""
+	if ex.req.URL != nil {
+		path = ex.req.URL.Path
+	}
+
+	if ex.req.Host != ex.origHost || ex.req.Method != ex.origMethod || path != ex.origPath {
+		return true
+	}
+
+	current := ex.req.Header
+	for k, v := range current {
+		if old, ok := ex.reqSnapshot[k]; !ok || !equalHeaderValues(old, v) {
+			return true
+		}
+	}
+
+	for k := range ex.reqSnapshot {
+		if _, ok := current[k]; !ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+// applyDone handles a returned handler: local reply or continue.
+func (f *bridgeFilter) applyDone(ex *bridgeExchange) api.StatusType {
+	w := ex.w
+
+	if !w.wroteHeader && len(w.body) == 0 {
+		// No answer written: mutations still apply, mirroring immediate
+		// setters, and the stream continues upstream.
+		f.applyRequestMutations(ex, nil)
+		return api.Continue
+	}
+
+	return f.sendReply(ex, w.status, w.body)
+}
+
+// applyRequestMutations pushes handler-side request mutations (headers,
+// path/host/method) to the live Envoy map. It runs on every
+// request-completion path, mirroring the old immediate setters.
+func (f *bridgeFilter) applyRequestMutations(ex *bridgeExchange, header api.RequestHeaderMap) {
+	c := f.ctx
+
+	var live api.HeaderMap = header
+	if live == nil {
+		live = ex.reqHeaderMap
+	}
+
+	if live != nil {
+		applyHeaderDiff(live, ex.reqSnapshot, ex.req.Header)
+	}
+
+	if live != nil && c.IsRequestBodyWritable() {
+		// Mirror the phase path: a writable request body implies chunked
+		// encoding. Without this Envoy forwards the stale Content-Length
+		// and the upstream reads a truncated replacement.
+		shouldOmitContentLengthOnRequest(c, live)
+	}
+
+	if reqMap, ok := live.(api.RequestHeaderMap); ok {
+		f.propagateRequestLine(ex, reqMap)
+	}
+
+	if ex.reroute || (c.autoReloadRoute && f.requestMutated(ex)) {
+		c.ReloadRoute()
+	}
+}
+
+// flushMetrics applies queued metric intents in order. Runs on W only.
+func (f *bridgeFilter) flushMetrics(ex *bridgeExchange) {
+	ex.metricMu.Lock()
+	ops := ex.metricOps
+	ex.metricOps = nil
+	ex.metricMu.Unlock()
+
+	m := f.ctx.Metrics()
+
+	for _, op := range ops {
+		switch op.Kind {
+		case MetricCounterAdd:
+			m.Counter(op.Name, op.Labels...).Increment(op.Delta)
+		case MetricGaugeAdd:
+			m.Gauge(op.Name, op.Labels...).Increment(op.Delta)
+		case MetricGaugeSet:
+			m.Gauge(op.Name, op.Labels...).Record(op.Value)
+		}
+	}
+}
+
+// refreshAttrs snapshots Envoy attributes for Attr lookups.
+// request.* come from the live request; the rest from GetProperty.
+func (f *bridgeFilter) refreshAttrs(ex *bridgeExchange, r *http.Request, response bool) {
+	c := f.ctx
+
+	ex.attrMu.Lock()
+	defer ex.attrMu.Unlock()
+
+	for _, key := range []string{"request.host", "request.method", "request.path", "xds.cluster_name", "xds.route_name"} {
+		if v, err := c.GetProperty(key, ""); err == nil && v != "" {
+			ex.attrs[key] = v
+		}
+	}
+
+	if response {
+		if ex.respCode != 0 {
+			ex.attrs["response.code"] = itoa(ex.respCode)
+		}
+
+		for _, key := range []string{"response.code_details", "response.flags"} {
+			if v, err := c.GetProperty(key, ""); err == nil && v != "" {
+				ex.attrs[key] = v
+			}
+		}
+	}
+}
+
+func itoa(i int) string {
+	return fmt.Sprintf("%d", i)
+}
+
+// newExchange builds the per-request exchange: snapshots, hooks, reader.
+func (f *bridgeFilter) newExchange(header api.RequestHeaderMap, endStream bool) *bridgeExchange {
+	c := f.ctx
+	c.LoadRequestHeaders(header)
+
+	snap := snapshotRequestHeaders(header)
+
+	r := c.httpReq
+
+	ex := newBridgeExchange(f.h, r, newRecordingWriter(), bridgeHooks{})
+	gated := &gatedBodyReader{ex: ex, enabled: c.IsRequestBodyReadable() || c.IsRequestBodyWritable()}
+	r.Body = gated
+	ex.gatedBody = gated
+	ex.respReader = &gatedRespReader{ex: ex, enabled: c.IsResponseBodyReadable() || c.IsResponseBodyWritable()}
+	ex.reqSnapshot = snap
+	ex.reqHeaderMap = header
+	ex.origHost = r.Host
+	ex.origMethod = r.Method
+	if r.URL != nil {
+		ex.origPath = r.URL.Path
+	}
+
+	ex.hooks = bridgeHooks{
+		attr: func(name string) (string, bool) {
+			ex.attrMu.Lock()
+			defer ex.attrMu.Unlock()
+			v, ok := ex.attrs[name]
+			return v, ok
+		},
+		reroute:     func() { ex.reroute = true },
+		log:         func() logr.Logger { return c.Log() },
+		sharedCache: func() Cache { return c.GetCache() },
+		emitMetric: func(op MetricOp) {
+			ex.metricMu.Lock()
+			ex.metricOps = append(ex.metricOps, op)
+			ex.metricMu.Unlock()
+		},
+	}
+
+	r = withBridgeConfig(r, c.filterConfig)
+	r = withBridgeHooks(r, ex.hooks)
+	r = withBridgeExchange(r, ex)
+	ex.req = r
+
+	f.refreshAttrs(ex, r, false)
+	ex.feedBody(nil, endStream)
+
+	return ex
+}
+
+// streamRequestBody forwards a body that is already proceeding upstream,
+// replacing it at the end when the handler supplied one.
+func (f *bridgeFilter) streamRequestBody(ex *bridgeExchange, buffer api.BufferInstance, endStream bool) api.StatusType {
+	if ex != nil && len(ex.replacedBody) > 0 {
+		if !f.ctx.IsRequestBodyWritable() {
+			ex.replacedBody = nil
+			return f.errorHandler(f.ctx, fmt.Errorf("request body is not writable, %w", ErrOperationNotPermitted))
+		}
+		if endStream {
+			body := ex.replacedBody
+			ex.replacedBody = nil
+
+			if err := buffer.Set(body); err != nil {
+				return f.errorHandler(f.ctx, err)
+			}
+
+			return api.Continue
+		}
+
+		return api.StopAndBuffer
+	}
+
+	return api.Continue
+}
+
+// snapshotRequestHeaders copies the live Envoy headers for diffing later.
+func snapshotRequestHeaders(header api.HeaderMap) http.Header {
+	snap := make(http.Header)
+
+	header.Range(func(key, value string) bool {
+		snap.Add(key, value)
+		return true
+	})
+
+	return snap
+}
+
+// applyHeaderDiff writes snapshot-to-current differences to the live map.
+func applyHeaderDiff(live api.HeaderMap, snapshot, current http.Header) {
+	for k, v := range current {
+		old, ok := snapshot[k]
+		if !ok || !equalHeaderValues(old, v) {
+			live.Del(k)
+			for _, vv := range v {
+				live.Add(k, vv)
+			}
+		}
+	}
+
+	for k := range snapshot {
+		if _, ok := current[k]; !ok {
+			live.Del(k)
+		}
+	}
+}

@@ -90,7 +90,7 @@ func createStatsName(name string, labels ...string) string {
 
 	var fmtLabels []string
 	for i := 0; i < len(labels); i += 2 {
-		fmtLabels = append(fmtLabels, fmt.Sprintf("%s=%s", strings.Replace(labels[i], "-", "_", -1), labels[i+1]))
+		fmtLabels = append(fmtLabels, fmt.Sprintf("%s=%s", strings.ReplaceAll(labels[i], "-", "_"), labels[i+1]))
 	}
 
 	return fmt.Sprintf("%s_%s", name, strings.Join(fmtLabels, "_"))

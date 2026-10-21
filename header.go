@@ -97,7 +97,7 @@ func (h *header) Del(key string) {
 func (h *header) Export() http.Header {
 	headers := make(http.Header)
 
-	h.HeaderMap.Range(func(key, value string) bool {
+	h.Range(func(key, value string) bool {
 		headers.Add(key, value)
 		return true
 	})

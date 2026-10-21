@@ -82,8 +82,6 @@ func TestHttpFilterManager(t *testing.T) {
 			thirdHandlerOnRequestHeader.NotBefore(firstHandlerOnRequestHeader.Call, secondHandlerOnRequestHeader.Call)
 
 			mockContext := NewMockContext(t)
-			mockContext.EXPECT().Committed().Return(false)
-			mockContext.EXPECT().StatusType().Return(api.Continue)
 
 			mgr := newHttpFilterManager(mockContext)
 			mgr.AddHandler(mockHandlerFirst)
@@ -103,7 +101,6 @@ func TestHttpFilterManager(t *testing.T) {
 			thirdHandlerOnRequestBody.NotBefore(firstHandlerOnRequestBody.Call, secondHandlerOnRequestBody.Call)
 
 			mockContext := NewMockContext(t)
-			mockContext.EXPECT().Committed().Return(false)
 
 			mgr := newHttpFilterManager(mockContext)
 			mgr.AddHandler(mockHandlerFirst)
@@ -123,8 +120,6 @@ func TestHttpFilterManager(t *testing.T) {
 			secondHandlerOnResponseHeader.NotBefore(thirdHandlerOnResponseHeader.Call)
 
 			mockContext := NewMockContext(t)
-			mockContext.EXPECT().Committed().Return(false)
-			mockContext.EXPECT().StatusType().Return(api.Continue)
 
 			mgr := newHttpFilterManager(mockContext)
 			mgr.AddHandler(mockHandlerFirst)
@@ -144,7 +139,6 @@ func TestHttpFilterManager(t *testing.T) {
 			secondHandlerOnResponseBody.NotBefore(thirdHandlerOnResponseBody.Call)
 
 			mockContext := NewMockContext(t)
-			mockContext.EXPECT().Committed().Return(false).Maybe()
 
 			mgr := newHttpFilterManager(mockContext)
 			mgr.AddHandler(mockHandlerFirst)

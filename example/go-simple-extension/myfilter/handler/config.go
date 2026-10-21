@@ -1,4 +1,4 @@
-package httpfilter
+package handler
 
 import "errors"
 

@@ -1,29 +1,40 @@
 package main
 
 import (
-	"fmt"
+	"net/http"
 
 	"github.com/ardikabs/gonvoy"
 	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	envoy.RegisterHttpFilter(
-		headersModifierFilterName,
-		func() gonvoy.HttpFilter {
-			return new(Filter)
-		},
-		gonvoy.ConfigOptions{
-			FilterConfig: new(Config),
-		},
+	envoy.Handle(headersModifierFilterName,
+		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
+			cfg, err := gonvoy.Config[*Config](r)
+			if err != nil {
+				return
+			}
+
+			for k, v := range cfg.RequestHeaders {
+				r.Header.Set(k, v)
+			}
+			for k, v := range cfg.ResponseHeaders {
+				w.Header().Set(k, v)
+			}
+
+			gonvoy.Terminal{}.ServeHTTP(w, r)
+		}),
+		gonvoy.WithConfig(new(Config)),
 	)
 
-	envoy.RegisterHttpFilter(
-		echoServerFilterName,
-		func() gonvoy.HttpFilter {
-			return new(Echoserver)
-		},
-		gonvoy.ConfigOptions{},
+	envoy.Handle(echoServerFilterName,
+		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
+			for k, v := range r.Header {
+				gonvoy.Log(r).Info("request header --->", k, v)
+			}
+
+			gonvoy.Terminal{}.ServeHTTP(w, r)
+		}),
 	)
 }
 
@@ -31,45 +42,4 @@ func main() {}
 
 const headersModifierFilterName = "http_headers_modifier"
 
-type Filter struct{}
-
-func (Filter) OnBegin(c gonvoy.RuntimeContext, ctrl gonvoy.HttpFilterController) error {
-	cfg, ok := c.GetFilterConfig().(*Config)
-	if !ok {
-		return fmt.Errorf("unexpected configuration type %T, expecting %T", c.GetFilterConfig(), cfg)
-	}
-
-	ctrl.AddHandler(&Handler{
-		RequestHeaders:  cfg.RequestHeaders,
-		ResponseHeaders: cfg.ResponseHeaders,
-	})
-
-	return nil
-}
-
-func (Filter) OnComplete(c gonvoy.Context) error {
-	return nil
-}
-
-type Handler struct {
-	gonvoy.PassthroughHttpFilterHandler
-
-	RequestHeaders  map[string]string
-	ResponseHeaders map[string]string
-}
-
-func (h *Handler) OnRequestHeader(c gonvoy.Context) error {
-	for k, v := range h.RequestHeaders {
-		c.RequestHeader().Set(k, v)
-	}
-
-	return nil
-}
-
-func (h *Handler) OnResponseHeader(c gonvoy.Context) error {
-	for k, v := range h.ResponseHeaders {
-		c.ResponseHeader().Set(k, v)
-	}
-
-	return nil
-}
+const echoServerFilterName = "echoserver"

@@ -27,7 +27,7 @@ A thin Go framework to write an HTTP Filter extension on Envoy Proxy. It leverag
 |-----------------|-----------------|
 | v0.3 | v1.29 |
 | v0.4 | v1.30 |
-| [latest](https://github.com/ardikabs/gonvoy) | v1.31 |
+| [latest](https://github.com/ardikabs/gonvoy) | v1.40 |
 
 ## Installation
 
@@ -91,7 +91,7 @@ keeps Envoy up.
 
 ### Prerequisites
 
-* Go 1.23 or later. Follow [Golang installation guideline](https://golang.org/doc/install).
+* Go 1.26 or later. Follow [Golang installation guideline](https://golang.org/doc/install).
 
 ### Setup
 

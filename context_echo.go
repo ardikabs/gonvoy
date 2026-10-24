@@ -1,8 +1,12 @@
 package gonvoy
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // EchoContext is the Echo-style handler surface over the bridge exchange.
@@ -63,6 +67,37 @@ type EchoContext interface {
 	// Status returns the recorded response status, or 0 if none was
 	// written yet.
 	Status() int
+
+	// JSON answers with a JSON body, like the JSON reply helper. It
+	// marshals v, sets the JSON content type, and records the status
+	// through the recording writer.
+	JSON(code int, v any) error
+
+	// String answers with a plain-text body, like the String reply
+	// helper. It sets the plain-text content type and records the
+	// status through the recording writer.
+	String(code int, s string) error
+
+	// NoContent answers with a status and no body, recording the status
+	// through the recording writer.
+	NoContent(code int) error
+
+	// Bind decodes the request body into v. It reads Body fully and
+	// JSON-unmarshals when the request content type contains
+	// application/json; any other content type returns a
+	// ErrOperationNotPermitted-wrapped error for the caller to map to a
+	// status. It never panics.
+	Bind(v any) error
+
+	// Body returns the request body for reading. Reads go through the
+	// gated reader, so without body access they fail with
+	// ErrOperationNotPermitted.
+	Body() io.Reader
+
+	// ResponseBody returns the upstream response body for reading. The
+	// second value reports gating: without response body access it is a
+	// ErrOperationNotPermitted-wrapped error.
+	ResponseBody() (io.Reader, error)
 }
 
 var _ EchoContext = (*echoContext)(nil)
@@ -162,6 +197,76 @@ func (c *echoContext) SetMethod(method string) { c.r.Method = method }
 
 // Status returns the recorded response status.
 func (c *echoContext) Status() int { return c.w.Status() }
+
+// JSON answers with a JSON body. A marshal failure is returned and writes
+// nothing.
+func (c *echoContext) JSON(code int, v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("failed to encode JSON response, %w", err)
+	}
+
+	JSON(c.w, code, b)
+
+	return nil
+}
+
+// String answers with a plain-text body.
+func (c *echoContext) String(code int, s string) error {
+	String(c.w, code, s)
+
+	return nil
+}
+
+// NoContent answers with a status and no body.
+func (c *echoContext) NoContent(code int) error {
+	c.w.WriteHeader(code)
+
+	return nil
+}
+
+// Bind decodes the request body into v. Only JSON content is bound; any
+// other content type is a caller-mapped error, never a panic. A read
+// failure already carries its cause, and a decode failure is returned with
+// context.
+func (c *echoContext) Bind(v any) error {
+	ct := ""
+	if c.r != nil {
+		ct = c.r.Header.Get(HeaderContentType)
+	}
+	if !strings.Contains(ct, MIMEApplicationJSON) {
+		return fmt.Errorf("cannot bind content type %q, %w", ct, ErrOperationNotPermitted)
+	}
+
+	b, err := io.ReadAll(c.Body())
+	if err != nil {
+		return fmt.Errorf("failed to read request body, %w", err)
+	}
+	if err := json.Unmarshal(b, v); err != nil {
+		return fmt.Errorf("failed to decode JSON request body, %w", err)
+	}
+
+	return nil
+}
+
+// Body returns the request body for reading. A nil request or body reads
+// as empty; gating failures surface on Read.
+func (c *echoContext) Body() io.Reader {
+	if c.r == nil || c.r.Body == nil {
+		return http.NoBody
+	}
+
+	return c.r.Body
+}
+
+// ResponseBody returns the upstream response body for reading.
+func (c *echoContext) ResponseBody() (io.Reader, error) {
+	if c.r == nil {
+		return nil, fmt.Errorf("response body is not accessible in this phase, %w", ErrOperationNotPermitted)
+	}
+
+	return ResponseBody(c.r)
+}
 
 // fail records a handler error so the bridge error handler maps it. It is a
 // no-op outside the bridge and when a failure was already recorded, such as

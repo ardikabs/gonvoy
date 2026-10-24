@@ -2,6 +2,7 @@ package gonvoy
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,10 +60,9 @@ func TestEchoContextWriteThenNext(t *testing.T) {
 
 	// A response written before Next competes with proceeding upstream.
 	// The bridge answers 500 instead of picking a winner silently.
-	_, err := c.w.Write([]byte("hi"))
-	require.NoError(t, err)
+	require.NoError(t, c.String(http.StatusOK, "hi"))
 
-	err = c.Next()
+	err := c.Next()
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrRuntime)
 }
@@ -124,4 +124,128 @@ func TestEchoContextNoNext(t *testing.T) {
 		require.NotPanics(t, func() { h.ServeHTTP(newRecordingWriter(), r) })
 		assert.Equal(t, "3", r.Header.Get("x-c"))
 	})
+}
+
+// newTestEchoContextWithBody builds an EchoContext whose request body is a
+// gated reader fed with body and closed, readable like a buffered request.
+func newTestEchoContextWithBody(t *testing.T, body, contentType string) *echoContext {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, "http://example.com/", nil)
+	require.NoError(t, err)
+	req.Header.Set(HeaderContentType, contentType)
+
+	w := newRecordingWriter()
+	ex := newBridgeExchange(nil, req, w, bridgeHooks{})
+	req = withBridgeHooks(req, bridgeHooks{})
+	req = withBridgeExchange(req, ex)
+
+	gated := &gatedBodyReader{ex: ex, enabled: true}
+	ex.gatedBody = gated
+	req.Body = gated
+	ex.req = req
+	ex.feedBody([]byte(body), true)
+	ex.respReadyOnce.Do(func() { close(ex.respReady) })
+
+	return newEchoContext(w, req)
+}
+
+// newTestEchoContextNoBodyAccess builds an EchoContext whose request body
+// reads are gated off and whose upstream response reader is absent, so both
+// Body and ResponseBody report ErrOperationNotPermitted.
+func newTestEchoContextNoBodyAccess() *echoContext {
+	c := newTestEchoContext()
+
+	gated := &gatedBodyReader{ex: c.ex, enabled: false}
+	c.ex.gatedBody = gated
+	c.r.Body = gated
+	c.ex.req = c.r
+
+	return c
+}
+
+// recordedBody returns the bytes the context wrote into its recording writer.
+func recordedBody(t *testing.T, c *echoContext) string {
+	t.Helper()
+
+	rw, ok := c.w.(*recordingWriter)
+	require.True(t, ok, "echoContext writer is a recording writer")
+
+	return string(rw.body)
+}
+
+func TestEchoContextReply(t *testing.T) {
+	t.Parallel()
+
+	t.Run("json sets status content type and body", func(t *testing.T) {
+		t.Parallel()
+
+		c := newTestEchoContext()
+		require.NoError(t, c.JSON(http.StatusOK, map[string]string{"ok": "true"}))
+
+		assert.Equal(t, http.StatusOK, c.Status())
+		assert.Equal(t, MIMEApplicationJSONCharsetUTF8, c.w.Header().Get(HeaderContentType))
+		assert.JSONEq(t, `{"ok":"true"}`, recordedBody(t, c))
+	})
+
+	t.Run("string sets status content type and body", func(t *testing.T) {
+		t.Parallel()
+
+		c := newTestEchoContext()
+		require.NoError(t, c.String(http.StatusCreated, "hi"))
+
+		assert.Equal(t, http.StatusCreated, c.Status())
+		assert.Equal(t, MIMETextPlainCharsetUTF8, c.w.Header().Get(HeaderContentType))
+		assert.Equal(t, "hi", recordedBody(t, c))
+	})
+
+	t.Run("no content writes header only", func(t *testing.T) {
+		t.Parallel()
+
+		c := newTestEchoContext()
+		require.NoError(t, c.NoContent(http.StatusNoContent))
+
+		assert.Equal(t, http.StatusNoContent, c.Status())
+		assert.Empty(t, recordedBody(t, c))
+	})
+}
+
+func TestEchoContextBind(t *testing.T) {
+	t.Parallel()
+
+	c := newTestEchoContextWithBody(t, `{"a":1}`, MIMEApplicationJSON)
+
+	var v map[string]any
+	require.NoError(t, c.Bind(&v))
+	assert.Equal(t, float64(1), v["a"])
+}
+
+func TestEchoContextBodyGating(t *testing.T) {
+	t.Parallel()
+
+	c := newTestEchoContextNoBodyAccess()
+	_, err := c.Body().Read(make([]byte, 1))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOperationNotPermitted)
+}
+
+func TestEchoContextResponseGating(t *testing.T) {
+	t.Parallel()
+
+	c := newTestEchoContextNoBodyAccess()
+	_, err := c.ResponseBody()
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOperationNotPermitted)
+}
+
+func TestEchoContextBindNonJSON(t *testing.T) {
+	t.Parallel()
+
+	c := newTestEchoContextWithBody(t, `a=1`, MIMEApplicationForm)
+
+	var v map[string]any
+	err := c.Bind(&v)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOperationNotPermitted)
+	assert.True(t, strings.Contains(c.r.Header.Get(HeaderContentType), MIMEApplicationForm))
 }

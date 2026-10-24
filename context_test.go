@@ -22,6 +22,21 @@ func fakeDummyContext(t *testing.T, config *internalConfig) *context {
 	return mustCastToContext(c)
 }
 
+func TestBridgeContextSurface(t *testing.T) {
+	// Compile pin: the bridge must compile against exactly this surface.
+	// Method expressions (not values on a nil interface) keep it runtime-safe.
+	_ = Context.LoadRequestHeaders
+	_ = Context.LoadResponseHeaders
+	_ = Context.SendResponse
+	_ = Context.ReloadRoute
+	_ = Context.IsRequestBodyReadable
+	_ = Context.IsRequestBodyWritable
+	_ = Context.IsResponseBodyReadable
+	_ = Context.IsResponseBodyWritable
+	// Kept beyond the brief: DefaultErrorHandler answers through JSON.
+	_ = Context.JSON
+}
+
 func TestContext(t *testing.T) {
 	t.Run("Request Body Accessibility", func(t *testing.T) {
 		testcases := []struct {

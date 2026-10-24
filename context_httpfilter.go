@@ -1,9 +1,6 @@
 package gonvoy
 
 import (
-	"bytes"
-	"fmt"
-	"io"
 	"net/http"
 	"runtime"
 
@@ -11,79 +8,6 @@ import (
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
-
-func (c *context) RequestHeader() Header {
-	if c.reqHeaderMap == nil {
-		panic(fmt.Errorf("request header is not accessible in this phase, %w", ErrOperationNotPermitted))
-	}
-
-	h := &header{HeaderMap: c.reqHeaderMap}
-	if c.autoReloadRoute {
-		h.clearRouteCache = c.cb.ClearRouteCache
-	}
-
-	return h
-}
-
-func (c *context) ResponseHeader() Header {
-	if c.respHeaderMap == nil {
-		panic(fmt.Errorf("response header is not accessible in this phase, %w", ErrOperationNotPermitted))
-	}
-
-	return &header{HeaderMap: c.respHeaderMap}
-}
-
-func (c *context) RequestBody() Body {
-	if c.reqBufferInstance == nil {
-		panic(fmt.Errorf("request body is not accessible in this phase, %w", ErrOperationNotPermitted))
-	}
-
-	return &bodyWriter{
-		writable:              c.IsRequestBodyWritable(),
-		buffer:                c.reqBufferInstance,
-		bytes:                 c.reqBufferBytes,
-		header:                c.reqHeaderMap,
-		preserveContentLength: c.preserveContentLengthOnRequest,
-	}
-}
-
-func (c *context) ResponseBody() Body {
-	if c.respBufferInstance == nil {
-		panic(fmt.Errorf("response body is not accessible in this phase, %w", ErrOperationNotPermitted))
-	}
-
-	return &bodyWriter{
-		writable:              c.IsResponseBodyWritable(),
-		buffer:                c.respBufferInstance,
-		bytes:                 c.respBufferBytes,
-		header:                c.respHeaderMap,
-		preserveContentLength: c.preserveContentLengthOnResponse,
-	}
-}
-
-func (c *context) SetRequestHost(host string) {
-	c.reqHeaderMap.SetHost(host)
-
-	if c.autoReloadRoute {
-		c.cb.ClearRouteCache()
-	}
-}
-
-func (c *context) SetRequestMethod(method string) {
-	c.reqHeaderMap.SetMethod(method)
-
-	if c.autoReloadRoute {
-		c.cb.ClearRouteCache()
-	}
-}
-
-func (c *context) SetRequestPath(path string) {
-	c.reqHeaderMap.SetPath(path)
-
-	if c.autoReloadRoute {
-		c.cb.ClearRouteCache()
-	}
-}
 
 func (c *context) LoadRequestHeaders(header api.RequestHeaderMap) {
 	c.reset()
@@ -121,59 +45,6 @@ func (c *context) LoadResponseHeaders(header api.ResponseHeaderMap) {
 	c.httpResp = resp
 	c.respHeaderMap = header
 	c.checkResponseBodyAccessibility()
-}
-
-func (c *context) LoadRequestBody(buffer api.BufferInstance, endStream bool) {
-	if buffer.Len() > 0 {
-		c.reqBufferBytes = append(c.reqBufferBytes, buffer.Bytes()...)
-	}
-
-	if endStream {
-		// If the request body is fully loaded, the buffer is set to the final bytes.
-		// Rationale behind this, because during the DecodeData phase, the api.StopNoBuffer status is sent while data is streaming.
-		// Each time the DecodeData phase is called, the buffer on the Envoy side is cleared. Therefore, we need to refill the buffer
-		// after storing each byte.
-		// This is also relevant for the EncodeData phase.
-		// Reference:
-		// - https://github.com/envoyproxy/envoy/blob/816188b86a0a52095b116b107f576324082c7c02/contrib/golang/filters/http/source/processor_state.cc#L138-L145
-		_ = buffer.Set(c.reqBufferBytes)
-
-		bodyBuffer := bytes.NewBuffer(c.reqBufferBytes)
-		c.httpReq.Body = io.NopCloser(bodyBuffer)
-		c.reqBufferInstance = buffer
-	}
-}
-
-func (c *context) LoadResponseBody(buffer api.BufferInstance, endStream bool) {
-	if buffer.Len() > 0 {
-		c.respBufferBytes = append(c.respBufferBytes, buffer.Bytes()...)
-	}
-
-	if endStream {
-		// If the response body is fully loaded, the buffer is set to the final bytes.
-		// ditto with #L132-135
-		_ = buffer.Set(c.respBufferBytes)
-
-		bodyBuffer := bytes.NewBuffer(c.respBufferBytes)
-		c.httpResp.Body = io.NopCloser(bodyBuffer)
-		c.respBufferInstance = buffer
-	}
-}
-
-func (c *context) Request() *http.Request {
-	if c.httpReq == nil {
-		panic(fmt.Errorf("http request is not accessible in this phase, %w", ErrOperationNotPermitted))
-	}
-
-	return c.httpReq
-}
-
-func (c *context) Response() *http.Response {
-	if c.httpResp == nil {
-		panic(fmt.Errorf("http response is not accessible in this phase, %w", ErrOperationNotPermitted))
-	}
-
-	return c.httpResp
 }
 
 func (c *context) IsRequestBodyAccessible() bool {
@@ -252,27 +123,6 @@ func (c *context) JSON(code int, body []byte, opts ...LocalReplyOption) error {
 	c.statusType = reply.statusType
 
 	runtime.GC()
-	return nil
-}
-
-func (c *context) String(code int, s string, opts ...LocalReplyOption) error {
-	reply := NewLocalReplyOptions(opts...)
-
-	if reply.headers == nil {
-		reply.headers = make(http.Header)
-	}
-
-	reply.headers.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
-	c.pcb.SendLocalReply(code, s, reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
-	c.committed = true
-	c.statusType = reply.statusType
-
-	return nil
-}
-
-func (c *context) SkipNextPhase() error {
-	c.statusType = api.Continue
-	c.committed = true
 	return nil
 }
 

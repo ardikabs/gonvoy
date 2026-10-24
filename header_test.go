@@ -149,7 +149,7 @@ func TestNewGatewayHeaders(t *testing.T) {
 		ctx := fakeDummyContext(t, nil)
 		ctx.LoadRequestHeaders(reqHeaderMapMock)
 
-		headers := NewGatewayHeadersWithEnvoyHeader(ctx.RequestHeader())
+		headers := NewGatewayHeadersWithEnvoyHeader(&header{HeaderMap: reqHeaderMapMock})
 
 		assert.Equal(t, "gateway", headers.Get("reporter"))
 		assert.Equal(t, "asdf12345", headers.Get("x-request-id"))

@@ -32,3 +32,10 @@ func Handle(name string, h gonvoy.Handler, opts ...gonvoy.Option) {
 		gonvoy.NewConfigParser(gonvoy.ConfigOptionsFromOptions(o)),
 	)
 }
+
+// HandleEcho onboards an Echo-style handler at runtime. It must be called
+// inside func init. It is a one-line wrapper around Handle that adapts fn
+// through gonvoy.Echo, so registration reads as Echo without importing Echo.
+func HandleEcho(name string, fn func(gonvoy.EchoContext) error, opts ...gonvoy.Option) {
+	Handle(name, gonvoy.Echo(fn), opts...)
+}

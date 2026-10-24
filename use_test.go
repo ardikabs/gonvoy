@@ -34,6 +34,37 @@ func TestUse_NilPanics(t *testing.T) {
 	require.Panics(t, func() { Use(nil) })
 }
 
+// TestEchoComposition pins the supported Use-plus-Echo pattern: an Echo
+// terminal nested inside classic middleware preserves the onion order.
+// The literal Use(Echo(...)) does not compile by design (Echo returns a
+// Handler, Use takes func(Handler) Handler), so the Echo terminal enters
+// via direct nesting or a next-ignoring wrapper as the last Use element.
+func TestEchoComposition(t *testing.T) {
+	t.Parallel()
+
+	var order []string
+	outer := func(next Handler) Handler {
+		return HandlerFunc(func(w ResponseWriter, r *http.Request) {
+			order = append(order, "outer:before")
+			next.ServeHTTP(w, r)
+			order = append(order, "outer:after")
+		})
+	}
+	echo := Echo(func(c EchoContext) error {
+		order = append(order, "echo")
+		return nil
+	})
+
+	h := outer(echo)
+	h.ServeHTTP(newRecordingWriter(), &http.Request{})
+	assert.Equal(t, []string{"outer:before", "echo", "outer:after"}, order)
+
+	order = nil
+	h2 := Use(outer, func(Handler) Handler { return echo })
+	h2.ServeHTTP(newRecordingWriter(), &http.Request{})
+	assert.Equal(t, []string{"outer:before", "echo", "outer:after"}, order)
+}
+
 func TestOption_Apply(t *testing.T) {
 	t.Parallel()
 

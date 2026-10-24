@@ -1,6 +1,7 @@
 package gonvoy
 
 import (
+	stdcontext "context"
 	"net/http"
 	"strings"
 	"testing"
@@ -236,6 +237,84 @@ func TestEchoContextResponseGating(t *testing.T) {
 	_, err := c.ResponseBody()
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrOperationNotPermitted)
+}
+
+func TestEchoContextPlatform(t *testing.T) {
+	t.Parallel()
+
+	t.Run("delegates stay nil-safe on the bridge", func(t *testing.T) {
+		t.Parallel()
+
+		c := newTestEchoContext()
+
+		c.Log().Info("platform", "where", "bridge")
+		c.Stats().Counter("req").Increment(1)
+		assert.Nil(t, c.Cache())
+
+		if _, ok := c.Attr("request.host", "-"); !ok {
+			t.Log("outside bridge, default returned")
+		}
+
+		require.NotPanics(t, func() {
+			c.Reroute()
+			c.RefreshRoute()
+			c.OverrideUpstream("10.0.0.9:8080", false)
+			c.Drain()
+		})
+		assert.True(t, c.ex.refreshRoute)
+
+		_, ok := c.Secret("missing")
+		assert.False(t, ok)
+
+		_, ok = c.TLS()
+		assert.False(t, ok)
+
+		c.r.URL.RawQuery = "a=1"
+		assert.Equal(t, "1", c.QueryParam("a"))
+		assert.Empty(t, c.QueryParam("missing"))
+
+		_, err := EchoConfig[string](c)
+		require.Error(t, err)
+	})
+
+	t.Run("typed config round-trips through the context", func(t *testing.T) {
+		t.Parallel()
+
+		c := newTestEchoContext()
+		c.r = c.r.WithContext(stdcontext.WithValue(c.r.Context(), bridgeConfigKey{}, "cfg"))
+
+		got, err := EchoConfig[string](c)
+		require.NoError(t, err)
+		assert.Equal(t, "cfg", got)
+
+		_, err = EchoConfig[int](c)
+		require.Error(t, err)
+	})
+
+	t.Run("delegates stay nil-safe outside the bridge", func(t *testing.T) {
+		t.Parallel()
+
+		r, err := http.NewRequest(http.MethodGet, "http://example.com/?a=1", nil)
+		require.NoError(t, err)
+		c := newEchoContext(newRecordingWriter(), r)
+
+		require.NotPanics(t, func() {
+			_ = c.Log()
+			_ = c.Stats()
+			_ = c.Cache()
+			_, _ = c.Attr("request.host", "-")
+			c.Reroute()
+			c.RefreshRoute()
+			c.OverrideUpstream("10.0.0.9:8080", false)
+			c.Drain()
+			_, _ = c.Secret("missing")
+			_, _ = c.TLS()
+		})
+		assert.Equal(t, "1", c.QueryParam("a"))
+
+		_, err = EchoConfig[string](c)
+		require.Error(t, err)
+	})
 }
 
 func TestEchoContextBindNonJSON(t *testing.T) {

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/go-logr/logr"
 )
 
 // EchoContext is the Echo-style handler surface over the bridge exchange.
@@ -98,6 +100,59 @@ type EchoContext interface {
 	// second value reports gating: without response body access it is a
 	// ErrOperationNotPermitted-wrapped error.
 	ResponseBody() (io.Reader, error)
+
+	// Log returns the request logger, like the Log helper. Outside the
+	// bridge it discards.
+	Log() logr.Logger
+
+	// Stats returns the metric recorder for the request, like the Stats
+	// helper. Operations queue for callback-side flush; outside the
+	// bridge they drop.
+	Stats() MetricsRecorder
+
+	// Cache returns the filter-wide cache, like the SharedCache helper.
+	// Outside the bridge it returns nil.
+	Cache() Cache
+
+	// Attr fetches an Envoy attribute that is not an HTTP field, like
+	// the Attr helper. The boolean reports whether the attribute
+	// exists; when it does not, the default is returned with false.
+	Attr(name, def string) (string, bool)
+
+	// Reroute makes Envoy pick the route again, like the Reroute
+	// helper. Outside the bridge it is a no-op.
+	Reroute()
+
+	// RefreshRoute re-fetches the route immediately for this request,
+	// like RefreshRouteCache with the request context. Prefer Reroute
+	// when the handler mutated the request. Outside the bridge it is a
+	// no-op.
+	RefreshRoute()
+
+	// OverrideUpstream pins this request to one upstream host, like
+	// the OverrideUpstreamHost helper. Outside the bridge it is a
+	// no-op.
+	OverrideUpstream(host string, strict bool)
+
+	// Drain marks the downstream connection to be drained after the
+	// current request completes, like the DrainConnection helper.
+	// Outside the bridge it is a no-op.
+	Drain()
+
+	// Secret fetches a named secret from Envoy's secret manager, like
+	// the Secret helper. The second return value is false when the
+	// secret is missing or the request runs outside the bridge.
+	Secret(name string) (string, bool)
+
+	// TLS returns the downstream TLS connection snapshot, like the TLS
+	// helper. The second return value is false for plaintext
+	// connections and outside the bridge.
+	TLS() (TLSConnection, bool)
+
+	// QueryParam returns the named query parameter, like
+	// r.URL.Query().Get. It returns "" when the request or its URL is
+	// nil, or when the parameter is absent.
+	QueryParam(name string) string
 }
 
 var _ EchoContext = (*echoContext)(nil)
@@ -266,6 +321,77 @@ func (c *echoContext) ResponseBody() (io.Reader, error) {
 	}
 
 	return ResponseBody(c.r)
+}
+
+// Log returns the request logger.
+func (c *echoContext) Log() logr.Logger { return Log(c.r) }
+
+// Stats returns the metric recorder for the request.
+func (c *echoContext) Stats() MetricsRecorder { return Stats(c.r) }
+
+// Cache returns the filter-wide cache.
+func (c *echoContext) Cache() Cache { return SharedCache(c.r) }
+
+// Attr fetches an Envoy attribute that is not an HTTP field.
+func (c *echoContext) Attr(name, def string) (string, bool) { return Attr(c.r, name, def) }
+
+// Reroute makes Envoy pick the route again.
+func (c *echoContext) Reroute() { Reroute(c.r) }
+
+// RefreshRoute re-fetches the route immediately for this request through
+// the request context.
+func (c *echoContext) RefreshRoute() {
+	if c.r == nil {
+		return
+	}
+
+	RefreshRouteCache(c.r.Context())
+}
+
+// OverrideUpstream pins this request to one upstream host.
+func (c *echoContext) OverrideUpstream(host string, strict bool) {
+	OverrideUpstreamHost(c.r, host, strict)
+}
+
+// Drain marks the downstream connection to be drained after the current
+// request completes.
+func (c *echoContext) Drain() { DrainConnection(c.r) }
+
+// Secret fetches a named secret from Envoy's secret manager.
+func (c *echoContext) Secret(name string) (string, bool) { return Secret(c.r, name) }
+
+// TLS returns the downstream TLS connection snapshot for the request.
+func (c *echoContext) TLS() (TLSConnection, bool) { return TLS(c.r) }
+
+// QueryParam returns the named query parameter. A nil request or URL
+// reads as absent.
+func (c *echoContext) QueryParam(name string) string {
+	if c.r == nil || c.r.URL == nil {
+		return ""
+	}
+
+	return c.r.URL.Query().Get(name)
+}
+
+// EchoConfig returns the typed plugin config for the request seen by c.
+// It is a generic function rather than a method because Go methods must
+// have no type parameters; it delegates to Config with the wrapped
+// request. Use the same type passed at registration.
+func EchoConfig[T any](c EchoContext) (T, error) {
+	if c == nil {
+		var zero T
+
+		return zero, fmt.Errorf("filter config is not available, %w", errInternalConfigNotFound)
+	}
+
+	r := c.Request()
+	if r == nil {
+		var zero T
+
+		return zero, fmt.Errorf("filter config is not available, %w", errInternalConfigNotFound)
+	}
+
+	return Config[T](r)
 }
 
 // fail records a handler error so the bridge error handler maps it. It is a

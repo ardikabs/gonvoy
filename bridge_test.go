@@ -16,6 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type fakeDecoderCallbacks struct {
+	api.DecoderFilterCallbacks
+}
+
+type fakeEncoderCallbacks struct {
+	api.EncoderFilterCallbacks
+}
+
 func fakeBridgeHeaders(t *testing.T, contentType string) *mock_envoy.RequestHeaderMap {
 	t.Helper()
 

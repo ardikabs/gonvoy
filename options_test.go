@@ -7,6 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type fakeFilterConfig struct {
+	Allow bool
+}
+
 func TestOptionsFromConfigOptions(t *testing.T) {
 	t.Run("field mapping preserves semantics", func(t *testing.T) {
 		testcases := []struct {

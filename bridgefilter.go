@@ -23,6 +23,8 @@ type bridgeFilter struct {
 	sendReply    func(ex *bridgeExchange, status int, body []byte) api.StatusType
 }
 
+var NoOpHttpFilter = &api.PassThroughStreamFilter{}
+
 // NewHandlerChainFactory builds a StreamFilterFactory serving h for every request.
 // The handler runs once per request; returning without writing or calling
 // next continues upstream. Plugin config, body access, and metrics come

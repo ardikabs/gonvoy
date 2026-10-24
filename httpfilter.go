@@ -7,8 +7,6 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-var NoOpHttpFilter = &api.PassThroughStreamFilter{}
-
 // HttpFilterFactory defines a factory func for creating an HttpFilter.
 //
 // It is passed to RunHttpFilter & buildHttpFilterManager and called in

@@ -1,8 +1,6 @@
 package httpfilter
 
 import (
-	"net/http"
-
 	"go-simple-extension/myfilter/handler"
 
 	"github.com/ardikabs/gonvoy"
@@ -30,17 +28,21 @@ func init() {
 
 // CountRequests records a per-request counter after the chain runs,
 // mirroring the old OnComplete hook.
-func CountRequests(next gonvoy.Handler) gonvoy.Handler {
-	return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
+func CountRequests(gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.Echo(func(c gonvoy.EchoContext) error {
+		if err := c.Next(); err != nil {
+			return err
+		}
 
-		host, _ := gonvoy.Attr(r, "request.host", "-")
-		method, _ := gonvoy.Attr(r, "request.method", "-")
+		host, _ := c.Attr("request.host", "-")
+		method, _ := c.Attr("request.method", "-")
 
-		gonvoy.Stats(r).Counter("requests_total",
+		c.Stats().Counter("requests_total",
 			"host", host,
 			"method", method,
 			"status_code", "-",
 		).Increment(1)
+
+		return nil
 	})
 }

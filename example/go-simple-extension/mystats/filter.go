@@ -1,8 +1,6 @@
 package mystats
 
 import (
-	"net/http"
-
 	"github.com/ardikabs/gonvoy"
 	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
@@ -10,18 +8,20 @@ import (
 const filterName = "mystats"
 
 func init() {
-	envoy.Handle(filterName,
-		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-			gonvoy.Terminal{}.ServeHTTP(w, r)
+	envoy.HandleEcho(filterName,
+		func(c gonvoy.EchoContext) error {
+			if err := c.Next(); err != nil {
+				return err
+			}
 
-			host, _ := gonvoy.Attr(r, "request.host", "-")
-			method, _ := gonvoy.Attr(r, "request.method", "-")
-			code, _ := gonvoy.Attr(r, "response.code", "-")
-			flags, _ := gonvoy.Attr(r, "response.flags", "-")
-			upstream, _ := gonvoy.Attr(r, "xds.cluster_name", "-")
-			route, _ := gonvoy.Attr(r, "xds.route_name", "-")
+			host, _ := c.Attr("request.host", "-")
+			method, _ := c.Attr("request.method", "-")
+			code, _ := c.Attr("response.code", "-")
+			flags, _ := c.Attr("response.flags", "-")
+			upstream, _ := c.Attr("xds.cluster_name", "-")
+			route, _ := c.Attr("xds.route_name", "-")
 
-			gonvoy.Stats(r).Counter("requests_total",
+			c.Stats().Counter("requests_total",
 				"host", host,
 				"method", method,
 				"response_code", code,
@@ -29,7 +29,9 @@ func init() {
 				"upstream_name", upstream,
 				"route_name", route,
 			).Increment(1)
-		}),
+
+			return nil
+		},
 		gonvoy.MetricPrefix("mystats_"),
 	)
 }

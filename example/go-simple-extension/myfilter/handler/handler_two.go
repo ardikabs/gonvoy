@@ -8,39 +8,36 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
-func Two(next gonvoy.Handler) gonvoy.Handler {
-	return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-		log := gonvoy.Log(r).WithName("handlerTwo")
+// Two handles the middle layer of the example chain.
+func Two(gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.Echo(func(c gonvoy.EchoContext) error {
+		log := c.Log().WithName("handlerTwo")
 
+		r := c.Request()
 		r.Header.Add("x-user-id", "0")
 		r.Header.Add("x-user-id", "1")
 
-		header := r.Header
-
-		if header.Get("x-error") == "403" {
-			plain(w, http.StatusForbidden, "access denied")
-			return
+		if c.Header("x-error") == "403" {
+			return plain(c, http.StatusForbidden, "access denied")
 		}
 
-		if header.Get("x-error") == "429" {
-			plain(w, http.StatusTooManyRequests, "rate limit exceeded")
-			return
+		if c.Header("x-error") == "429" {
+			return plain(c, http.StatusTooManyRequests, "rate limit exceeded")
 		}
 
-		if header.Get("x-error") == "503" {
-			plain(w, http.StatusServiceUnavailable, "service unavailable")
-			return
+		if c.Header("x-error") == "503" {
+			return plain(c, http.StatusServiceUnavailable, "service unavailable")
 		}
 
 		data := new(globaldata)
-		if ok, err := gonvoy.SharedCache(r).Load(GLOBAL, &data); ok && err == nil {
+		if ok, err := c.Cache().Load(GLOBAL, &data); ok && err == nil {
 			data.Time2 = time.Now()
 			log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
-			gonvoy.SharedCache(r).Store(GLOBAL, data)
+			c.Cache().Store(GLOBAL, data)
 		}
 
 		log.Info("handling request", "host", r.Host, "path", r.URL.Path, "method", r.Method, "query", r.URL.Query())
 
-		next.ServeHTTP(w, r)
+		return c.Next()
 	})
 }

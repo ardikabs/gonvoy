@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/ardikabs/gonvoy"
@@ -8,22 +9,26 @@ import (
 )
 
 func init() {
-	envoy.Handle(FilterName, gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-		gonvoy.Terminal{}.ServeHTTP(w, r)
-
-		switch code := w.Status(); code {
-		case http.StatusUnauthorized:
-			writeMinimalJSON(w, code, "UNAUTHORIZED")
-		case http.StatusTooManyRequests:
-			writeMinimalJSON(w, code, "TOO_MANY_REQUESTS")
-		case http.StatusServiceUnavailable:
-			writeMinimalJSON(w, code, "SERVICE_UNAVAILABLE")
+	envoy.HandleEcho(FilterName, func(c gonvoy.EchoContext) error {
+		if err := c.Next(); err != nil {
+			return err
 		}
-	}))
+
+		switch code := c.Status(); code {
+		case http.StatusUnauthorized:
+			return writeMinimalJSON(c, code, "UNAUTHORIZED")
+		case http.StatusTooManyRequests:
+			return writeMinimalJSON(c, code, "TOO_MANY_REQUESTS")
+		case http.StatusServiceUnavailable:
+			return writeMinimalJSON(c, code, "SERVICE_UNAVAILABLE")
+		}
+
+		return nil
+	})
 }
 
-func writeMinimalJSON(w gonvoy.ResponseWriter, code int, name string) {
-	gonvoy.JSON(w, code, gonvoy.NewMinimalJSONResponse(name, name))
+func writeMinimalJSON(c gonvoy.EchoContext, code int, name string) error {
+	return c.JSON(code, json.RawMessage(gonvoy.NewMinimalJSONResponse(name, name)))
 }
 
 func main() {}

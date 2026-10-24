@@ -1,20 +1,20 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/ardikabs/gonvoy"
 	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	envoy.Handle(FilterName, gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-		gonvoy.Log(r).Info("Hello World from the helloworld HTTP filter")
+	envoy.HandleEcho(FilterName, func(c gonvoy.EchoContext) error {
+		c.Log().Info("Hello World from the helloworld HTTP filter")
 
-		if r.Header.Get("x-drain") == "true" {
-			gonvoy.DrainConnection(r)
+		if c.Header("x-drain") == "true" {
+			c.Drain()
 		}
-	}))
+
+		return nil
+	})
 }
 
 func main() {}

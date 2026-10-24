@@ -1,40 +1,38 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/ardikabs/gonvoy"
 	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	envoy.Handle(headersModifierFilterName,
-		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-			cfg, err := gonvoy.Config[*Config](r)
+	envoy.HandleEcho(headersModifierFilterName,
+		func(c gonvoy.EchoContext) error {
+			cfg, err := gonvoy.EchoConfig[*Config](c)
 			if err != nil {
-				return
+				return nil
 			}
 
 			for k, v := range cfg.RequestHeaders {
-				r.Header.Set(k, v)
+				c.SetRequestHeader(k, v)
 			}
 			for k, v := range cfg.ResponseHeaders {
-				w.Header().Set(k, v)
+				c.SetHeader(k, v)
 			}
 
-			gonvoy.Terminal{}.ServeHTTP(w, r)
-		}),
+			return c.Next()
+		},
 		gonvoy.WithConfig(new(Config)),
 	)
 
-	envoy.Handle(echoServerFilterName,
-		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-			for k, v := range r.Header {
-				gonvoy.Log(r).Info("request header --->", k, v)
+	envoy.HandleEcho(echoServerFilterName,
+		func(c gonvoy.EchoContext) error {
+			for k, v := range c.Request().Header {
+				c.Log().Info("request header --->", k, v)
 			}
 
-			gonvoy.Terminal{}.ServeHTTP(w, r)
-		}),
+			return c.Next()
+		},
 	)
 }
 

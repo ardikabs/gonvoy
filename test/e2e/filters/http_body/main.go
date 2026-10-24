@@ -13,108 +13,110 @@ import (
 )
 
 func init() {
-	envoy.Handle(bodyReadFilterName,
-		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-			cfg, err := gonvoy.Config[*Config](r)
+	envoy.HandleEcho(bodyReadFilterName,
+		func(c gonvoy.EchoContext) error {
+			cfg, err := gonvoy.EchoConfig[*Config](c)
 			if err != nil || !cfg.EnableRead {
-				return
+				return nil
 			}
 
-			if secretName := r.Header.Get("x-get-secret"); secretName != "" {
-				if value, ok := gonvoy.Secret(r, secretName); ok {
-					w.Header().Set("x-secret-value", value)
+			if secretName := c.Header("x-get-secret"); secretName != "" {
+				if value, ok := c.Secret(secretName); ok {
+					c.SetHeader("x-secret-value", value)
 				}
 
-				return
+				return nil
 			}
 
-			if v := r.Header.Get("x-inspect-body"); v != "true" {
-				gonvoy.Terminal{}.ServeHTTP(w, r)
-				return
+			if v := c.Header("x-inspect-body"); v != "true" {
+				return c.Next()
 			}
 
-			tryWriteOnRequest := r.Header.Get("x-try-write") == "request"
-			tryWriteOnResponse := r.Header.Get("x-try-write") == "response"
+			tryWriteOnRequest := c.Header("x-try-write") == "request"
+			tryWriteOnResponse := c.Header("x-try-write") == "response"
 
-			body, err := io.ReadAll(r.Body)
+			body, err := io.ReadAll(c.Body())
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+				return c.String(http.StatusInternalServerError, err.Error())
 			}
 
-			gonvoy.Log(r).Info("request body payload --->", "data", string(body), "size", len(body), "mode", "READ")
+			c.Log().Info("request body payload --->", "data", string(body), "size", len(body), "mode", "READ")
 
 			if tryWriteOnRequest {
 				newPayload := map[string]interface{}{"data": string(body)}
 
 				replaced, err := json.Marshal(newPayload)
 				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
+					return c.String(http.StatusInternalServerError, err.Error())
 				}
 
-				r.Body = io.NopCloser(bytes.NewReader(replaced))
+				c.Request().Body = io.NopCloser(bytes.NewReader(replaced))
 			}
 
-			gonvoy.Terminal{}.ServeHTTP(w, r)
+			if err := c.Next(); err != nil {
+				return err
+			}
 
-			resp, err := gonvoy.ResponseBody(r)
+			resp, err := c.ResponseBody()
 			if err != nil {
-				return
+				return nil
 			}
 
 			raw, err := io.ReadAll(resp)
 			if err != nil {
-				return
+				return nil
 			}
 
 			payload := make(map[string]interface{})
 			if err := json.Unmarshal(raw, &payload); err != nil {
-				http.Error(w, fmt.Sprintf("response payload failed during unmarshal: %v", err), http.StatusInternalServerError)
-				return
+				return c.String(http.StatusInternalServerError, fmt.Sprintf("response payload failed during unmarshal: %v", err))
 			}
 
-			gonvoy.Log(r).Info("response body payload --->", "state", payload["state"], "mode", "READ")
+			c.Log().Info("response body payload --->", "state", payload["state"], "mode", "READ")
 
 			if tryWriteOnResponse {
 				payload["data"] = string(raw)
 
 				changed, err := json.Marshal(payload)
 				if err != nil {
-					return
+					return nil
 				}
 
-				_, _ = w.Write(changed)
+				code := c.Status()
+				if code == 0 {
+					code = http.StatusOK
+				}
+
+				return c.JSON(code, json.RawMessage(changed))
 			}
-		}),
+
+			return nil
+		},
 		gonvoy.WithConfig(new(Config)),
 		gonvoy.OpenBodyAccess(),
 		gonvoy.ReadRequestBody(),
 		gonvoy.ReadResponseBody(),
 	)
 
-	envoy.Handle(bodyWriteFilterName,
-		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-			cfg, err := gonvoy.Config[*Config](r)
+	envoy.HandleEcho(bodyWriteFilterName,
+		func(c gonvoy.EchoContext) error {
+			cfg, err := gonvoy.EchoConfig[*Config](c)
 			if err != nil || !cfg.EnableWrite {
-				return
+				return nil
 			}
 
-			if v := r.Header.Get("x-modify-body"); v != "true" {
-				gonvoy.Terminal{}.ServeHTTP(w, r)
-				return
+			if v := c.Header("x-modify-body"); v != "true" {
+				return c.Next()
 			}
 
-			signature := r.Header.Get("x-signature")
+			signature := c.Header("x-signature")
 			if signature == "" {
-				http.Error(w, "signature can not be empty", http.StatusBadRequest)
-				return
+				return c.String(http.StatusBadRequest, "signature can not be empty")
 			}
 
-			raw, err := io.ReadAll(r.Body)
+			raw, err := io.ReadAll(c.Body())
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+				return c.String(http.StatusInternalServerError, err.Error())
 			}
 
 			// Mirror the old phase handler: request replacement only happens
@@ -126,28 +128,29 @@ func init() {
 					"signature": signature,
 				})
 				if err != nil {
-					http.Error(w, fmt.Sprintf("request payload failed during modification: %v", err), http.StatusInternalServerError)
-					return
+					return c.String(http.StatusInternalServerError, fmt.Sprintf("request payload failed during modification: %v", err))
 				}
 
-				r.Body = io.NopCloser(bytes.NewReader(replaced))
+				c.Request().Body = io.NopCloser(bytes.NewReader(replaced))
 			}
-			gonvoy.Terminal{}.ServeHTTP(w, r)
 
-			resp, err := gonvoy.ResponseBody(r)
+			if err := c.Next(); err != nil {
+				return err
+			}
+
+			resp, err := c.ResponseBody()
 			if err != nil {
-				return
+				return nil
 			}
 
 			raw, err = io.ReadAll(resp)
 			if err != nil {
-				return
+				return nil
 			}
 
 			payload := make(map[string]interface{})
 			if err := json.Unmarshal(raw, &payload); err != nil {
-				http.Error(w, fmt.Sprintf("response payload failed during unmarshal: %v", err), http.StatusInternalServerError)
-				return
+				return c.String(http.StatusInternalServerError, fmt.Sprintf("response payload failed during unmarshal: %v", err))
 			}
 
 			payload["signature"] = signature
@@ -157,35 +160,38 @@ func init() {
 
 			changed, err := json.Marshal(payload)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("response payload failed during modification: %v", err), http.StatusInternalServerError)
-				return
+				return c.String(http.StatusInternalServerError, fmt.Sprintf("response payload failed during modification: %v", err))
 			}
 
-			_, _ = w.Write(changed)
-		}),
+			code := c.Status()
+			if code == 0 {
+				code = http.StatusOK
+			}
+
+			return c.JSON(code, json.RawMessage(changed))
+		},
 		gonvoy.WithConfig(new(Config)),
 		gonvoy.OpenBodyAccess(),
 		gonvoy.WriteRequestBody(),
 		gonvoy.WriteResponseBody(),
 	)
 
-	envoy.Handle(echoServerFilterName,
-		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-			raw, err := io.ReadAll(r.Body)
+	envoy.HandleEcho(echoServerFilterName,
+		func(c gonvoy.EchoContext) error {
+			raw, err := io.ReadAll(c.Body())
 			if err != nil || len(raw) == 0 {
-				gonvoy.Terminal{}.ServeHTTP(w, r)
-				return
+				return c.Next()
 			}
 
 			payload := make(map[string]interface{})
 			if err := json.Unmarshal(raw, &payload); err != nil {
-				gonvoy.Terminal{}.ServeHTTP(w, r)
-				return
+				return c.Next()
 			}
 
-			gonvoy.Log(r).Info("request payload should be modified --->", "signature", payload["signature"], "data", payload["data"])
-			gonvoy.Terminal{}.ServeHTTP(w, r)
-		}),
+			c.Log().Info("request payload should be modified --->", "signature", payload["signature"], "data", payload["data"])
+
+			return c.Next()
+		},
 		gonvoy.OpenBodyAccess(),
 		gonvoy.ReadRequestBody(),
 	)

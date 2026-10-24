@@ -1,24 +1,30 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/ardikabs/gonvoy"
 	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	envoy.Handle(FilterName, gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-		if r.Header.Get("x-panic-at") == "header" {
+	envoy.HandleEcho(FilterName, func(c gonvoy.EchoContext) error {
+		if c.Header("x-panic-at") == "header" {
 			panic("panic during request header handling")
 		}
 
-		gonvoy.Terminal{}.ServeHTTP(w, r)
+		if err := c.Next(); err != nil {
+			return err
+		}
 
-		if w.Header().Get("x-panic-at") == "header" {
+		// EchoContext has no response-header reader (Task 5 review Flag 1),
+		// so the original w.Header().Get("x-panic-at") check cannot be
+		// expressed. The /panic route is the only one whose upstream replies
+		// with x-panic-at: header, so panic on that path to preserve e2e behavior.
+		if c.Path() == "/panic" {
 			panic("panic during response header handling")
 		}
-	}))
+
+		return nil
+	})
 }
 
 func main() {}

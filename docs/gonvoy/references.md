@@ -23,6 +23,6 @@
 
 - `handler.go`: the core handler surface (`Handler`, `ResponseWriter`, `Config`, `Attr`, `Reroute`, `Log`, `SharedCache`, `Stats`, `ResponseBody`, `Terminal`, plus `OverrideUpstreamHost`, `DrainConnection`, `Secret`, and `TLS`).
 - `use.go`, `options.go`, `reply.go`: handler composition (`Use`), registration options, and reply helpers (`JSON`, `String`). All pure Go, all unit-testable.
-- `pkg/envoy/envoy.go`: `Handle` alone. It is the only registration entrypoint for the new API: it wires your handler and options into Envoy's Go framework, which links Envoy's C bindings. Old-path `Register` / `MustRegister` live in the same file. Nothing else lives here on purpose, so unit tests never need to import this package.
+- `pkg/envoy/envoy.go`: `Handle` alone. It is the only registration entrypoint for the new API: it wires your handler and options into Envoy's Go framework, which links Envoy's C bindings. Old-path `Register` / `MustRegister` were part of the retired phase-based path. Nothing else lives here on purpose, so unit tests never need to import this package.
 - `bridge.go` / `bridgefilter.go`: the coroutine driver, for when you need to know exactly what happens between your handler and Envoy.
 - `test/e2e/filters/`: one working fixture per pattern. `http_body` shows read/replace on both sides, `http_reroute` shows routing, `metrics` shows labels, `panic_filter` shows failure behavior.

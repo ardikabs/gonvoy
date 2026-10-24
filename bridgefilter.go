@@ -28,7 +28,7 @@ var NoOpHttpFilter = &api.PassThroughStreamFilter{}
 // NewHandlerChainFactory builds a StreamFilterFactory serving h for every request.
 // The handler runs once per request; returning without writing or calling
 // next continues upstream. Plugin config, body access, and metrics come
-// from the parsed route config, the same as the phase-based path.
+// from the parsed route config, replacing the retired phase-based path.
 func NewHandlerChainFactory(h Handler) api.StreamFilterFactory {
 	if util.IsNil(h) {
 		panic("handlerChainFactory: handler shouldn't be nil")

@@ -22,6 +22,3 @@ packages:
       mockname: "Mock{{.InterfaceName}}"
     interfaces:
       Context:
-      Configuration:
-      HttpFilterHandler:
-      HttpFilterPhaseStrategy:

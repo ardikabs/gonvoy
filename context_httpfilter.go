@@ -100,7 +100,6 @@ func (c *context) SendResponse(code int, bodyText string, opts ...LocalReplyOpti
 
 	c.pcb.SendLocalReply(code, bodyText, reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
 	c.committed = true
-	c.statusType = reply.statusType
 
 	return nil
 }
@@ -120,7 +119,6 @@ func (c *context) JSON(code int, body []byte, opts ...LocalReplyOption) error {
 
 	c.pcb.SendLocalReply(code, string(body), reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
 	c.committed = true
-	c.statusType = reply.statusType
 
 	runtime.GC()
 	return nil
@@ -229,7 +227,7 @@ func (c *context) isHTTPBodyAccessible(header http.Header) bool {
 	return false
 }
 
-func shouldOmitContentLengthOnRequest(c Context, header api.HeaderMap) bool {
+func shouldOmitContentLengthOnRequest(c bridgeContext, header api.HeaderMap) bool {
 	ctx := mustCastToContext(c)
 	if ctx.preserveContentLengthOnRequest {
 		return false
@@ -240,7 +238,7 @@ func shouldOmitContentLengthOnRequest(c Context, header api.HeaderMap) bool {
 	return deleteContentLength(header)
 }
 
-func shouldOmitContentLengthOnResponse(c Context, header api.HeaderMap) bool {
+func shouldOmitContentLengthOnResponse(c bridgeContext, header api.HeaderMap) bool {
 	ctx := mustCastToContext(c)
 	if ctx.preserveContentLengthOnResponse {
 		return false
@@ -260,7 +258,7 @@ func deleteContentLength(header api.HeaderMap) bool {
 	return false
 }
 
-func mustCastToContext(c Context) *context {
+func mustCastToContext(c bridgeContext) *context {
 	ctx, ok := c.(*context)
 	if !ok {
 		panic("invalid context type")

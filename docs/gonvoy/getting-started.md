@@ -37,46 +37,46 @@ import (
 )
 
 func init() {
-    envoy.HandleEcho("hello", func(c gonvoy.EchoContext) error {
+    envoy.Handle("hello", gonvoy.Handler(func(c gonvoy.Context) error {
         c.SetHeader("x-hello", "world")
         return nil
-    })
+    }))
 }
 
 func main() {}
 ```
 
-The handler above does the simplest useful thing: it tags every response with a header and lets the request continue. Returning nil without writing means "pass through". This shape, one Echo function registered directly with `envoy.HandleEcho`, covers any self-contained job: check something, maybe answer, otherwise let the request through.
+The handler above does the simplest useful thing: it tags every response with a header and lets the request continue. Returning nil without writing means "pass through". This shape, one handler function registered directly with `envoy.Handle`, covers any self-contained job: check something, maybe answer, otherwise let the request through.
 
 A handler that answers directly looks like this:
 
 ```go
-envoy.HandleEcho("auth", func(c gonvoy.EchoContext) error {
+envoy.Handle("auth", gonvoy.Handler(func(c gonvoy.Context) error {
     if c.Header("Authorization") == "" {
         return c.String(http.StatusUnauthorized, "unauthorized")
     }
-    return c.Next()
-})
+    return nil
+}))
 ```
 
-`c.Next()` sends the request upstream, and code after it runs when the response arrives. (There is more to say about single handlers versus layers; see [Single handler vs middleware](user-guide/filter-authoring.md#single-handler-vs-middleware). For now: one job, one function, `Next` to proceed.)
+Returning `nil` without writing passes the request upstream. To run code when the response arrives, wrap the handler in `Use` and call `next` (see [Single handler vs middleware](user-guide/filter-authoring.md#single-handler-vs-middleware)).
 
 When the job has layers, reach for `gonvoy.Use` instead of a bigger single function:
 
 ```go
-func Auth(gonvoy.Handler) gonvoy.Handler {
-    return gonvoy.Echo(func(c gonvoy.EchoContext) error {
+func Auth(next gonvoy.Handler) gonvoy.Handler {
+    return gonvoy.Handler(func(c gonvoy.Context) error {
         if c.Header("Authorization") == "" {
             return c.String(http.StatusUnauthorized, "unauthorized")
         }
-        return c.Next()
+        return next(c)
     })
 }
 
-func Log(gonvoy.Handler) gonvoy.Handler {
-    return gonvoy.Echo(func(c gonvoy.EchoContext) error {
+func Log(next gonvoy.Handler) gonvoy.Handler {
+    return gonvoy.Handler(func(c gonvoy.Context) error {
         c.Log().Info("incoming request", "path", c.Path())
-        if err := c.Next(); err != nil {
+        if err := next(c); err != nil {
             return err
         }
         c.SetHeader("via", "my-gateway")
@@ -87,9 +87,9 @@ func Log(gonvoy.Handler) gonvoy.Handler {
 envoy.Handle("auth", gonvoy.Use(Auth, Log))
 ```
 
-Each layer ignores its `next` argument and proceeds with `c.Next()` instead, so layers never name `Terminal`. `Use` wires one in as the innermost element for you. Order is outermost first: `Auth` runs before `Log` on the way in, and after it on the way out.
+Each layer calls its `next` argument to proceed; `Use` wires the internal upstream hop in as the innermost element for you. Order is outermost first: `Auth` runs before `Log` on the way in, and after it on the way out.
 
-`envoy.HandleEcho` is a one-line wrapper around `envoy.Handle`: `gonvoy.Echo` adapts the Echo function to the underlying `Handler` runtime, and `Handler`/`Use`/`Terminal` are that runtime, not a second framework.
+`envoy.Handle` onboards a handler function directly: the function is a `gonvoy.Handler`, and `Handler`/`Use`/`Middleware` are the runtime, not a second framework.
 
 ## 3. Build the shared library
 

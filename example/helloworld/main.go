@@ -6,10 +6,10 @@ import (
 )
 
 func init() {
-	envoy.HandleEcho("hello", func(c gonvoy.EchoContext) error {
+	envoy.Handle("hello", gonvoy.Handler(func(c gonvoy.Context) error {
 		c.SetHeader("x-hello", "world")
 		return nil
-	})
+	}))
 }
 
 func main() {}

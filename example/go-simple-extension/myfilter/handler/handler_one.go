@@ -11,8 +11,8 @@ import (
 )
 
 // One handles the outer layer of the example chain.
-func One(gonvoy.Handler) gonvoy.Handler {
-	return gonvoy.Echo(func(c gonvoy.EchoContext) error {
+func One(next gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.Handler(func(c gonvoy.Context) error {
 		log := c.Log().WithName("handlerOne").WithName("outer").WithName("inner")
 
 		r := c.Request()
@@ -56,7 +56,7 @@ func One(gonvoy.Handler) gonvoy.Handler {
 
 		log.Error(errors.New("error from handler one"), "handling request", "host", r.Host, "path", r.URL.Path, "method", r.Method, "query", r.URL.Query())
 
-		if err := c.Next(); err != nil {
+		if err := next(c); err != nil {
 			return err
 		}
 
@@ -66,16 +66,16 @@ func One(gonvoy.Handler) gonvoy.Handler {
 	})
 }
 
-func unauthorized(c gonvoy.EchoContext, err error) error {
+func unauthorized(c gonvoy.Context, err error) error {
 	_ = err
 	return c.JSON(http.StatusUnauthorized, json.RawMessage(gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "Unauthorized")))
 }
 
-func badRequest(c gonvoy.EchoContext, msg string) error {
+func badRequest(c gonvoy.Context, msg string) error {
 	return c.JSON(http.StatusBadRequest, json.RawMessage(gonvoy.NewMinimalJSONResponse("BAD_REQUEST", msg)))
 }
 
-func plain(c gonvoy.EchoContext, code int, body string) error {
+func plain(c gonvoy.Context, code int, body string) error {
 	return c.String(code, body)
 }
 

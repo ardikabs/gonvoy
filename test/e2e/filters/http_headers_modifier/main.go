@@ -6,9 +6,9 @@ import (
 )
 
 func init() {
-	envoy.HandleEcho(headersModifierFilterName,
-		func(c gonvoy.EchoContext) error {
-			cfg, err := gonvoy.EchoConfig[*Config](c)
+	envoy.Handle(headersModifierFilterName,
+		func(c gonvoy.Context) error {
+			cfg, err := gonvoy.ConfigOf[*Config](c)
 			if err != nil {
 				return nil
 			}
@@ -20,18 +20,18 @@ func init() {
 				c.SetHeader(k, v)
 			}
 
-			return c.Next()
+			return nil
 		},
 		gonvoy.WithConfig(new(Config)),
 	)
 
-	envoy.HandleEcho(echoServerFilterName,
-		func(c gonvoy.EchoContext) error {
+	envoy.Handle(echoServerFilterName,
+		func(c gonvoy.Context) error {
 			for k, v := range c.Request().Header {
 				c.Log().Info("request header --->", k, v)
 			}
 
-			return c.Next()
+			return nil
 		},
 	)
 }

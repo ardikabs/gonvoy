@@ -13,7 +13,7 @@ import (
 
 func fakeDummyContext(t *testing.T, config *internalConfig) *context {
 	fc := mock_envoy.NewFilterCallbackHandler(t)
-	c, err := NewContext(fc, contextOptions{config: config})
+	c, err := newBridgeContext(fc, contextOptions{config: config})
 	if errors.Is(err, errInternalConfigNotFound) {
 		return mustCastToContext(c)
 	}
@@ -22,19 +22,19 @@ func fakeDummyContext(t *testing.T, config *internalConfig) *context {
 	return mustCastToContext(c)
 }
 
-func TestBridgeContextSurface(t *testing.T) {
+func TestBridgeSurface(t *testing.T) {
 	// Compile pin: the bridge must compile against exactly this surface.
 	// Method expressions (not values on a nil interface) keep it runtime-safe.
-	_ = Context.LoadRequestHeaders
-	_ = Context.LoadResponseHeaders
-	_ = Context.SendResponse
-	_ = Context.ReloadRoute
-	_ = Context.IsRequestBodyReadable
-	_ = Context.IsRequestBodyWritable
-	_ = Context.IsResponseBodyReadable
-	_ = Context.IsResponseBodyWritable
-	// Kept beyond the brief: DefaultErrorHandler answers through JSON.
-	_ = Context.JSON
+	_ = bridgeContext.LoadRequestHeaders
+	_ = bridgeContext.LoadResponseHeaders
+	_ = bridgeContext.SendResponse
+	_ = bridgeContext.ReloadRoute
+	_ = bridgeContext.IsRequestBodyReadable
+	_ = bridgeContext.IsRequestBodyWritable
+	_ = bridgeContext.IsResponseBodyReadable
+	_ = bridgeContext.IsResponseBodyWritable
+	// Kept beyond the brief: defaultErrorHandler answers through JSON.
+	_ = bridgeContext.JSON
 }
 
 func TestContext(t *testing.T) {
@@ -208,7 +208,7 @@ func TestContext_Property(t *testing.T) {
 			fc := mock_envoy.NewFilterCallbackHandler(t)
 			fc.EXPECT().GetProperty("request.host").Return(tc.value, tc.valueErr)
 
-			c, err := NewContext(fc, contextOptions{config: &internalConfig{}})
+			c, err := newBridgeContext(fc, contextOptions{config: &internalConfig{}})
 			if !errors.Is(err, errInternalConfigNotFound) {
 				require.NoError(t, err)
 			}

@@ -31,22 +31,24 @@ func TestMiddleware_Order(t *testing.T) {
 	t.Parallel()
 
 	var order []string
-	mk := func(name string) func(Handler) Handler {
+	mk := func(name string) Middleware {
 		return func(next Handler) Handler {
-			return HandlerFunc(func(w ResponseWriter, r *http.Request) {
+			return Handler(func(c Context) error {
 				order = append(order, name+":before")
-				next.ServeHTTP(w, r)
+				err := next(c)
 				order = append(order, name+":after")
+				return err
 			})
 		}
 	}
 
-	final := HandlerFunc(func(w ResponseWriter, r *http.Request) {
+	final := Handler(func(c Context) error {
 		order = append(order, "final")
+		return nil
 	})
 
 	h := mk("outer")(mk("inner")(final))
-	h.ServeHTTP(newRecordingWriter(), &http.Request{})
+	require.NoError(t, h(newTestHandlerContext()))
 
 	assert.Equal(t, []string{"outer:before", "inner:before", "final", "inner:after", "outer:after"}, order)
 }

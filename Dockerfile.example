@@ -1,6 +1,6 @@
-FROM golang:1.26.5-bookworm AS golang-base
+FROM golang:1.26.10-bookworm AS golang-base
 
-FROM golang:1.26.5-bookworm AS builder
+FROM golang:1.26.10-bookworm AS builder
 WORKDIR /app
 
 COPY . .

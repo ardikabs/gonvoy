@@ -1,8 +1,8 @@
 # Deprecation Notice
 
-> **Retired:** the entire phase-based API described on this page — including `envoy.Register`, `envoy.MustRegister`, and `envoy.RegisterHttpFilter` — has been removed from the tree. Only `envoy.Handle` (bridge handler API) remains. This page is kept as a porting reference.
+> **Retired:** the entire phase-based API described on this page (including `envoy.Register`, `envoy.MustRegister`, and `envoy.RegisterHttpFilter`) has been removed from the tree. Only `envoy.Handle` (bridge handler API) remains. This page is kept as a porting reference.
 
-gonvoy has two APIs. The handler API (`HandlerFunc`, `Use`, `Terminal`) is the default for all new filters. The phase-based API below it no longer compiles; it is removed, not merely superseded. This page writes up the whole old surface so you can maintain existing filters and port them with intent.
+gonvoy has two APIs. The handler API (`Handler`, `Use`) is the default for all new filters. The phase-based API below it no longer compiles; it is removed, not merely superseded. This page writes up the whole old surface so you can maintain existing filters and port them with intent.
 
 Only two names carry an explicit deprecation marker. Everything else in this page works exactly as before.
 

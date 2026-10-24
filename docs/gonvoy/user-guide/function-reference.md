@@ -7,60 +7,58 @@ What you can do inside a handler, organized by need. If you are porting a filter
 Default to the reply helpers. They set the content type, record the status, and write the body in one call:
 
 ```go
-gonvoy.JSON(w, http.StatusUnauthorized, gonvoy.NewMinimalJSONResponse("UNAUTHORIZED", "Unauthorized"))
-gonvoy.String(w, http.StatusForbidden, "access denied")
+return c.JSON(http.StatusUnauthorized, map[string]string{"code": "UNAUTHORIZED"})
+return c.String(http.StatusForbidden, "access denied")
 ```
 
-Fall back to raw calls for any payload that is neither JSON nor plain text:
+Fall back to pre-encoded JSON for payloads you already marshalled:
 
 ```go
-w.Header().Set("Content-Type", "application/octet-stream")
-w.WriteHeader(http.StatusOK)
-_, _ = w.Write(raw)
+return c.JSON(http.StatusOK, json.RawMessage(raw))
 ```
 
-How `net/http` habits port over: `http.Error(w, msg, code)` behaves like `gonvoy.String` with the same arguments, plus the no-sniff header the standard library adds. A bare `return` after writing answers directly; calling `next` (or `Terminal`) after writing is the write-and-next bug and answers 500 instead.
+How `net/http` habits port over: `http.Error(w, msg, code)` behaves like `return c.String(code, msg)`, plus the no-sniff header the standard library adds. A bare `return nil` after answering ends it; writing an answer and then calling `next` is the write-and-proceed bug and returns an error instead of proceeding.
 
 ## Passing the request through
 
 Return without writing and without calling `next`: the request continues upstream unchanged. This is the cheap path, nothing parks and nothing waits for the response.
 
-To proceed upstream *and* run code when the response arrives, call `gonvoy.Terminal{}.ServeHTTP(w, r)` (single handler) or `next.ServeHTTP(w, r)` (inside middleware), then write your after-code. That call parks until the response arrives; see [`gonvoy.Terminal` is an advanced tool](filter-authoring.md#gonvoyterminal-is-an-advanced-tool).
+To proceed upstream *and* run code when the response arrives, wrap the handler in `Use` and call `next(c)`, then write your after-code. That call parks until the response arrives; see [The cost of observing the response](filter-authoring.md#the-cost-of-observing-the-response).
 
 ## Reading the request
 
-- Method, host, path, query: `r.Method`, `r.Host`, `r.URL.Path`, `r.URL.Query()`. These are live; changing them changes what goes upstream.
-- Headers: `r.Header.Get`, `r.Header.Values`, `r.Header.Set`, `r.Header.Add`, `r.Header.Del`.
-- Body: `io.ReadAll(r.Body)`. Needs `gonvoy.ReadRequestBody()` at registration. Under the default gate the client must also send `X-Content-Operation: ReadOnly` (or `RO`); `gonvoy.OpenBodyAccess()` drops the gate.
+- Method, host, path, query: `c.Method()`, `c.Host()`, `c.Path()`, `c.QueryParam(name)`. These are live; changing them via `c.SetMethod`, `c.SetHost`, `c.SetPath` changes what goes upstream.
+- Headers: `c.Header(key)`, `c.SetRequestHeader(key, val)`.
+- Body: `io.ReadAll(c.Body())` or `c.Bind(&v)` for JSON. Needs `gonvoy.ReadRequestBody()` at registration. Under the default gate the client must also send `X-Content-Operation: ReadOnly` (or `RO`); `gonvoy.OpenBodyAccess()` drops the gate.
 
 ## Writing the request
 
-- Headers: `r.Header.Set` / `Add` / `Del`, any time before proceeding.
-- Body: assign `r.Body = io.NopCloser(bytes.NewReader(modified))` before `next` or `Terminal`. Needs `gonvoy.WriteRequestBody()`. Replacing the body drops `Content-Length` (chunked encoding) unless you pass `gonvoy.KeepContentLength(...)`.
-- Host, method, path: assign `r.Host`, `r.Method`, `r.URL.Path`, then call `gonvoy.Reroute(r)` and register with `gonvoy.ReloadRoute()` so Envoy re-evaluates the route.
+- Headers: `c.SetRequestHeader(key, val)`, any time before proceeding.
+- Body: assign `c.Request().Body = io.NopCloser(bytes.NewReader(modified))` before calling `next`. Needs `gonvoy.WriteRequestBody()`. Replacing the body drops `Content-Length` (chunked encoding) unless you pass `gonvoy.KeepContentLength(...)`.
+- Host, method, path: `c.SetHost`, `c.SetMethod`, `c.SetPath`, then call `c.Reroute()` and register with `gonvoy.ReloadRoute()` so Envoy re-evaluates the route.
 
 Reading without the matching body option fails with a "not accessible" error. Replacing without the write option returns 502.
 
 ## Reading the response
 
-Available after `next` (or `Terminal`) returns.
+Available after `next` returns inside `Use`.
 
-- Status: `w.Status()`. Zero means the upstream response has not been recorded yet, which is your cue that nothing was written.
-- Headers: `w.Header().Get`, plus `Set` / `Add` / `Del` to change what reaches the client.
-- Body: `gonvoy.ResponseBody(r)` plus `io.ReadAll`. Needs `gonvoy.ReadResponseBody()`. It errors when body access is not enabled; treat that as "leave the response alone", not as fatal.
+- Status: `c.Status()`. Zero means the upstream response has not been recorded yet, which is your cue that nothing was written.
+- Headers: `c.SetHeader` / `Add` / `Del` to change what reaches the client. There is no response-header reader in v1; gate response work on `c.Status()` and `c.ResponseBody()`.
+- Body: `c.ResponseBody()` plus `io.ReadAll`. Needs `gonvoy.ReadResponseBody()`. It errors when body access is not enabled; treat that as "leave the response alone", not as fatal.
 
 ## Writing the response
 
 How the bridge treats your after-`next` writes:
 
 - No writes: the upstream response passes through with your header changes applied.
-- Body-only write (no explicit status): replaces the buffered upstream body. Needs `gonvoy.WriteResponseBody()`, otherwise 502.
-- Explicit `w.WriteHeader(code)`: always wins a full local reply with your status, headers, and body.
+- Body-only write (no explicit status): `_, _ = c.Write(body)` replaces the buffered upstream body. Needs `gonvoy.WriteResponseBody()`, otherwise 502.
+- Explicit status (for example `c.NoContent(code)`, `c.String`, or `c.JSON`): always wins a full local reply with your status, headers, and body.
 
 ## Plugin config
 
 ```go
-cfg, err := gonvoy.Config[*Config](r)
+cfg, err := gonvoy.ConfigOf[*Config](c)
 ```
 
 Registered with `gonvoy.WithConfig(new(Config))`. Treat a missing config as "pass through" rather than fatal. Route config merges into listener config field by field; only `envoy:"mergeable"` struct fields take part (`envoy:"preserve_root"` keeps the listener value when the route value is empty). `gonvoy.RouteConfigWins()` lets the route replace the listener config wholesale, and `gonvoy.OnConfigError(gonvoy.UseListener)` falls back to the listener config when a merge fails (the default stops the plugin). If your config type implements `Destroy()`, it is called when Envoy deletes the config; keep it idempotent, as it can fire once per config instance the framework holds.
@@ -70,26 +68,26 @@ Registered with `gonvoy.WithConfig(new(Config))`. Treat a missing config as "pas
 Anything that is not an HTTP field (cluster name, route name, response flags) comes from `gonvoy.Attr`:
 
 ```go
-upstream, _ := gonvoy.Attr(r, "xds.cluster_name", "-")
-code, _ := gonvoy.Attr(r, "response.code", "-")
+upstream, _ := c.Attr("xds.cluster_name", "-")
+code, _ := c.Attr("response.code", "-")
 ```
 
-Values are snapshotted at each filter phase, so what you read is current as of the last phase boundary. For HTTP fields use `r.Host`, `r.Method`, and `r.URL` instead. The boolean reports whether the attribute exists; on miss you get your default with `false`, which keeps handlers unit-testable outside the bridge.
+Values are snapshotted at each filter phase, so what you read is current as of the last phase boundary. For HTTP fields use `c.Host()`, `c.Method()`, and `c.Path()` instead. The boolean reports whether the attribute exists; on miss you get your default with `false`, which keeps handlers unit-testable outside the bridge.
 
 Attribute names worth knowing:
 
 | Attribute | Meaning |
 |---|---|
-| `request.host`, `request.method`, `request.path` | The request line (prefer `r.Host`, `r.Method`, `r.URL` for these) |
+| `request.host`, `request.method`, `request.path` | The request line (prefer `c.Host()`, `c.Method()`, `c.Path()` for these) |
 | `xds.cluster_name`, `xds.route_name` | Where Envoy is routing |
 | `response.code`, `response.code_details`, `response.flags` | What the upstream answered (response phases only) |
 
 ## Routing
 
 ```go
-r.URL.Path = "/staticreply"
-gonvoy.Reroute(r)
-gonvoy.Terminal{}.ServeHTTP(w, r)
+c.SetPath("/staticreply")
+c.Reroute()
+return nil
 ```
 
 Registered with `gonvoy.ReloadRoute()`. Host, method, path, and header changes all take part in the new decision; without the option the mutation applies but Envoy keeps the original route.
@@ -99,24 +97,22 @@ Registered with `gonvoy.ReloadRoute()`. Host, method, path, and header changes a
 `gonvoy.RefreshRouteCache` bypasses the `net/http` vocabulary on purpose. It takes the standard context instead of the request:
 
 ```go
-gonvoy.RefreshRouteCache(r.Context())
+c.RefreshRoute()
 ```
 
-It re-fetches the route immediately for the current request. Reach for it only when no same-callback mutations are pending: a synchronous re-fetch races Go-side header and path propagation and can resolve the stale route. If the handler mutated the request, use `gonvoy.Reroute` instead, whose lazy re-evaluation happens after the mutations land. Outside the bridge it is a no-op.
-
-The `r.Context()` shape is the convention for this kind of door: anything that talks raw Envoy semantics instead of HTTP semantics takes the context, so the vocabulary split stays visible at the call site.
+It re-fetches the route immediately for the current request. Reach for it only when no same-callback mutations are pending: a synchronous re-fetch races Go-side header and path propagation and can resolve the stale route. If the handler mutated the request, use `c.Reroute` instead, whose lazy re-evaluation happens after the mutations land. Outside the bridge it is a no-op.
 
 ## Pinning the upstream host
 
-`gonvoy.OverrideUpstreamHost(r, host, strict)` bypasses the load balancer and sends this request directly to `host`, which must be an IP address with a port (`"10.0.0.9:8080"`). With `strict` true and the host unavailable, Envoy answers 503; otherwise it falls back to normal load balancing. An invalid host (not an IP with a port) answers 500. Unlike `Reroute`, this needs no registration option: the override decision is per request.
+`c.OverrideUpstream(host, strict)` bypasses the load balancer and sends this request directly to `host`, which must be an IP address with a port (`"10.0.0.9:8080"`). With `strict` true and the host unavailable, Envoy answers 503; otherwise it falls back to normal load balancing. An invalid host (not an IP with a port) answers 500. Unlike `Reroute`, this needs no registration option: the override decision is per request.
 
 Use it for canary pinning or sticky debug routing, not as a replacement for routes. Routing still selects the cluster; the override only chooses the host inside it.
 
 ## Metrics
 
 ```go
-gonvoy.Stats(r).Counter("requests_total", "host", host).Increment(1)
-gonvoy.Stats(r).Gauge("inflight").Set(2)
+c.Stats().Counter("requests_total", "host", host).Increment(1)
+c.Stats().Gauge("inflight").Set(2)
 ```
 
 Intents queue up and flush on Envoy callback threads, in order. Outside the bridge they are dropped, so unit tests never touch Envoy. Set a prefix with `gonvoy.MetricPrefix("myfilter_")`.
@@ -124,19 +120,19 @@ Intents queue up and flush on Envoy callback threads, in order. Outside the brid
 ## Logging and shared state
 
 ```go
-gonvoy.Log(r).Info("handled request", "path", r.URL.Path)
-cache := gonvoy.SharedCache(r)
+c.Log().Info("handled request", "path", c.Path())
+cache := c.Cache()
 ```
 
 The logger discards outside the bridge. The cache lives for the life of Envoy: `Store(key, value)` overwrites, `Load(key, &receiver)` needs a pointer to the stored type and reports `ok=false` on a miss or a type mismatch. Use it when setup is expensive or stateful.
 
 ## Secrets
 
-`gonvoy.Secret(r, name)` reads a generic secret by name and reports whether it exists:
+`c.Secret(name)` reads a generic secret by name and reports whether it exists:
 
 ```go
-if value, ok := gonvoy.Secret(r, "api-token"); ok {
-    r.Header.Set("x-api-token", value)
+if value, ok := c.Secret("api-token"); ok {
+    c.SetRequestHeader("x-api-token", value)
 }
 ```
 
@@ -156,10 +152,10 @@ The lookup runs on Envoy's callback thread even though your handler runs on its 
 
 ## TLS connection info
 
-`gonvoy.TLS(r)` snapshots the downstream TLS connection as it was when the request headers arrived:
+`c.TLS()` snapshots the downstream TLS connection as it was when the request headers arrived:
 
 ```go
-if tls, ok := gonvoy.TLS(r); ok {
+if tls, ok := c.TLS(); ok {
     _ = tls.SubjectPeerCertificate
 }
 ```
@@ -168,7 +164,7 @@ The second return value is false for plaintext connections and outside the bridg
 
 ## Draining the connection
 
-`gonvoy.DrainConnection(r)` marks the downstream connection for drain after the current request completes: `Connection: close` on HTTP/1.x, a GOAWAY frame on HTTP/2 and HTTP/3. No registration option is needed. Calling it is explicit and one-shot per request; use it when the backend signals it is going away, not as routine behavior.
+`c.Drain()` marks the downstream connection for drain after the current request completes: `Connection: close` on HTTP/1.x, a GOAWAY frame on HTTP/2 and HTTP/3. No registration option is needed. Calling it is explicit and one-shot per request; use it when the backend signals it is going away, not as routine behavior.
 
 ## Deliberately not wrapped
 

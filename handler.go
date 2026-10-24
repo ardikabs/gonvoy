@@ -8,22 +8,44 @@ import (
 	"github.com/go-logr/logr"
 )
 
-// Handler processes an HTTP request and/or response, net/http style.
-// Do work, write, or call the next handler; see ServeHTTP.
-type Handler interface {
-	// ServeHTTP handles the request, writing the response when it answers directly.
-	// Calling the next handler in the chain sends the request upstream;
-	// code after that call runs when the upstream response is available.
-	// A handler that writes and also calls the next handler is a bug;
-	// the bridge answers 500 and logs instead of picking a winner silently.
-	ServeHTTP(w ResponseWriter, r *http.Request)
+// Handler is the default user-facing contract: a function of the request
+// Context. Do work and answer, or return nil to pass the request through.
+// To observe the upstream response, wrap the Handler in a Middleware chain
+// with Use and call the next Handler; code after next runs when the
+// upstream response arrives. Returning nil without writing answers nothing
+// and passes the request through. Returning a non-nil error is surfaced
+// through the exchange so the error handler maps it.
+//
+// Internally the bridge still drives handlers through the net/http
+// ServeHTTP mechanics below: ServeHTTP builds the Context view over
+// (w, r). Handler code never names it; Use owns the terminal hop.
+type Handler func(Context) error
+
+// ServeHTTP runs h against (w, r) through a Context view over the live
+// request and the recording writer.
+func (h Handler) ServeHTTP(w ResponseWriter, r *http.Request) {
+	if h == nil {
+		panic("gonvoy.Handler: fn should not be nil")
+	}
+	c := newHandlerContext(w, r)
+	if err := h(c); err != nil {
+		c.fail(err)
+	}
 }
 
-// HandlerFunc adapts an ordinary function to a Handler.
+// HandlerFunc adapts an ordinary net/http-style function to the internal
+// handler contract the bridge drives. It is the internal mechanics behind
+// Handler.ServeHTTP; user code uses Handler and Middleware instead.
 type HandlerFunc func(ResponseWriter, *http.Request)
 
 // ServeHTTP calls f(w, r).
 func (f HandlerFunc) ServeHTTP(w ResponseWriter, r *http.Request) { f(w, r) }
+
+// httpHandler is the internal net/http contract the bridge drives per
+// request. Handler, HandlerFunc, and the internal terminal all satisfy it.
+type httpHandler interface {
+	ServeHTTP(ResponseWriter, *http.Request)
+}
 
 // ResponseWriter receives the response a handler writes, net/http style.
 // It is not http.ResponseWriter: the response may be Envoy's upstream

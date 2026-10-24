@@ -15,11 +15,11 @@ import (
 // threads; the goroutine touches only Go memory plus Log.
 type bridgeFilter struct {
 	ctx *context
-	h   Handler
+	h   httpHandler
 
 	exchange *bridgeExchange
 
-	errorHandler func(Context, error) api.StatusType
+	errorHandler func(bridgeContext, error) api.StatusType
 	sendReply    func(ex *bridgeExchange, status int, body []byte) api.StatusType
 }
 
@@ -41,7 +41,7 @@ func NewHandlerChainFactory(h Handler) api.StreamFilterFactory {
 		}
 
 		logger := newLogger(cb)
-		ctx, err := NewContext(cb, contextOptions{
+		ctx, err := newBridgeContext(cb, contextOptions{
 			config: config,
 			logger: logger,
 		})
@@ -54,11 +54,11 @@ func NewHandlerChainFactory(h Handler) api.StreamFilterFactory {
 	}
 }
 
-func newBridgeFilter(c *context, h Handler) *bridgeFilter {
+func newBridgeFilter(c *context, h httpHandler) *bridgeFilter {
 	f := &bridgeFilter{
 		ctx:          c,
 		h:            h,
-		errorHandler: func(c Context, err error) api.StatusType { return DefaultErrorHandler(c, err) },
+		errorHandler: func(c bridgeContext, err error) api.StatusType { return defaultErrorHandler(c, err) },
 	}
 	f.sendReply = f.defaultSendReply
 	return f

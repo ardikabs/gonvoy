@@ -20,5 +20,3 @@ packages:
       inpackage: true
       filename: "zz_generated.{{ .InterfaceName | lower }}_test.go"
       mockname: "Mock{{.InterfaceName}}"
-    interfaces:
-      Context:

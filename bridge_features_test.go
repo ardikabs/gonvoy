@@ -126,7 +126,7 @@ func fakeWiredContext(t *testing.T, setup func(*mock_envoy.FilterCallbackHandler
 		setup(fc)
 	}
 
-	c, err := NewContext(fc, contextOptions{config: &internalConfig{
+	c, err := newBridgeContext(fc, contextOptions{config: &internalConfig{
 		internalCache:    newInternalCache(),
 		strictBodyAccess: false,
 	}})
@@ -179,7 +179,7 @@ func TestBridge_DrainConnection(t *testing.T) {
 	fc.EXPECT().GetProperty(mock.Anything).Return("", nil).Maybe()
 	fc.EXPECT().StreamInfo().Return(si)
 
-	c, err := NewContext(fc, contextOptions{config: &internalConfig{
+	c, err := newBridgeContext(fc, contextOptions{config: &internalConfig{
 		internalCache:    newInternalCache(),
 		strictBodyAccess: false,
 	}})

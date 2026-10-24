@@ -12,19 +12,19 @@ func TestUse_Order(t *testing.T) {
 	t.Parallel()
 
 	var order []string
-	mk := func(name string) func(Handler) Handler {
+	mk := func(name string) Middleware {
 		return func(next Handler) Handler {
-			return HandlerFunc(func(w ResponseWriter, r *http.Request) {
+			return Handler(func(c Context) error {
 				order = append(order, name+":before")
-				next.ServeHTTP(w, r)
+				err := next(c)
 				order = append(order, name+":after")
+				return err
 			})
 		}
 	}
 
 	h := Use(mk("outer"), mk("inner"))
-	h.ServeHTTP(newRecordingWriter(), &http.Request{})
-
+	require.NoError(t, h(newTestHandlerContext()))
 	assert.Equal(t, []string{"outer:before", "inner:before", "inner:after", "outer:after"}, order)
 }
 
@@ -34,35 +34,34 @@ func TestUse_NilPanics(t *testing.T) {
 	require.Panics(t, func() { Use(nil) })
 }
 
-// TestEchoComposition pins the supported Use-plus-Echo pattern: an Echo
-// terminal nested inside classic middleware preserves the onion order.
-// The literal Use(Echo(...)) does not compile by design (Echo returns a
-// Handler, Use takes func(Handler) Handler), so the Echo terminal enters
-// via direct nesting or a next-ignoring wrapper as the last Use element.
-func TestEchoComposition(t *testing.T) {
+// TestUse_ExplicitFinal pins the onion order for Context-based handlers:
+// a final Handler nested inside middleware directly, and the same order
+// through Chain.
+func TestUse_ExplicitFinal(t *testing.T) {
 	t.Parallel()
 
 	var order []string
-	outer := func(next Handler) Handler {
-		return HandlerFunc(func(w ResponseWriter, r *http.Request) {
+	outer := Middleware(func(next Handler) Handler {
+		return Handler(func(c Context) error {
 			order = append(order, "outer:before")
-			next.ServeHTTP(w, r)
+			err := next(c)
 			order = append(order, "outer:after")
+			return err
 		})
-	}
-	echo := Echo(func(c EchoContext) error {
-		order = append(order, "echo")
+	})
+	handler := Handler(func(c Context) error {
+		order = append(order, "handler")
 		return nil
 	})
 
-	h := outer(echo)
-	h.ServeHTTP(newRecordingWriter(), &http.Request{})
-	assert.Equal(t, []string{"outer:before", "echo", "outer:after"}, order)
+	h := outer(handler)
+	require.NoError(t, h(newTestHandlerContext()))
+	assert.Equal(t, []string{"outer:before", "handler", "outer:after"}, order)
 
 	order = nil
-	h2 := Use(outer, func(Handler) Handler { return echo })
-	h2.ServeHTTP(newRecordingWriter(), &http.Request{})
-	assert.Equal(t, []string{"outer:before", "echo", "outer:after"}, order)
+	h2 := Chain(handler, outer)
+	require.NoError(t, h2(newTestHandlerContext()))
+	assert.Equal(t, []string{"outer:before", "handler", "outer:after"}, order)
 }
 
 func TestOption_Apply(t *testing.T) {
@@ -135,4 +134,154 @@ func TestOption_Apply(t *testing.T) {
 		KeepContentLength(KeepLengthBoth)(&o)
 		assert.Equal(t, KeepLengthBoth, o.Body.KeepContentLength)
 	})
+}
+
+// TestUse_MiddlewareReachesUpstream pins the explicit chaining flow: a
+// Middleware calls next to proceed, the innermost next is the internal
+// terminal, and code after next runs when the upstream response arrives.
+func TestUse_MiddlewareReachesUpstream(t *testing.T) {
+	t.Parallel()
+
+	var order []string
+	auth := Middleware(func(next Handler) Handler {
+		return Handler(func(c Context) error {
+			order = append(order, "auth:before")
+			if err := next(c); err != nil {
+				return err
+			}
+			order = append(order, "auth:after")
+			return nil
+		})
+	})
+	log := Middleware(func(next Handler) Handler {
+		return Handler(func(c Context) error {
+			order = append(order, "log:before")
+			if err := next(c); err != nil {
+				return err
+			}
+			order = append(order, "log:after")
+			return nil
+		})
+	})
+
+	c := newTestHandlerContext()
+	h := Use(auth, log)
+	require.NoError(t, h(c))
+
+	assert.True(t, c.ex.nextCalled.Load(), "innermost next must reach the internal terminal")
+	assert.Equal(t, []string{"auth:before", "log:before", "log:after", "auth:after"}, order)
+}
+
+// TestUse_SingleMiddlewareObservesResponse pins that one Middleware in Use
+// is enough to observe the upstream response: next parks, then after-code
+// sees the status through the same Context.
+func TestUse_SingleMiddlewareObservesResponse(t *testing.T) {
+	t.Parallel()
+
+	c := newTestHandlerContext()
+	c.ex.respCode = http.StatusTeapot
+	c.ex.respHeader = map[string][]string{"X-Up": {"1"}}
+
+	var sawStatus int
+	h := Use(func(next Handler) Handler {
+		return Handler(func(c Context) error {
+			if err := next(c); err != nil {
+				return err
+			}
+			sawStatus = c.Status()
+			return nil
+		})
+	})
+
+	require.NoError(t, h(c))
+	assert.True(t, c.ex.nextCalled.Load())
+	assert.Equal(t, http.StatusTeapot, sawStatus)
+	assert.Equal(t, http.StatusTeapot, c.Status())
+}
+
+// TestChain_ExplicitFinal pins Chain: layers wrap an explicit final Handler.
+// An unanswered final still reaches the internal upstream hop, so a custom
+// terminal keeps the callNext behavior by default. An answered final
+// short-circuits without forwarding.
+func TestChain_ExplicitFinal(t *testing.T) {
+	t.Parallel()
+
+	var order []string
+	outer := Middleware(func(next Handler) Handler {
+		return Handler(func(c Context) error {
+			order = append(order, "outer:before")
+			err := next(c)
+			order = append(order, "outer:after")
+			return err
+		})
+	})
+	final := Handler(func(c Context) error {
+		order = append(order, "final")
+		return nil
+	})
+
+	c := newTestHandlerContext()
+	require.NoError(t, Chain(final, outer)(c))
+
+	assert.Equal(t, []string{"outer:before", "final", "outer:after"}, order)
+	assert.True(t, c.ex.nextCalled.Load(), "unanswered final must reach upstream via forwardUpstream")
+
+	order = nil
+	c2 := newTestHandlerContext()
+	answered := Handler(func(c Context) error {
+		order = append(order, "final")
+		return c.String(200, "stub")
+	})
+	require.NoError(t, Chain(answered, outer)(c2))
+
+	assert.Equal(t, []string{"outer:before", "final", "outer:after"}, order)
+	assert.False(t, c2.ex.nextCalled.Load(), "answered final must not reach upstream")
+}
+
+// TestChain_NilPanics pins contract violations for Chain.
+func TestChain_NilPanics(t *testing.T) {
+	t.Parallel()
+
+	final := Handler(func(Context) error { return nil })
+
+	require.Panics(t, func() { Chain(nil) })
+	require.Panics(t, func() { Chain(final, nil) })
+}
+
+// TestChain_UnansweredFinalForwardsUpstream pins the terminal guarantee:
+// a final that leaves the request unanswered still reaches the internal
+// upstream hop instead of ending the chain silently.
+func TestChain_UnansweredFinalForwardsUpstream(t *testing.T) {
+	t.Parallel()
+
+	c := newTestHandlerContext()
+	final := Handler(func(Context) error { return nil })
+
+	require.NoError(t, Chain(final)(c))
+	assert.True(t, c.ex.nextCalled.Load(), "unanswered final must reach upstream via forwardUpstream")
+}
+
+// TestChain_SkippedMiddlewareStillForwards pins the outer-boundary terminal:
+// an outer layer that returns without calling next still ends with the same
+// terminal behavior, so the filter always continues.
+func TestChain_SkippedMiddlewareStillForwards(t *testing.T) {
+	t.Parallel()
+
+	var order []string
+	outer := Middleware(func(Handler) Handler {
+		return Handler(func(c Context) error {
+			order = append(order, "outer")
+			return nil
+		})
+	})
+	final := Handler(func(Context) error {
+		order = append(order, "final")
+		return nil
+	})
+
+	c := newTestHandlerContext()
+	require.NoError(t, Chain(final, outer)(c))
+
+	assert.Equal(t, []string{"outer"}, order)
+	assert.True(t, c.ex.nextCalled.Load(), "skipped chain must still reach upstream via forwardUpstream")
 }

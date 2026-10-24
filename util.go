@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// MustGetProperty retrieves the value of a property with the given name from the provided RuntimeContext.
+// mustGetProperty retrieves the value of a property with the given name from the provided runtimeContext.
 // If the property is not found, it returns the default value. If an error occurs during retrieval, it panics.
-func MustGetProperty(c RuntimeContext, name, defaultVal string) string {
+func mustGetProperty(c runtimeContext, name, defaultVal string) string {
 	value, err := c.GetProperty(name, defaultVal)
 	if err != nil {
 		panic(err)

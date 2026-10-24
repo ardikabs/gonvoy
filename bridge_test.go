@@ -55,7 +55,7 @@ func fakeBridgeContext(t *testing.T, req, resp string) *context {
 	fc.EXPECT().GetProperty(mock.Anything).Return("", nil).Maybe()
 	fc.EXPECT().StreamInfo().Return(nil).Maybe()
 
-	c, err := NewContext(fc, contextOptions{config: &internalConfig{
+	c, err := newBridgeContext(fc, contextOptions{config: &internalConfig{
 		internalCache:          newInternalCache(),
 		strictBodyAccess:       false,
 		allowRequestBodyRead:   allowReqRead,
@@ -140,7 +140,7 @@ func TestBridge_BodyReadPauses(t *testing.T) {
 	m := fakeBridgeHeaders(t, "application/json")
 	c := fakeBridgeContext(t, "read", "read")
 	f := newBridgeFilter(c, h)
-	f.errorHandler = func(_ Context, err error) api.StatusType {
+	f.errorHandler = func(_ bridgeContext, err error) api.StatusType {
 		t.Logf("bridge error: %v", err)
 		return api.Continue
 	}
@@ -157,7 +157,7 @@ func TestBridge_BodyReadPauses(t *testing.T) {
 	assert.Equal(t, `{"a":1}`, <-read)
 }
 
-func TestBridge_WriteThenNextIsError(t *testing.T) {
+func TestBridge_WriteThenProceedIsError(t *testing.T) {
 	t.Parallel()
 
 	var captured error
@@ -165,13 +165,13 @@ func TestBridge_WriteThenNextIsError(t *testing.T) {
 	h := HandlerFunc(func(w ResponseWriter, r *http.Request) {
 		defer close(done)
 		_, _ = w.Write([]byte("oops"))
-		Terminal{}.ServeHTTP(w, r)
+		terminal{}.ServeHTTP(w, r)
 	})
 
 	m := fakeBridgeHeaders(t, "")
 	c := fakeBridgeContext(t, "none", "none")
 	f := newBridgeFilter(c, h)
-	f.errorHandler = func(_ Context, err error) api.StatusType {
+	f.errorHandler = func(_ bridgeContext, err error) api.StatusType {
 		captured = err
 		return api.Continue
 	}
@@ -190,13 +190,13 @@ func TestBridge_ReplaceBody(t *testing.T) {
 	h := HandlerFunc(func(w ResponseWriter, r *http.Request) {
 		defer close(done)
 		r.Body = io.NopCloser(strings.NewReader("replaced"))
-		Terminal{}.ServeHTTP(w, r)
+		terminal{}.ServeHTTP(w, r)
 	})
 
 	m := fakeBridgeHeaders(t, "application/json")
 	c := fakeBridgeContext(t, "read", "read")
 	f := newBridgeFilter(c, h)
-	f.errorHandler = func(_ Context, err error) api.StatusType {
+	f.errorHandler = func(_ bridgeContext, err error) api.StatusType {
 		t.Logf("bridge error: %v", err)
 		return api.Continue
 	}
@@ -251,7 +251,7 @@ func TestBridge_PanicBecomesError(t *testing.T) {
 	m := fakeBridgeHeaders(t, "")
 	c := fakeBridgeContext(t, "none", "none")
 	f := newBridgeFilter(c, h)
-	f.errorHandler = func(_ Context, err error) api.StatusType {
+	f.errorHandler = func(_ bridgeContext, err error) api.StatusType {
 		captured = err
 		return api.Continue
 	}
@@ -288,13 +288,13 @@ func TestBridge_EncodePassthroughAppliesHeaders(t *testing.T) {
 	assert.Equal(t, api.Continue, f.EncodeHeaders(resp, true))
 }
 
-func TestBridge_NextThenHeaderMutation(t *testing.T) {
+func TestBridge_ProceedThenHeaderMutation(t *testing.T) {
 	t.Parallel()
 
 	done := make(chan struct{})
 	h := HandlerFunc(func(w ResponseWriter, r *http.Request) {
 		defer close(done)
-		Terminal{}.ServeHTTP(w, r)
+		terminal{}.ServeHTTP(w, r)
 		w.Header().Set("X-After", "yes")
 	})
 
@@ -335,7 +335,7 @@ func TestBridge_ReadResponseBody(t *testing.T) {
 	done := make(chan struct{})
 	h := HandlerFunc(func(w ResponseWriter, r *http.Request) {
 		defer close(done)
-		Terminal{}.ServeHTTP(w, r)
+		terminal{}.ServeHTTP(w, r)
 
 		rb, err := ResponseBody(r)
 		if err != nil {
@@ -365,13 +365,45 @@ func TestBridge_ReadResponseBody(t *testing.T) {
 	assert.Equal(t, `{"up":true}`, <-read)
 }
 
+func TestBridge_ReadOnlyResponseWriteIsError(t *testing.T) {
+	t.Parallel()
+
+	done := make(chan struct{})
+	called := make(chan error, 1)
+	h := Use(func(next Handler) Handler {
+		return Handler(func(c Context) error {
+			defer close(done)
+			if err := next(c); err != nil {
+				return err
+			}
+			_, _ = c.Write([]byte(`{"new":true}`))
+			return nil
+		})
+	})
+
+	m := fakeBridgeHeaders(t, "")
+	c := fakeBridgeContext(t, "none", "read")
+	f := newBridgeFilter(c, h)
+	f.errorHandler = func(_ bridgeContext, err error) api.StatusType {
+		called <- err
+		return api.LocalReply
+	}
+
+	assert.Equal(t, api.Continue, f.DecodeHeaders(m, true))
+
+	resp := fakeRespHeaders(t, 200)
+	assert.Equal(t, api.LocalReply, f.EncodeHeaders(resp, false))
+	<-done
+	assert.ErrorIs(t, <-called, ErrOperationNotPermitted)
+}
+
 func TestBridge_ReplaceResponseBody(t *testing.T) {
 	t.Parallel()
 
 	done := make(chan struct{})
 	h := HandlerFunc(func(w ResponseWriter, r *http.Request) {
 		defer close(done)
-		Terminal{}.ServeHTTP(w, r)
+		terminal{}.ServeHTTP(w, r)
 		_, _ = w.Write([]byte(`{"new":true}`))
 	})
 
@@ -415,7 +447,7 @@ func TestBridgeAccessors_Wired(t *testing.T) {
 	fc.EXPECT().GetProperty(mock.Anything).Return("", nil).Maybe()
 	fc.EXPECT().StreamInfo().Return(nil).Maybe()
 
-	c, err := NewContext(fc, contextOptions{
+	c, err := newBridgeContext(fc, contextOptions{
 		logger: logr.Discard(),
 		config: &internalConfig{internalCache: newInternalCache()},
 	})
@@ -464,16 +496,16 @@ func TestBridge_PropagateRequestLine(t *testing.T) {
 	assert.Equal(t, api.Continue, st)
 }
 
-func TestBridge_DoubleNextIsNoop(t *testing.T) {
+func TestBridge_DoubleProceedIsNoop(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
 	done := make(chan struct{})
 	h := HandlerFunc(func(w ResponseWriter, r *http.Request) {
 		defer close(done)
-		Terminal{}.ServeHTTP(w, r)
+		terminal{}.ServeHTTP(w, r)
 		calls++
-		Terminal{}.ServeHTTP(w, r)
+		terminal{}.ServeHTTP(w, r)
 		calls++
 	})
 

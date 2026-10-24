@@ -13,12 +13,12 @@ import (
 )
 
 // Three handles the inner layer of the example chain.
-func Three(gonvoy.Handler) gonvoy.Handler {
-	return gonvoy.Echo(func(c gonvoy.EchoContext) error {
+func Three(next gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.Handler(func(c gonvoy.Context) error {
 		log := c.Log().WithName("handlerThree")
 
 		var reqHeaders map[string]string
-		if cfg, err := gonvoy.EchoConfig[*Config](c); err == nil && cfg != nil {
+		if cfg, err := gonvoy.ConfigOf[*Config](c); err == nil && cfg != nil {
 			reqHeaders = cfg.RequestHeaders
 		}
 
@@ -60,7 +60,7 @@ func Three(gonvoy.Handler) gonvoy.Handler {
 			log.Info("payload size", "size", len(mustReadAll(c.Request())))
 		}
 
-		if err := c.Next(); err != nil {
+		if err := next(c); err != nil {
 			return err
 		}
 
@@ -90,12 +90,9 @@ func Three(gonvoy.Handler) gonvoy.Handler {
 			return nil
 		}
 
-		code := c.Status()
-		if code == 0 {
-			code = http.StatusOK
-		}
+		_, _ = c.Write(changed)
 
-		return c.JSON(code, json.RawMessage(changed))
+		return nil
 	})
 }
 

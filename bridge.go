@@ -46,7 +46,7 @@ type secretResult struct {
 // The handler goroutine (G) touches only Go memory: snapshots, channels,
 // the recording writer. Envoy C calls happen only on callback threads (W).
 type bridgeExchange struct {
-	handler Handler
+	handler httpHandler
 
 	// w records the response. Pre-next writes are a local reply;
 	// the terminal streams the upstream response into the passed writer.
@@ -158,7 +158,7 @@ type bridgeExchange struct {
 
 // newBridgeExchange builds the exchange. Hooks may carry nil funcs when
 // running outside the bridge (direct handler unit tests).
-func newBridgeExchange(h Handler, req *http.Request, w *recordingWriter, hooks bridgeHooks) *bridgeExchange {
+func newBridgeExchange(h httpHandler, req *http.Request, w *recordingWriter, hooks bridgeHooks) *bridgeExchange {
 	return &bridgeExchange{
 		handler:   h,
 		w:         w,
@@ -177,7 +177,7 @@ func newBridgeExchange(h Handler, req *http.Request, w *recordingWriter, hooks b
 // a full channel means W already has what it needs.
 // signal sends a handler-goroutine signal to the waiting W thread.
 // Body requests are lossy hints: W already holds the stream and a pending
-// wake is enough. Terminal signals (proceed/done/failed) block until W
+// wake is enough. terminal signals (proceed/done/failed) block until W
 // receives or the stream dies, so a decision is never silently dropped.
 func (ex *bridgeExchange) signal(s brSignal) {
 	if s == brNeedBody {
@@ -753,17 +753,19 @@ func exchangeFrom(r *http.Request) (*bridgeExchange, bool) {
 	return ex, ok
 }
 
-// Terminal is the chain end: proceeding upstream means the response
-// headers will arrive on W, which resumes G to run after-next code.
-// It is stateless; the live exchange comes from the request. Chains
-// terminate in a Terminal; calling it means "send upstream".
+// terminal is the internal chain end: proceeding upstream means the
+// response headers will arrive on W, which resumes G to run after-next
+// code. It is stateless; the live exchange comes from the request. Chains
+// built by Use terminate here; calling it means "send upstream". It stays
+// unexported so user code proceeds through the Middleware chain instead of
+// reaching the upstream hop directly.
 //
 // Pass through the writer you received. Response bytes written into a
 // different wrapper before next are not captured; write into w after
 // next returns instead.
-type Terminal struct{}
+type terminal struct{}
 
-func (Terminal) ServeHTTP(w ResponseWriter, r *http.Request) {
+func (terminal) ServeHTTP(w ResponseWriter, r *http.Request) {
 	ex, ok := exchangeFrom(r)
 	if !ok {
 		return

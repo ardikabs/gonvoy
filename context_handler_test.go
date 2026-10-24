@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newTestEchoContext builds an EchoContext over a bridgeExchange outside
+// newTestHandlerContext builds a Context over a bridgeExchange outside
 // Envoy. Hooks are intentionally nil-safe: every func is nil, mirroring how
 // handler.go helpers behave outside the bridge. respReady is pre-closed so
-// Next parks nowhere, simulating an arrived upstream response.
-func newTestEchoContext() *echoContext {
+// the internal proceed parks nowhere, simulating an arrived upstream response.
+func newTestHandlerContext() *handlerContext {
 	req, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
 	w := newRecordingWriter()
 	ex := newBridgeExchange(nil, req, w, bridgeHooks{})
@@ -22,13 +22,13 @@ func newTestEchoContext() *echoContext {
 	req = withBridgeExchange(req, ex)
 	ex.req = req
 	ex.respReadyOnce.Do(func() { close(ex.respReady) })
-	return newEchoContext(w, req)
+	return newHandlerContext(w, req)
 }
 
-func TestEchoContextHeaderFlow(t *testing.T) {
+func TestHandlerContextHeaderFlow(t *testing.T) {
 	t.Parallel()
 
-	c := newTestEchoContext()
+	c := newTestHandlerContext()
 
 	c.SetRequestHeader("x-a", "1")
 	assert.Equal(t, "1", c.Header("x-a"))
@@ -47,46 +47,46 @@ func TestEchoContextHeaderFlow(t *testing.T) {
 	c.SetHeader("x-resp", "yes")
 	assert.Equal(t, "yes", c.w.Header().Get("x-resp"))
 
-	require.NoError(t, c.Next())
+	require.NoError(t, c.forwardUpstream())
 	assert.True(t, c.ex.nextCalled.Load())
 
-	// Next is single-shot: calling twice is a no-op.
-	require.NoError(t, c.Next())
+	// Proceeding is single-shot: calling twice is a no-op.
+	require.NoError(t, c.forwardUpstream())
 }
 
-func TestEchoContextWriteThenNext(t *testing.T) {
+func TestHandlerContextWriteThenProceed(t *testing.T) {
 	t.Parallel()
 
-	c := newTestEchoContext()
+	c := newTestHandlerContext()
 
-	// A response written before Next competes with proceeding upstream.
+	// A response written before proceeding competes with going upstream.
 	// The bridge answers 500 instead of picking a winner silently.
 	require.NoError(t, c.String(http.StatusOK, "hi"))
 
-	err := c.Next()
+	err := c.forwardUpstream()
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrRuntime)
 }
 
-func TestEchoContextNoNext(t *testing.T) {
+func TestHandlerContextNoProceed(t *testing.T) {
 	t.Parallel()
 
 	t.Run("direct view does not proceed", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestEchoContext()
+		c := newTestHandlerContext()
 
 		assert.False(t, c.ex.nextCalled.Load())
 		assert.False(t, c.ex.proceedUpstream.Load())
 		assert.Equal(t, 0, c.Status())
 	})
 
-	t.Run("echo handler without next completes", func(t *testing.T) {
+	t.Run("handler without next completes", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestEchoContext()
+		c := newTestHandlerContext()
 
-		h := Echo(func(ec EchoContext) error {
+		h := Handler(func(ec Context) error {
 			ec.SetRequestHeader("x-b", "2")
 			return nil
 		})
@@ -98,28 +98,30 @@ func TestEchoContextNoNext(t *testing.T) {
 		assert.Nil(t, c.ex.failErr)
 	})
 
-	t.Run("echo handler error surfaces without next", func(t *testing.T) {
+	t.Run("handler error surfaces without next", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestEchoContext()
+		c := newTestHandlerContext()
 
-		h := Echo(func(EchoContext) error { return ErrUnauthorized })
+		h := Handler(func(Context) error { return ErrUnauthorized })
 
 		require.NotPanics(t, func() { h.ServeHTTP(c.w, c.r) })
 
 		assert.ErrorIs(t, c.ex.failErr, ErrUnauthorized)
 	})
 
-	t.Run("echo handler outside bridge is nil-safe", func(t *testing.T) {
+	t.Run("handler outside bridge is nil-safe", func(t *testing.T) {
 		t.Parallel()
 
 		r, err := http.NewRequest(http.MethodGet, "http://example.com/", nil)
 		require.NoError(t, err)
 
-		h := Echo(func(ec EchoContext) error {
-			ec.SetRequestHeader("x-c", "3")
-			assert.NoError(t, ec.Next())
-			return nil
+		h := Use(func(next Handler) Handler {
+			return Handler(func(ec Context) error {
+				ec.SetRequestHeader("x-c", "3")
+				assert.NoError(t, next(ec))
+				return nil
+			})
 		})
 
 		require.NotPanics(t, func() { h.ServeHTTP(newRecordingWriter(), r) })
@@ -127,9 +129,9 @@ func TestEchoContextNoNext(t *testing.T) {
 	})
 }
 
-// newTestEchoContextWithBody builds an EchoContext whose request body is a
+// newTestHandlerContextWithBody builds a Context whose request body is a
 // gated reader fed with body and closed, readable like a buffered request.
-func newTestEchoContextWithBody(t *testing.T, body, contentType string) *echoContext {
+func newTestHandlerContextWithBody(t *testing.T, body, contentType string) *handlerContext {
 	t.Helper()
 
 	req, err := http.NewRequest(http.MethodPost, "http://example.com/", nil)
@@ -148,14 +150,14 @@ func newTestEchoContextWithBody(t *testing.T, body, contentType string) *echoCon
 	ex.feedBody([]byte(body), true)
 	ex.respReadyOnce.Do(func() { close(ex.respReady) })
 
-	return newEchoContext(w, req)
+	return newHandlerContext(w, req)
 }
 
-// newTestEchoContextNoBodyAccess builds an EchoContext whose request body
+// newTestHandlerContextNoBodyAccess builds a Context whose request body
 // reads are gated off and whose upstream response reader is absent, so both
 // Body and ResponseBody report ErrOperationNotPermitted.
-func newTestEchoContextNoBodyAccess() *echoContext {
-	c := newTestEchoContext()
+func newTestHandlerContextNoBodyAccess() *handlerContext {
+	c := newTestHandlerContext()
 
 	gated := &gatedBodyReader{ex: c.ex, enabled: false}
 	c.ex.gatedBody = gated
@@ -166,22 +168,22 @@ func newTestEchoContextNoBodyAccess() *echoContext {
 }
 
 // recordedBody returns the bytes the context wrote into its recording writer.
-func recordedBody(t *testing.T, c *echoContext) string {
+func recordedBody(t *testing.T, c *handlerContext) string {
 	t.Helper()
 
 	rw, ok := c.w.(*recordingWriter)
-	require.True(t, ok, "echoContext writer is a recording writer")
+	require.True(t, ok, "handlerContext writer is a recording writer")
 
 	return string(rw.body)
 }
 
-func TestEchoContextReply(t *testing.T) {
+func TestHandlerContextReply(t *testing.T) {
 	t.Parallel()
 
 	t.Run("json sets status content type and body", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestEchoContext()
+		c := newTestHandlerContext()
 		require.NoError(t, c.JSON(http.StatusOK, map[string]string{"ok": "true"}))
 
 		assert.Equal(t, http.StatusOK, c.Status())
@@ -192,7 +194,7 @@ func TestEchoContextReply(t *testing.T) {
 	t.Run("string sets status content type and body", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestEchoContext()
+		c := newTestHandlerContext()
 		require.NoError(t, c.String(http.StatusCreated, "hi"))
 
 		assert.Equal(t, http.StatusCreated, c.Status())
@@ -203,7 +205,7 @@ func TestEchoContextReply(t *testing.T) {
 	t.Run("no content writes header only", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestEchoContext()
+		c := newTestHandlerContext()
 		require.NoError(t, c.NoContent(http.StatusNoContent))
 
 		assert.Equal(t, http.StatusNoContent, c.Status())
@@ -211,41 +213,41 @@ func TestEchoContextReply(t *testing.T) {
 	})
 }
 
-func TestEchoContextBind(t *testing.T) {
+func TestHandlerContextBind(t *testing.T) {
 	t.Parallel()
 
-	c := newTestEchoContextWithBody(t, `{"a":1}`, MIMEApplicationJSON)
+	c := newTestHandlerContextWithBody(t, `{"a":1}`, MIMEApplicationJSON)
 
 	var v map[string]any
 	require.NoError(t, c.Bind(&v))
 	assert.Equal(t, float64(1), v["a"])
 }
 
-func TestEchoContextBodyGating(t *testing.T) {
+func TestHandlerContextBodyGating(t *testing.T) {
 	t.Parallel()
 
-	c := newTestEchoContextNoBodyAccess()
+	c := newTestHandlerContextNoBodyAccess()
 	_, err := c.Body().Read(make([]byte, 1))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrOperationNotPermitted)
 }
 
-func TestEchoContextResponseGating(t *testing.T) {
+func TestHandlerContextResponseGating(t *testing.T) {
 	t.Parallel()
 
-	c := newTestEchoContextNoBodyAccess()
+	c := newTestHandlerContextNoBodyAccess()
 	_, err := c.ResponseBody()
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrOperationNotPermitted)
 }
 
-func TestEchoContextPlatform(t *testing.T) {
+func TestHandlerContextPlatform(t *testing.T) {
 	t.Parallel()
 
 	t.Run("delegates stay nil-safe on the bridge", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestEchoContext()
+		c := newTestHandlerContext()
 
 		c.Log().Info("platform", "where", "bridge")
 		c.Stats().Counter("req").Increment(1)
@@ -273,21 +275,21 @@ func TestEchoContextPlatform(t *testing.T) {
 		assert.Equal(t, "1", c.QueryParam("a"))
 		assert.Empty(t, c.QueryParam("missing"))
 
-		_, err := EchoConfig[string](c)
+		_, err := ConfigOf[string](c)
 		require.Error(t, err)
 	})
 
 	t.Run("typed config round-trips through the context", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestEchoContext()
+		c := newTestHandlerContext()
 		c.r = c.r.WithContext(stdcontext.WithValue(c.r.Context(), bridgeConfigKey{}, "cfg"))
 
-		got, err := EchoConfig[string](c)
+		got, err := ConfigOf[string](c)
 		require.NoError(t, err)
 		assert.Equal(t, "cfg", got)
 
-		_, err = EchoConfig[int](c)
+		_, err = ConfigOf[int](c)
 		require.Error(t, err)
 	})
 
@@ -296,7 +298,7 @@ func TestEchoContextPlatform(t *testing.T) {
 
 		r, err := http.NewRequest(http.MethodGet, "http://example.com/?a=1", nil)
 		require.NoError(t, err)
-		c := newEchoContext(newRecordingWriter(), r)
+		c := newHandlerContext(newRecordingWriter(), r)
 
 		require.NotPanics(t, func() {
 			_ = c.Log()
@@ -312,15 +314,31 @@ func TestEchoContextPlatform(t *testing.T) {
 		})
 		assert.Equal(t, "1", c.QueryParam("a"))
 
-		_, err = EchoConfig[string](c)
+		_, err = ConfigOf[string](c)
 		require.Error(t, err)
 	})
 }
 
-func TestEchoContextBindNonJSON(t *testing.T) {
+func TestHandlerContextWrite(t *testing.T) {
 	t.Parallel()
 
-	c := newTestEchoContextWithBody(t, `a=1`, MIMEApplicationForm)
+	w := newRecordingWriter()
+	r, err := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+	require.NoError(t, err)
+	cw := newHandlerContext(w, r)
+
+	n, err := cw.Write([]byte(`{"a":1}`))
+	require.NoError(t, err)
+	assert.Equal(t, 7, n)
+	assert.Equal(t, `{"a":1}`, string(w.body))
+	assert.False(t, w.explicit)
+	assert.Equal(t, http.StatusOK, cw.Status())
+}
+
+func TestHandlerContextBindNonJSON(t *testing.T) {
+	t.Parallel()
+
+	c := newTestHandlerContextWithBody(t, `a=1`, MIMEApplicationForm)
 
 	var v map[string]any
 	err := c.Bind(&v)

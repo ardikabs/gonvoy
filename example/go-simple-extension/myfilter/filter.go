@@ -28,9 +28,9 @@ func init() {
 
 // CountRequests records a per-request counter after the chain runs,
 // mirroring the old OnComplete hook.
-func CountRequests(gonvoy.Handler) gonvoy.Handler {
-	return gonvoy.Echo(func(c gonvoy.EchoContext) error {
-		if err := c.Next(); err != nil {
+func CountRequests(next gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.Handler(func(c gonvoy.Context) error {
+		if err := next(c); err != nil {
 			return err
 		}
 

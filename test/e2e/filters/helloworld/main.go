@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	envoy.HandleEcho(FilterName, func(c gonvoy.EchoContext) error {
+	envoy.Handle(FilterName, func(c gonvoy.Context) error {
 		c.Log().Info("Hello World from the helloworld HTTP filter")
 
 		if c.Header("x-drain") == "true" {

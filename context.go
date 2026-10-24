@@ -2,15 +2,159 @@ package gonvoy
 
 import (
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/go-logr/logr"
 )
 
-// RuntimeContext represents the runtime context for the filter in Envoy.
+// Context is the handler surface over the bridge exchange.
+// It wraps the live request, the recording writer, and the bridgeExchange
+// hooks so filter code keeps handler code handler-oriented with no extra dependency.
+//
+// The bridge-called surface is the unexported bridgeContext used by
+// bridgeFilter and the default error handler; user code sees only Context.
+//
+// Like the bridge handlers it replaces, a Context touches only Go
+// memory on the handler goroutine: request mutations land through
+// applyRequestMutations (bridgefilter.go:534). It adds no goroutine, no
+// signal, and no Envoy C call. Proceeding upstream happens only through
+// the Middleware chain: calling the next Handler parks until the upstream
+// response arrives via the internal callNext path (bridge.go:473).
+type Context interface {
+	// Request returns the live request the handler sees. Convenience
+	// accessors cover the common 90 percent; the request stays reachable
+	// for escape hatches.
+	Request() *http.Request
+
+	// Header returns the named request header, like r.Header.Get.
+	Header(key string) string
+
+	// SetHeader sets a response header, like w.Header().Set.
+	SetHeader(key, val string)
+
+	// SetRequestHeader sets a request header, like r.Header.Set. The diff
+	// lands on the live Envoy map through applyRequestMutations.
+	SetRequestHeader(key, val string)
+
+	// Method returns the request method, like r.Method.
+	Method() string
+
+	// Path returns the request path, like r.URL.Path.
+	Path() string
+
+	// Host returns the request host, like r.Host.
+	Host() string
+
+	// SetHost sets the request host, like assigning r.Host.
+	SetHost(host string)
+
+	// SetPath sets the request path, like assigning r.URL.Path.
+	SetPath(path string)
+
+	// SetMethod sets the request method, like assigning r.Method.
+	SetMethod(method string)
+
+	// Status returns the recorded response status, or 0 if none was
+	// written yet.
+	Status() int
+
+	// JSON answers with a JSON body, like the JSON reply helper. It
+	// marshals v, sets the JSON content type, and records the status
+	// through the recording writer.
+	JSON(code int, v any) error
+
+	// String answers with a plain-text body, like the String reply
+	// helper. It sets the plain-text content type and records the
+	// status through the recording writer.
+	String(code int, s string) error
+
+	// NoContent answers with a status and no body, recording the status
+	// through the recording writer.
+	NoContent(code int) error
+
+	// Write appends response body bytes without marking an explicit
+	// status, like writing the recording writer directly. The bridge
+	// applies the usual after-next rules: a full local reply when there
+	// is nothing to replace into, in-place replacement when the response
+	// body is writable, or a permission error when it is not.
+	Write(p []byte) (int, error)
+
+	// Bind decodes the request body into v. It reads Body fully and
+	// JSON-unmarshals when the request content type contains
+	// application/json; any other content type returns a
+	// ErrOperationNotPermitted-wrapped error for the caller to map to a
+	// status. It never panics.
+	Bind(v any) error
+
+	// Body returns the request body for reading. Reads go through the
+	// gated reader, so without body access they fail with
+	// ErrOperationNotPermitted.
+	Body() io.Reader
+
+	// ResponseBody returns the upstream response body for reading. The
+	// second value reports gating: without response body access it is a
+	// ErrOperationNotPermitted-wrapped error.
+	ResponseBody() (io.Reader, error)
+
+	// Log returns the request logger, like the Log helper. Outside the
+	// bridge it discards.
+	Log() logr.Logger
+
+	// Stats returns the metric recorder for the request, like the Stats
+	// helper. Operations queue for callback-side flush; outside the
+	// bridge they drop.
+	Stats() MetricsRecorder
+
+	// Cache returns the filter-wide cache, like the SharedCache helper.
+	// Outside the bridge it returns nil.
+	Cache() Cache
+
+	// Attr fetches an Envoy attribute that is not an HTTP field, like
+	// the Attr helper. The boolean reports whether the attribute
+	// exists; when it does not, the default is returned with false.
+	Attr(name, def string) (string, bool)
+
+	// Reroute makes Envoy pick the route again, like the Reroute
+	// helper. Outside the bridge it is a no-op.
+	Reroute()
+
+	// RefreshRoute re-fetches the route immediately for this request,
+	// like RefreshRouteCache with the request context. Prefer Reroute
+	// when the handler mutated the request. Outside the bridge it is a
+	// no-op.
+	RefreshRoute()
+
+	// OverrideUpstream pins this request to one upstream host, like
+	// the OverrideUpstreamHost helper. Outside the bridge it is a
+	// no-op.
+	OverrideUpstream(host string, strict bool)
+
+	// Drain marks the downstream connection to be drained after the
+	// current request completes, like the DrainConnection helper.
+	// Outside the bridge it is a no-op.
+	Drain()
+
+	// Secret fetches a named secret from Envoy's secret manager, like
+	// the Secret helper. The second return value is false when the
+	// secret is missing or the request runs outside the bridge.
+	Secret(name string) (string, bool)
+
+	// TLS returns the downstream TLS connection snapshot, like the TLS
+	// helper. The second return value is false for plaintext
+	// connections and outside the bridge.
+	TLS() (TLSConnection, bool)
+
+	// QueryParam returns the named query parameter, like
+	// r.URL.Query().Get. It returns "" when the request or its URL is
+	// nil, or when the parameter is absent.
+	QueryParam(name string) string
+}
+
+// runtimeContext represents the runtime context for the filter in Envoy.
 // It provides various methods to interact with the Envoy proxy and retrieve information about the HTTP traffic.
-type RuntimeContext interface {
+type runtimeContext interface {
 	// Property fetches an Envoy attribute based on https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes.
 	// Currently, it only supports value that has a string-like format, work in progress for List/Map format.
 	//
@@ -33,27 +177,12 @@ type RuntimeContext interface {
 	Metrics() Metrics
 }
 
-// hostContext carries runtime host hooks used by the bridge filter.
-// It is not part of the documented user surface; the bridge reaches it
-// through mustCastToContext.
-type hostContext interface {
-	Context
-
-	// LoadRequestHeaders is a low-level API, it loads HTTP request headers from Envoy during DecodeHeaders phase
-	//
-	LoadRequestHeaders(api.RequestHeaderMap)
-
-	// LoadResponseHeaders is a low-level API, it loads HTTP response headers from Envoy during EncodeHeaders phase
-	//
-	LoadResponseHeaders(api.ResponseHeaderMap)
-}
-
-// Context is the bridge-called surface: the only methods the bridge
-// filter, the default error handler, and handlers reach through.
-// It extends the RuntimeContext interface with request loading,
+// bridgeContext is the internal bridge-called surface: the only methods the bridge
+// filter and the default error handler reach through.
+// It extends the runtimeContext interface with request loading,
 // local replies, route reloading, cache access, and body gating.
-type Context interface {
-	RuntimeContext
+type bridgeContext interface {
+	runtimeContext
 
 	// LoadRequestHeaders is a low-level API, it loads HTTP request headers from Envoy during DecodeHeaders phase
 	//
@@ -97,15 +226,14 @@ type Context interface {
 	IsResponseBodyWritable() bool
 }
 
-// NewContext creates a new context object for the filter.
-func NewContext(cb api.FilterCallbackHandler, o contextOptions) (Context, error) {
+// newBridgeContext creates a new context object for the filter.
+func newBridgeContext(cb api.FilterCallbackHandler, o contextOptions) (bridgeContext, error) {
 	if cb == nil {
 		return nil, errors.New("filter callback can not be nil")
 	}
 
 	c := &context{
-		cb:         cb,
-		statusType: api.Continue,
+		cb: cb,
 	}
 
 	if err := o.apply(c); err != nil {
@@ -119,12 +247,8 @@ type context struct {
 	cb  api.FilterCallbackHandler
 	pcb api.FilterProcessCallbacks
 
-	reqHeaderMap       api.RequestHeaderMap
-	respHeaderMap      api.ResponseHeaderMap
-	reqBufferInstance  api.BufferInstance
-	respBufferInstance api.BufferInstance
-	reqBufferBytes     []byte
-	respBufferBytes    []byte
+	reqHeaderMap  api.RequestHeaderMap
+	respHeaderMap api.ResponseHeaderMap
 
 	autoReloadRoute bool
 
@@ -143,12 +267,10 @@ type context struct {
 	cache        Cache
 	metrics      Metrics
 	logger       logr.Logger
-	statusType   api.StatusType
 	committed    bool
 }
 
 func (c *context) reset() {
-	c.statusType = api.Continue
 	c.committed = false
 }
 

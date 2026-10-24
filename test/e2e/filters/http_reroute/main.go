@@ -8,8 +8,8 @@ import (
 )
 
 func init() {
-	envoy.HandleEcho(rerouteFilterName,
-		func(c gonvoy.EchoContext) error {
+	envoy.Handle(rerouteFilterName,
+		func(c gonvoy.Context) error {
 			if v := c.Header("x-route-to"); v == "staticreply" {
 				c.SetRequestHeader("x-upstream-name", "staticreply")
 			}
@@ -25,19 +25,19 @@ func init() {
 
 			if v := c.Header("x-refresh"); v == "true" {
 				c.RefreshRoute()
-				return c.Next()
+				return nil
 			}
 
 			if v := c.Header("x-override-to"); v != "" {
 				c.OverrideUpstream(v, true)
-				return c.Next()
+				return nil
 			}
 
 			if c.Header("x-route-to") != "" || c.Header("x-path-changed-to") != "" || c.Header("x-changed-host") == "true" {
 				c.Reroute()
 			}
 
-			return c.Next()
+			return nil
 		},
 		gonvoy.ReloadRoute(),
 	)

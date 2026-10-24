@@ -9,8 +9,8 @@ import (
 )
 
 // Two handles the middle layer of the example chain.
-func Two(gonvoy.Handler) gonvoy.Handler {
-	return gonvoy.Echo(func(c gonvoy.EchoContext) error {
+func Two(next gonvoy.Handler) gonvoy.Handler {
+	return gonvoy.Handler(func(c gonvoy.Context) error {
 		log := c.Log().WithName("handlerTwo")
 
 		r := c.Request()
@@ -38,6 +38,6 @@ func Two(gonvoy.Handler) gonvoy.Handler {
 
 		log.Info("handling request", "host", r.Host, "path", r.URL.Path, "method", r.Method, "query", r.URL.Query())
 
-		return c.Next()
+		return next(c)
 	})
 }

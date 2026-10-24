@@ -79,5 +79,48 @@ var HTTPRerouteTestCase = suite.TestCase{
 			require.Equal(t, "index", resp.Header.Get("x-response-path-name"))
 			require.Equal(t, http.StatusCreated, resp.StatusCode)
 		})
+
+		t.Run("override to unroutable upstream, got 503", func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, kit.GetEnvoyHost()+"/", nil)
+			require.NoError(t, err)
+
+			req.Header.Set("x-override-to", "192.0.2.1:9")
+			req.Header.Set("x-route-to", "staticreply")
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		})
+
+		t.Run("override to invalid host, got 500", func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, kit.GetEnvoyHost()+"/", nil)
+			require.NoError(t, err)
+
+			req.Header.Set("x-override-to", "not-a-host")
+			req.Header.Set("x-route-to", "staticreply")
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+		})
+
+		t.Run("refresh route cache keeps routing intact", func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, kit.GetEnvoyHost()+"/", nil)
+			require.NoError(t, err)
+
+			req.Header.Set("x-route-to", "staticreply")
+			req.Header.Set("x-refresh", "true")
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, "staticreply", resp.Header.Get("x-response-by"))
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		})
 	},
 }

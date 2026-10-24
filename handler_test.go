@@ -31,22 +31,24 @@ func TestMiddleware_Order(t *testing.T) {
 	t.Parallel()
 
 	var order []string
-	mk := func(name string) func(Handler) Handler {
+	mk := func(name string) Middleware {
 		return func(next Handler) Handler {
-			return HandlerFunc(func(w ResponseWriter, r *http.Request) {
+			return Handler(func(c Context) error {
 				order = append(order, name+":before")
-				next.ServeHTTP(w, r)
+				err := next(c)
 				order = append(order, name+":after")
+				return err
 			})
 		}
 	}
 
-	final := HandlerFunc(func(w ResponseWriter, r *http.Request) {
+	final := Handler(func(c Context) error {
 		order = append(order, "final")
+		return nil
 	})
 
 	h := mk("outer")(mk("inner")(final))
-	h.ServeHTTP(newRecordingWriter(), &http.Request{})
+	require.NoError(t, h(newTestHandlerContext()))
 
 	assert.Equal(t, []string{"outer:before", "inner:before", "final", "inner:after", "outer:after"}, order)
 }
@@ -134,12 +136,12 @@ func TestAttr(t *testing.T) {
 		},
 	})
 
-	v, err := Attr(r, "xds.cluster_name", "-")
-	require.NoError(t, err)
+	v, ok := Attr(r, "xds.cluster_name", "-")
+	assert.True(t, ok)
 	assert.Equal(t, "test-cluster", v)
 
-	v, err = Attr(r, "xds.route_name", "-")
-	require.NoError(t, err)
+	v, ok = Attr(r, "xds.route_name", "-")
+	assert.False(t, ok)
 	assert.Equal(t, "-", v)
 }
 
@@ -172,6 +174,25 @@ func TestMetricsRecorder_Queues(t *testing.T) {
 	assert.Equal(t, MetricOp{Kind: MetricGaugeSet, Name: "inflight", Value: 3}, ops[2])
 }
 
+func TestNewHelpers_OutsideBridge(t *testing.T) {
+	t.Parallel()
+
+	r, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+
+	v, ok := Secret(r, "db")
+	assert.False(t, ok)
+	assert.Equal(t, "", v)
+
+	_, ok = TLS(r)
+	assert.False(t, ok)
+
+	assert.NotPanics(t, func() {
+		OverrideUpstreamHost(r, "10.0.0.9:8080", true)
+		DrainConnection(r)
+		RefreshRouteCache(r.Context())
+	})
+}
+
 func TestAttr_MissingKeyReturnsDefault(t *testing.T) {
 	t.Parallel()
 
@@ -179,8 +200,8 @@ func TestAttr_MissingKeyReturnsDefault(t *testing.T) {
 		attr: func(name string) (string, bool) { return "", false },
 	})
 
-	v, err := Attr(r, "xds.cluster_name", "-")
+	v, ok := Attr(r, "xds.cluster_name", "-")
 
-	require.NoError(t, err)
+	assert.False(t, ok)
 	assert.Equal(t, "-", v)
 }

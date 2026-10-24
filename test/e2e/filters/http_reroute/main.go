@@ -9,28 +9,36 @@ import (
 
 func init() {
 	envoy.Handle(rerouteFilterName,
-		gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-			header := r.Header
-
-			if v := header.Get("x-route-to"); v == "staticreply" {
-				r.Header.Set("x-upstream-name", "staticreply")
+		func(c gonvoy.Context) error {
+			if v := c.Header("x-route-to"); v == "staticreply" {
+				c.SetRequestHeader("x-upstream-name", "staticreply")
 			}
 
-			if v := header.Get("x-path-changed-to"); v == "staticreply" {
-				r.URL.Path = "/staticreply"
+			if v := c.Header("x-path-changed-to"); v == "staticreply" {
+				c.SetPath("/staticreply")
 			}
 
-			if v := header.Get("x-changed-host"); v == "true" {
-				r.Host = "staticreply.svc"
-				r.Method = http.MethodPost
+			if v := c.Header("x-changed-host"); v == "true" {
+				c.SetHost("staticreply.svc")
+				c.SetMethod(http.MethodPost)
 			}
 
-			if r.Header.Get("x-route-to") != "" || r.Header.Get("x-path-changed-to") != "" || r.Header.Get("x-changed-host") == "true" {
-				gonvoy.Reroute(r)
+			if v := c.Header("x-refresh"); v == "true" {
+				c.RefreshRoute()
+				return nil
 			}
 
-			gonvoy.Terminal{}.ServeHTTP(w, r)
-		}),
+			if v := c.Header("x-override-to"); v != "" {
+				c.OverrideUpstream(v, true)
+				return nil
+			}
+
+			if c.Header("x-route-to") != "" || c.Header("x-path-changed-to") != "" || c.Header("x-changed-host") == "true" {
+				c.Reroute()
+			}
+
+			return nil
+		},
 		gonvoy.ReloadRoute(),
 	)
 }

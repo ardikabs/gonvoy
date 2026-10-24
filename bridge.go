@@ -25,13 +25,28 @@ const (
 	brDone
 	// brFailed means the handler panicked. The error is on the exchange.
 	brFailed
+	// brNeedSecret means the handler blocks waiting for a secret lookup.
+	// W fulfills it and keeps waiting; it never ends the wait by itself.
+	brNeedSecret
 )
+
+// secretRequest is one handler-goroutine secret lookup in flight.
+type secretRequest struct {
+	name  string
+	reply chan secretResult
+}
+
+// secretResult is the fulfilled secret lookup.
+type secretResult struct {
+	value string
+	found bool
+}
 
 // bridgeExchange carries one request through the coroutine bridge.
 // The handler goroutine (G) touches only Go memory: snapshots, channels,
 // the recording writer. Envoy C calls happen only on callback threads (W).
 type bridgeExchange struct {
-	handler Handler
+	handler httpHandler
 
 	// w records the response. Pre-next writes are a local reply;
 	// the terminal streams the upstream response into the passed writer.
@@ -75,8 +90,34 @@ type bridgeExchange struct {
 	failErr      error
 	replacedBody []byte
 	reroute      bool
+	refreshRoute bool
+	refreshDone  bool
 	// liveRespHeader is the Envoy response map for in-place mutation.
 	liveRespHeader api.HeaderMap
+
+	// Upstream override, set by the handler and applied by W.
+	overrideHost   string
+	overrideStrict bool
+	hasOverride    bool
+
+	// drain flags the connection for drain after the request completes.
+	// drainApplied guards the one-shot application on W.
+	drain        bool
+	drainApplied bool
+
+	// TLS snapshot, taken on W at request headers. Never mutated after.
+	tls   TLSConnection
+	tlsOK bool
+
+	// streamInfo caches the Envoy stream info for this request: one C call
+	// per request instead of one per decision. May be nil in tests.
+	streamInfo api.StreamInfo
+
+	// Secret rendezvous. G stores one request at a time and blocks; W
+	// fulfills it from inside awaitSignal and G resumes.
+	secretMu     sync.Mutex
+	secretReq    secretRequest
+	secretLookup func(name string) (string, bool)
 
 	// Request body feed. W appends; G drains.
 	bodyMu     sync.Mutex
@@ -117,7 +158,7 @@ type bridgeExchange struct {
 
 // newBridgeExchange builds the exchange. Hooks may carry nil funcs when
 // running outside the bridge (direct handler unit tests).
-func newBridgeExchange(h Handler, req *http.Request, w *recordingWriter, hooks bridgeHooks) *bridgeExchange {
+func newBridgeExchange(h httpHandler, req *http.Request, w *recordingWriter, hooks bridgeHooks) *bridgeExchange {
 	return &bridgeExchange{
 		handler:   h,
 		w:         w,
@@ -136,7 +177,7 @@ func newBridgeExchange(h Handler, req *http.Request, w *recordingWriter, hooks b
 // a full channel means W already has what it needs.
 // signal sends a handler-goroutine signal to the waiting W thread.
 // Body requests are lossy hints: W already holds the stream and a pending
-// wake is enough. Terminal signals (proceed/done/failed) block until W
+// wake is enough. terminal signals (proceed/done/failed) block until W
 // receives or the stream dies, so a decision is never silently dropped.
 func (ex *bridgeExchange) signal(s brSignal) {
 	if s == brNeedBody {
@@ -159,20 +200,65 @@ func (ex *bridgeExchange) signal(s brSignal) {
 // handler is stuck: W returns paused and picks up G's decision, if any,
 // at the next callback via drainDecision. This bounds the client-abort window.
 //
+// A needSecret signal is fulfilled inline and the wait continues: the
+// secret lookup runs on W, G gets its answer, and the stream still pauses
+// until G's terminal signal arrives.
+//
 // Timeout callers return StopNoBuffer on data paths (nothing new to buffer;
 // the bytes that triggered the wait are already held) and StopAndBuffer on
 // header paths (headers must stay buffered until the decision lands).
 // Both converge at the next callback through drainDecision.
 func (ex *bridgeExchange) awaitSignal() (brSignal, bool) {
-	timeout := time.After(time.Second)
+	for {
+		timeout := time.After(time.Second)
+
+		select {
+		case s := <-ex.sigCh:
+			if s == brNeedSecret {
+				ex.fulfillSecret()
+				continue
+			}
+
+			return s, true
+		case <-ex.done:
+			return 0, false
+		case <-timeout:
+			return 0, false
+		}
+	}
+}
+
+// fulfillSecret answers one pending secret lookup on W and lets the wait
+// continue. Runs only on callback threads.
+func (ex *bridgeExchange) fulfillSecret() {
+	ex.secretMu.Lock()
+	req := ex.secretReq
+	ex.secretMu.Unlock()
+
+	if req.reply == nil || ex.secretLookup == nil {
+		return
+	}
+
+	v, ok := ex.secretLookup(req.name)
+	req.reply <- secretResult{value: v, found: ok}
+}
+
+// requestSecret asks W for a named secret and blocks G until it arrives
+// or the stream dies. Runs only on the handler goroutine.
+func (ex *bridgeExchange) requestSecret(name string) (string, bool) {
+	reply := make(chan secretResult, 1)
+
+	ex.secretMu.Lock()
+	ex.secretReq = secretRequest{name: name, reply: reply}
+	ex.secretMu.Unlock()
+
+	ex.signal(brNeedSecret)
 
 	select {
-	case s := <-ex.sigCh:
-		return s, true
+	case res := <-reply:
+		return res.value, res.found
 	case <-ex.done:
-		return 0, false
-	case <-timeout:
-		return 0, false
+		return "", false
 	}
 }
 
@@ -470,6 +556,68 @@ func cloneHeader(h http.Header) http.Header {
 	return out
 }
 
+func uint64ptr(v uint64, ok bool) *uint64 {
+	if !ok {
+		return nil
+	}
+
+	return &v
+}
+
+func uint16ptr(v uint16, ok bool) *uint16 {
+	if !ok {
+		return nil
+	}
+
+	return &v
+}
+
+func stringptr(v string, ok bool) *string {
+	if !ok {
+		return nil
+	}
+
+	return &v
+}
+
+// snapshotTLS copies an Envoy TLS connection into plain Go memory.
+// Slices are deep-copied; it runs on W while the connection info is live.
+func snapshotTLS(sc api.SslConnection) TLSConnection {
+	return TLSConnection{
+		PeerCertificatePresented:    sc.PeerCertificatePresented(),
+		PeerCertificateValidated:    sc.PeerCertificateValidated(),
+		Sha256PeerCertificateDigest: sc.Sha256PeerCertificateDigest(),
+		SerialNumberPeerCertificate: sc.SerialNumberPeerCertificate(),
+		SubjectPeerCertificate:      sc.SubjectPeerCertificate(),
+		IssuerPeerCertificate:       sc.IssuerPeerCertificate(),
+		SubjectLocalCertificate:     sc.SubjectLocalCertificate(),
+		URISANsPeerCertificate:      append([]string(nil), sc.UriSanPeerCertificate()...),
+		URISANsLocalCertificate:     append([]string(nil), sc.UriSanLocalCertificate()...),
+		DNSSANsPeerCertificate:      append([]string(nil), sc.DnsSansPeerCertificate()...),
+		DNSSANsLocalCertificate:     append([]string(nil), sc.DnsSansLocalCertificate()...),
+		ValidFromPeerCertificate: func() *uint64 {
+			v, ok := sc.ValidFromPeerCertificate()
+			return uint64ptr(v, ok)
+		}(),
+		ExpirationPeerCertificate: func() *uint64 {
+			v, ok := sc.ExpirationPeerCertificate()
+			return uint64ptr(v, ok)
+		}(),
+		TLSVersion:  sc.TlsVersion(),
+		Ciphersuite: sc.CiphersuiteString(),
+		CiphersuiteID: func() *uint16 {
+			v, ok := sc.CiphersuiteId()
+			return uint16ptr(v, ok)
+		}(),
+		SessionID: func() *string {
+			v, ok := sc.SessionId()
+			return stringptr(v, ok)
+		}(),
+		PEMPeerCertificate:      sc.UrlEncodedPemEncodedPeerCertificate(),
+		PEMPeerCertificateChain: sc.UrlEncodedPemEncodedPeerCertificateChain(),
+	}
+}
+
 // Handler runtime support. Everything below is unexported bridge machinery:
 // the recording writer handlers write into, and the request-context hooks
 // helpers resolve through. User code never names these.
@@ -553,6 +701,18 @@ type bridgeHooks struct {
 	// reroute flags a route reload on proceed. Nil outside the bridge.
 	reroute func()
 
+	// overrideUpstream pins the request to one upstream host.
+	// Nil outside the bridge.
+	overrideUpstream func(host string, strict bool)
+
+	// drain flags the connection for drain after the request completes.
+	// Nil outside the bridge.
+	drain func()
+
+	// secret fetches a named secret via a callback-thread rendezvous.
+	// Nil outside the bridge.
+	secret func(name string) (string, bool)
+
 	// log returns the request logger. Nil outside the bridge (discarded).
 	log func() logr.Logger
 
@@ -593,17 +753,19 @@ func exchangeFrom(r *http.Request) (*bridgeExchange, bool) {
 	return ex, ok
 }
 
-// Terminal is the chain end: proceeding upstream means the response
-// headers will arrive on W, which resumes G to run after-next code.
-// It is stateless; the live exchange comes from the request. Chains
-// terminate in a Terminal; calling it means "send upstream".
+// terminal is the internal chain end: proceeding upstream means the
+// response headers will arrive on W, which resumes G to run after-next
+// code. It is stateless; the live exchange comes from the request. Chains
+// built by Use terminate here; calling it means "send upstream". It stays
+// unexported so user code proceeds through the Middleware chain instead of
+// reaching the upstream hop directly.
 //
 // Pass through the writer you received. Response bytes written into a
 // different wrapper before next are not captured; write into w after
 // next returns instead.
-type Terminal struct{}
+type terminal struct{}
 
-func (Terminal) ServeHTTP(w ResponseWriter, r *http.Request) {
+func (terminal) ServeHTTP(w ResponseWriter, r *http.Request) {
 	ex, ok := exchangeFrom(r)
 	if !ok {
 		return

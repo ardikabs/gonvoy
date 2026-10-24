@@ -26,6 +26,8 @@ static_resources:
                       library_id: http-body-reader
                       library_path: "/filter.so"
                       plugin_name: http_body_reader
+                      generic_secrets:
+                      - name: e2e-token
                       plugin_config:
                         "@type": type.googleapis.com/xds.type.v3.TypedStruct
                         value: {}
@@ -146,6 +148,11 @@ static_resources:
                             prefix: "/server_info"
                           route:
                             cluster: admin
+  secrets:
+    - name: e2e-token
+      generic_secret:
+        secret:
+          inline_bytes: "czNjcjN0"
   clusters:
     - name: echoserver
       connect_timeout: 5000s

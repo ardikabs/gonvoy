@@ -82,7 +82,7 @@ go build -o filter.so -buildmode=c-shared *.go
 ```
 
 Need config, body access, metrics, or routing? See `example/go-simple-extension`
-for the same shape with `WithConfig`, `ReadRequestBody`, `Reroute`, and
+for the same shape with `WithConfig`, `ReadRequestBody`, `ReloadRoute`, and
 `MetricPrefix` options. Return `http.Error(w, ...)` to answer directly;
 anything unhandled keeps flowing, and a panic still becomes a 500 that
 keeps Envoy up.

@@ -1,6 +1,8 @@
 # Deprecation Notice
 
-gonvoy has two APIs. The handler API (`HandlerFunc`, `Use`, `Terminal`) is the default for all new filters. The phase-based API below it still compiles and still runs; it is superseded, not removed. This page writes up the whole old surface so you can maintain existing filters and port them with intent.
+> **Retired:** the entire phase-based API described on this page (including `envoy.Register`, `envoy.MustRegister`, and `envoy.RegisterHttpFilter`) has been removed from the tree. Only `envoy.Handle` (bridge handler API) remains. This page is kept as a porting reference.
+
+gonvoy has two APIs. The handler API (`Handler`, `Use`) is the default for all new filters. The phase-based API below it no longer compiles; it is removed, not merely superseded. This page writes up the whole old surface so you can maintain existing filters and port them with intent.
 
 Only two names carry an explicit deprecation marker. Everything else in this page works exactly as before.
 
@@ -9,14 +11,14 @@ Only two names carry an explicit deprecation marker. Everything else in this pag
 | Name | Status | Replacement |
 |---|---|---|
 | `RuntimeContext.GetProperty` | Deprecated marker in code: use `Property` instead | `c.Property(name, def)` on the old API; `gonvoy.Attr(r, name, def)` on the new one |
-| `envoy.RegisterHttpFilter` | Removed, no marker left in tree; superseded by `Register` / `MustRegister` | `envoy.MustRegister(name, envoy.Options{...})` on the old API; `envoy.Handle(name, handler, ...)` on the new one |
+| `envoy.RegisterHttpFilter` | Removed, no marker left in tree | `envoy.Handle(name, handler, ...)` on the new one |
 
 ## The old mechanism, area by area
 
 ### Registration and config
 
-- `envoy.MustRegister(name, envoy.Options{New, Config, MetricsPrefix, Route, Body, Merge})` onboards a filter. `New` returns a fresh `HttpFilter` per request; `Config` carries the typed plugin config; `Body` sets read/write access; `Route.ReloadOnHeaderChange` enables auto reload.
-- `envoy.RegisterHttpFilter(name, factoryFunc, gonvoy.ConfigOptions{...})` is the older entry point and is deprecated (see above).
+- `envoy.MustRegister(name, envoy.Options{New, Config, MetricsPrefix, Route, Body, Merge})` onboarded a filter. **Removed; no marker left in tree.**
+- `envoy.RegisterHttpFilter(name, factoryFunc, gonvoy.ConfigOptions{...})` was the older entry point and is removed (see above).
 - Per-route config arrives as `typed_per_filter_config` in `envoy.yaml` and merges into the listener config.
 
 ### Filter shape

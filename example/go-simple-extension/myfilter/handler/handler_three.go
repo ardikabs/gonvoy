@@ -12,39 +12,38 @@ import (
 	"github.com/ardikabs/gonvoy"
 )
 
+// Three handles the inner layer of the example chain.
 func Three(next gonvoy.Handler) gonvoy.Handler {
-	return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-		log := gonvoy.Log(r).WithName("handlerThree")
+	return gonvoy.Handler(func(c gonvoy.Context) error {
+		log := c.Log().WithName("handlerThree")
 
 		var reqHeaders map[string]string
-		if cfg, err := gonvoy.Config[*Config](r); err == nil && cfg != nil {
+		if cfg, err := gonvoy.ConfigOf[*Config](c); err == nil && cfg != nil {
 			reqHeaders = cfg.RequestHeaders
 		}
 
 		for k, v := range reqHeaders {
-			r.Header.Set(k, v)
+			c.SetRequestHeader(k, v)
 		}
 
 		data := new(globaldata)
-		if ok, err := gonvoy.SharedCache(r).Load(GLOBAL, &data); ok && err == nil {
+		if ok, err := c.Cache().Load(GLOBAL, &data); ok && err == nil {
 			data.Time3 = time.Now()
 			log.Info("got existing global data", "data", data, "pointer", fmt.Sprintf("%p", data))
-			gonvoy.SharedCache(r).Store(GLOBAL, data)
+			c.Cache().Store(GLOBAL, data)
 		}
 
-		log.Info("handling request", "request", r.Header)
+		log.Info("handling request", "request", c.Request().Header)
 
-		if ct := r.Header.Get(gonvoy.HeaderContentType); strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
-			body, err := io.ReadAll(r.Body)
+		if ct := c.Header(gonvoy.HeaderContentType); strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
+			body, err := io.ReadAll(c.Body())
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+				return c.String(http.StatusInternalServerError, err.Error())
 			}
 
 			reqBody := make(map[string]interface{})
 			if err := json.Unmarshal(body, &reqBody); err != nil {
-				badRequest(w, "unexpected payload")
-				return
+				return badRequest(c, "unexpected payload")
 			}
 
 			reqBody["newData"] = "newValue"
@@ -53,36 +52,33 @@ func Three(next gonvoy.Handler) gonvoy.Handler {
 
 			replaced, err := json.Marshal(reqBody)
 			if err != nil {
-				badRequest(w, "unexpected payload")
-				return
+				return badRequest(c, "unexpected payload")
 			}
 
-			r.Body = io.NopCloser(bytes.NewReader(replaced))
+			c.Request().Body = io.NopCloser(bytes.NewReader(replaced))
 		} else {
-			log.Info("payload size", "size", len(mustReadAll(r)))
+			log.Info("payload size", "size", len(mustReadAll(c.Request())))
 		}
 
-		next.ServeHTTP(w, r)
-
-		if ct := w.Header().Get(gonvoy.HeaderContentType); !strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
-			return
+		if err := next(c); err != nil {
+			return err
 		}
 
-		resp, err := gonvoy.ResponseBody(r)
+		resp, err := c.ResponseBody()
 		if err != nil {
-			return
+			return nil
 		}
 
 		raw, err := io.ReadAll(resp)
 		if err != nil {
-			return
+			return nil
 		}
 
 		respBody := make(map[string]interface{})
 		if err := json.Unmarshal(raw, &respBody); err != nil {
-			gonvoy.Log(r).Error(err, fmt.Sprintf("expecting data type %T, got %v", respBody, string(raw)))
-			gonvoy.Log(r).Info("skipping response body manipulation ...")
-			return
+			c.Log().Error(err, fmt.Sprintf("expecting data type %T, got %v", respBody, string(raw)))
+			c.Log().Info("skipping response body manipulation ...")
+			return nil
 		}
 
 		respBody["newData"] = "newValue"
@@ -91,10 +87,12 @@ func Three(next gonvoy.Handler) gonvoy.Handler {
 
 		changed, err := json.Marshal(respBody)
 		if err != nil {
-			return
+			return nil
 		}
 
-		_, _ = w.Write(changed)
+		_, _ = c.Write(changed)
+
+		return nil
 	})
 }
 

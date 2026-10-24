@@ -7,33 +7,6 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-// HttpFilterHandler represents an interface for an HTTP filter handler.
-// In a typical HTTP flow, the sequence of events can be as follows:
-// OnRequestHeader -> OnRequestBody -> <Any number of intermediate Envoy processes> -> OnResponseHeader -> OnResponseBody
-// HttpFilterHandler is an interface that defines the methods to handle HTTP filter operations.
-type HttpFilterHandler interface {
-	// Disable disables the HTTP filter handler.
-	//
-	// It returns a boolean value indicating whether the HTTP filter handler is disabled.
-	Disable() bool
-
-	// OnRequestHeader is called when processing the HTTP request header during the OnRequestBody phase.
-	//
-	OnRequestHeader(c Context) error
-
-	// OnRequestBody is called when processing the HTTP request body during the OnRequestBody phase.
-	//
-	OnRequestBody(c Context) error
-
-	// OnResponseHeader is called when processing the HTTP response header during the OnResponseHeader phase.
-	//
-	OnResponseHeader(c Context) error
-
-	// OnResponseBody is called when processing the HTTP response body during the OnResponseBody phase.
-	//
-	OnResponseBody(c Context) error
-}
-
 var (
 	responseUnauthorized        = NewMinimalJSONResponse("UNAUTHORIZED", "Unauthorized")
 	responseForbidden           = NewMinimalJSONResponse("FORBIDDEN", "Forbidden")
@@ -42,18 +15,15 @@ var (
 	responseBadGateway          = NewMinimalJSONResponse("BAD_GATEWAY", "Bad Gateway")
 )
 
-// ErrorHandler is a function type that handles errors in the HTTP filter.
-type ErrorHandler func(Context, error) api.StatusType
-
-// DefaultErrorHandler is a default error handler if no custom error handler is provided.
-func DefaultErrorHandler(c Context, err error) api.StatusType {
+// defaultErrorHandler is the default error handler if no custom error handler is provided.
+func defaultErrorHandler(c bridgeContext, err error) api.StatusType {
 	if err == nil {
 		return api.Continue
 	}
 
-	host := MustGetProperty(c, "request.host", "-")
-	method := MustGetProperty(c, "request.method", "-")
-	path := MustGetProperty(c, "request.path", "-")
+	host := mustGetProperty(c, "request.host", "-")
+	method := mustGetProperty(c, "request.method", "-")
+	path := mustGetProperty(c, "request.path", "-")
 	log := c.Log().WithValues("host", host, "method", method, "path", path)
 
 	switch {
@@ -112,13 +82,3 @@ func DefaultErrorHandler(c Context, err error) api.StatusType {
 
 	return api.LocalReply
 }
-
-var _ HttpFilterHandler = PassthroughHttpFilterHandler{}
-
-type PassthroughHttpFilterHandler struct{}
-
-func (PassthroughHttpFilterHandler) Disable() bool                    { return false }
-func (PassthroughHttpFilterHandler) OnRequestHeader(c Context) error  { return nil }
-func (PassthroughHttpFilterHandler) OnRequestBody(c Context) error    { return nil }
-func (PassthroughHttpFilterHandler) OnResponseHeader(c Context) error { return nil }
-func (PassthroughHttpFilterHandler) OnResponseBody(c Context) error   { return nil }

@@ -37,55 +37,59 @@ import (
 )
 
 func init() {
-    envoy.Handle("hello", gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-        w.Header().Set("x-hello", "world")
+    envoy.Handle("hello", gonvoy.Handler(func(c gonvoy.Context) error {
+        c.SetHeader("x-hello", "world")
+        return nil
     }))
 }
 
 func main() {}
 ```
 
-The handler above does the simplest useful thing: it tags every response with a header and lets the request continue. Returning without writing means "pass through". This shape, one `HandlerFunc` registered directly, covers any self-contained job: check something, maybe answer, otherwise let the request through.
+The handler above does the simplest useful thing: it tags every response with a header and lets the request continue. Returning nil without writing means "pass through". This shape, one handler function registered directly with `envoy.Handle`, covers any self-contained job: check something, maybe answer, otherwise let the request through.
 
 A handler that answers directly looks like this:
 
 ```go
-envoy.Handle("auth", gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-    if r.Header.Get("Authorization") == "" {
-        gonvoy.String(w, http.StatusUnauthorized, "unauthorized")
-        return
+envoy.Handle("auth", gonvoy.Handler(func(c gonvoy.Context) error {
+    if c.Header("Authorization") == "" {
+        return c.String(http.StatusUnauthorized, "unauthorized")
     }
-    gonvoy.Terminal{}.ServeHTTP(w, r)
+    return nil
 }))
 ```
 
-`gonvoy.Terminal` is the end of the chain. Calling it sends the request upstream, and code after it runs when the response arrives. You need it here because a single handler has no `next` of its own. (There is more to say about when `Terminal` is required and when it is not; see [Single handler vs middleware](user-guide/filter-authoring.md#single-handler-vs-middleware). For now: one job, one function, `Terminal` to proceed.)
+Returning `nil` without writing passes the request upstream. To run code when the response arrives, wrap the handler in `Use` and call `next` (see [Single handler vs middleware](user-guide/filter-authoring.md#single-handler-vs-middleware)).
 
 When the job has layers, reach for `gonvoy.Use` instead of a bigger single function:
 
 ```go
 func Auth(next gonvoy.Handler) gonvoy.Handler {
-    return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-        if r.Header.Get("Authorization") == "" {
-            gonvoy.String(w, http.StatusUnauthorized, "unauthorized")
-            return
+    return gonvoy.Handler(func(c gonvoy.Context) error {
+        if c.Header("Authorization") == "" {
+            return c.String(http.StatusUnauthorized, "unauthorized")
         }
-        next.ServeHTTP(w, r)
+        return next(c)
     })
 }
 
 func Log(next gonvoy.Handler) gonvoy.Handler {
-    return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-        gonvoy.Log(r).Info("incoming request", "path", r.URL.Path)
-        next.ServeHTTP(w, r)
-        w.Header().Set("via", "my-gateway")
+    return gonvoy.Handler(func(c gonvoy.Context) error {
+        c.Log().Info("incoming request", "path", c.Path())
+        if err := next(c); err != nil {
+            return err
+        }
+        c.SetHeader("via", "my-gateway")
+        return nil
     })
 }
 
 envoy.Handle("auth", gonvoy.Use(Auth, Log))
 ```
 
-Each layer receives its own `next`, so layers never name `Terminal`. `Use` wires one in as the innermost `next` for you. Order is outermost first: `Auth` runs before `Log` on the way in, and after it on the way out.
+Each layer calls its `next` argument to proceed; `Use` wires the internal upstream hop in as the innermost element for you. Order is outermost first: `Auth` runs before `Log` on the way in, and after it on the way out.
+
+`envoy.Handle` onboards a handler function directly: the function is a `gonvoy.Handler`, and `Handler`/`Use`/`Middleware` are the runtime, not a second framework.
 
 ## 3. Build the shared library
 

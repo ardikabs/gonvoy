@@ -9,18 +9,20 @@ Test at two levels: unit-test the handler as plain Go, then prove it against rea
 This is the one rule that breaks loudly when ignored, so it is worth stating three ways:
 
 1. **What happens.** A `go test` binary has no Envoy host process. `pkg/envoy` links framework code that only exists inside one, so the import kills the test process with a segmentation fault on startup. The fault takes down the whole binary: every test in the package dies, including ones that never touch Envoy. It is not catchable and not retryable.
-2. **Where the line is.** `main` (or any package with no unit tests) may import `pkg/envoy`, for registration only. Every package with a `_test.go` file must not import it, directly or transitively. The root `gonvoy` package is safe on purpose: handlers, `Use`, options, and reply helpers live there as plain Go with no C bindings.
+2. **Where the line is.** `main` (or any package with no unit tests) may import `pkg/envoy`, for registration only. Every package with a `_test.go` file must not import it, directly or transitively. The root `gonvoy` package is safe on purpose: handlers, `Context`/`Handler`, `Use`, options, and reply helpers live there as plain Go with no C bindings.
 3. **How to structure a filter.** Keep `main.go` to registration: `init` plus `envoy.Handle`, nothing else. Put handler code in a library package that imports only root `gonvoy` and unit-test that package freely. If you inherit a fixture with everything inline in `main.go`, that file is e2e-only by construction; extract what you want tested.
 
 If a test binary dies instantly with exit 139 and no test output, check the import graph first. Nine times out of ten, `pkg/envoy` got in through a helper import.
 
 ## Unit tests
 
-Handlers are ordinary functions, and every bridge helper degrades gracefully outside Envoy: `Attr` returns your default, `Reroute` does nothing, `Log` discards, `Stats` drops, `SharedCache` returns nil. So most handlers need no mocks at all:
+Handlers are ordinary functions, and every `Context` accessor degrades gracefully outside Envoy: `Attr` returns your default, `Reroute` does nothing, `Log` discards, `Stats` drops, `Cache` returns nil. So most handlers need no mocks at all:
 
 ```go
 func TestAuth_RejectsAnonymous(t *testing.T) {
-    h := Auth(gonvoy.Terminal{})
+    h := Auth(gonvoy.Handler(func(c gonvoy.Context) error {
+        return nil
+    }))
     r, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
     w := ... // any gonvoy.ResponseWriter; see below
 
@@ -30,7 +32,7 @@ func TestAuth_RejectsAnonymous(t *testing.T) {
 }
 ```
 
-For the writer, use the same recorder the bridge uses, or a small fake implementing `Header`, `Write`, `WriteHeader`, and `Status`. For `gonvoy.Config`, attach it to the request context the way the bridge does (see `handler_test.go` in the repo root for the pattern). Run the suite with:
+For the writer, use the same recorder the bridge uses, or a small fake implementing `Header`, `Write`, `WriteHeader`, and `Status`. For `gonvoy.ConfigOf`, attach the config value to the request context the way the bridge does (it delegates to `gonvoy.Config` with the wrapped request; see `handler_test.go` in the repo root for the pattern). Run the suite with:
 
 ```bash
 go test ./...

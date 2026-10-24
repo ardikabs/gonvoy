@@ -37,43 +37,44 @@ go get github.com/ardikabs/gonvoy
 
 ## Quickstart
 
-One handler, plain `net/http` shape. Copy `example/helloworld` and change the function:
+One handler, plain Go shape. Copy `example/helloworld` and change the function:
 
 ```go
 package main
 
 import (
-	"net/http"
-
 	"github.com/ardikabs/gonvoy"
 	"github.com/ardikabs/gonvoy/pkg/envoy"
 )
 
 func init() {
-	envoy.Handle("hello", gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-		w.Header().Set("x-hello", "world")
+	envoy.Handle("hello", gonvoy.Handler(func(c gonvoy.Context) error {
+		c.SetHeader("x-hello", "world")
+		return nil
 	}))
 }
 
 func main() {}
 ```
 
-For layered handling, wrap it — `next.ServeHTTP` sends the request upstream, and
+For layered handling, wrap it: `next(c)` proceeds toward upstream, and
 code after it runs when the upstream response arrives:
 
 ```go
 func Auth(next gonvoy.Handler) gonvoy.Handler {
-	return gonvoy.HandlerFunc(func(w gonvoy.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
+	return gonvoy.Handler(func(c gonvoy.Context) error {
+		if c.Header("Authorization") == "" {
+			return c.String(http.StatusUnauthorized, "unauthorized")
 		}
-		next.ServeHTTP(w, r)
+		return next(c)
 	})
 }
 
 envoy.Handle("auth", gonvoy.Use(Auth))
 ```
+
+Need an explicit endpoint without upstream, for example in tests? Use
+`gonvoy.Chain(final, Auth)` with a plain `Handler` as `final`.
 
 Build it as a shared library and point Envoy at it:
 
@@ -83,9 +84,9 @@ go build -o filter.so -buildmode=c-shared *.go
 
 Need config, body access, metrics, or routing? See `example/go-simple-extension`
 for the same shape with `WithConfig`, `ReadRequestBody`, `ReloadRoute`, and
-`MetricPrefix` options. Return `http.Error(w, ...)` to answer directly;
-anything unhandled keeps flowing, and a panic still becomes a 500 that
-keeps Envoy up.
+`MetricPrefix` options. Return `c.String(...)` or `c.JSON(...)` to answer
+directly; return `nil` to pass through unanswered, and a panic still becomes
+a 500 that keeps Envoy up.
 
 ## Development Guide
 

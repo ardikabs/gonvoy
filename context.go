@@ -28,15 +28,16 @@ type Context interface {
 	// for escape hatches.
 	Request() *http.Request
 
-	// Header returns the named request header, like r.Header.Get.
-	Header(key string) string
-
-	// SetHeader sets a response header, like w.Header().Set.
-	SetHeader(key, val string)
-
-	// SetRequestHeader sets a request header, like r.Header.Set. The diff
-	// lands on the live Envoy map through applyRequestMutations.
-	SetRequestHeader(key, val string)
+	// Response returns a live view of the response the handler writes.
+	// Header aliases the recording writer headers, so Set, Add, Del, and
+	// Get manipulate what reaches the client through the usual
+	// bridge paths: pre-next writes merge or stash, post-next writes
+	// diff against the upstream snapshot. StatusCode and Status report
+	// the recorded status. Body stays nil; read upstream bytes through
+	// ResponseBody and write answers through JSON, String, NoContent,
+	// and Write. The view is fresh per call: do not cache it across
+	// next.
+	Response() *http.Response
 
 	// Method returns the request method, like r.Method.
 	Method() string

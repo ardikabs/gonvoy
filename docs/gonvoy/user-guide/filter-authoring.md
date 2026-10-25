@@ -12,7 +12,7 @@ A filter is either one self-contained function or a chain of layers. Choose befo
 ```go
 // Single handler: answer or pass through, no chain call needed.
 envoy.Handle("guard", gonvoy.Handler(func(c gonvoy.Context) error {
-    if c.Header("Authorization") == "" {
+    if c.Request().Header.Get("Authorization") == "" {
         return c.String(http.StatusUnauthorized, "unauthorized")
     }
     return nil
@@ -21,7 +21,7 @@ envoy.Handle("guard", gonvoy.Handler(func(c gonvoy.Context) error {
 // Use: each layer calls next; the innermost next is the internal upstream hop.
 func Auth(next gonvoy.Handler) gonvoy.Handler {
     return gonvoy.Handler(func(c gonvoy.Context) error {
-        if c.Header("Authorization") == "" {
+        if c.Request().Header.Get("Authorization") == "" {
             return c.String(http.StatusUnauthorized, "unauthorized")
         }
         return next(c)
@@ -34,7 +34,7 @@ func Log(next gonvoy.Handler) gonvoy.Handler {
         if err := next(c); err != nil {
             return err
         }
-        c.SetHeader("via", "my-gateway")
+        c.Response().Header.Set("via", "my-gateway")
         return nil
     })
 }
@@ -95,7 +95,7 @@ func Log(next gonvoy.Handler) gonvoy.Handler {
         if err := next(c); err != nil {
             return err
         }
-        c.SetHeader("via", "my-gateway")
+        c.Response().Header.Set("via", "my-gateway")
         return nil
     })
 }
@@ -139,7 +139,7 @@ Rule: reading the body without an option fails with a "not accessible" error. Wr
 
 ## Reading and replacing the response body
 
-After `next` returns, the upstream response is available. Headers are always visible via `c.SetHeader`; the body needs an option. Observe the response only inside `Use`: a plain `Handler` that returns without calling `next` never parks, so after-code would never run.
+After `next` returns, the upstream response is available. Headers are always visible via `c.Response().Header`; the body needs an option. Observe the response only inside `Use`: a plain `Handler` that returns without calling `next` never parks, so after-code would never run.
 
 ```go
 envoy.Handle("modify",
@@ -209,7 +209,7 @@ Mutate the request, then ask Envoy to route again. This needs the registration o
 ```go
 envoy.Handle("reroute",
     gonvoy.Handler(func(c gonvoy.Context) error {
-        if c.Header("x-route-to") == "staticreply" {
+        if c.Request().Header.Get("x-route-to") == "staticreply" {
             c.SetPath("/staticreply")
             c.Reroute()
         }
@@ -223,7 +223,7 @@ envoy.Handle("reroute",
 
 ## Envoy attributes
 
-Anything that is not an HTTP field (cluster name, route name, response flags) comes from `c.Attr`. Values are snapshotted at each filter phase, so what you read is current as of the last phase boundary. For HTTP fields, use `c.Method()`, `c.Path()`, `c.Host()`, and `c.Header(...)` instead.
+Anything that is not an HTTP field (cluster name, route name, response flags) comes from `c.Attr`. Values are snapshotted at each filter phase, so what you read is current as of the last phase boundary. For HTTP fields, use `c.Method()`, `c.Path()`, `c.Host()`, `c.Request().Header.Get(...)`, and `c.Response().Header.Get(...)` instead.
 
 ```go
 upstream, _ := c.Attr("xds.cluster_name", "-")

@@ -38,7 +38,7 @@ import (
 
 func init() {
     envoy.Handle("hello", gonvoy.Handler(func(c gonvoy.Context) error {
-        c.SetHeader("x-hello", "world")
+        c.Response().Header.Set("x-hello", "world")
         return nil
     }))
 }
@@ -52,7 +52,7 @@ A handler that answers directly looks like this:
 
 ```go
 envoy.Handle("auth", gonvoy.Handler(func(c gonvoy.Context) error {
-    if c.Header("Authorization") == "" {
+    if c.Request().Header.Get("Authorization") == "" {
         return c.String(http.StatusUnauthorized, "unauthorized")
     }
     return nil
@@ -66,7 +66,7 @@ When the job has layers, reach for `gonvoy.Use` instead of a bigger single funct
 ```go
 func Auth(next gonvoy.Handler) gonvoy.Handler {
     return gonvoy.Handler(func(c gonvoy.Context) error {
-        if c.Header("Authorization") == "" {
+        if c.Request().Header.Get("Authorization") == "" {
             return c.String(http.StatusUnauthorized, "unauthorized")
         }
         return next(c)
@@ -79,7 +79,7 @@ func Log(next gonvoy.Handler) gonvoy.Handler {
         if err := next(c); err != nil {
             return err
         }
-        c.SetHeader("via", "my-gateway")
+        c.Response().Header.Set("via", "my-gateway")
         return nil
     })
 }

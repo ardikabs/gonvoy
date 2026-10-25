@@ -36,6 +36,24 @@ func newHandlerContext(w ResponseWriter, r *http.Request) *handlerContext {
 // Request returns the live request.
 func (c *handlerContext) Request() *http.Request { return c.r }
 
+// Response returns a live view of the response. Header aliases the
+// recording writer headers; StatusCode and Status report the recorded
+// status. The view is fresh per call so it never goes stale across the
+// upstream publication that swaps the header map.
+func (c *handlerContext) Response() *http.Response {
+	if c.w == nil {
+		return &http.Response{Header: make(http.Header)}
+	}
+
+	status := c.w.Status()
+	resp := &http.Response{Header: c.w.Header(), StatusCode: status}
+	if status != 0 {
+		resp.Status = fmt.Sprintf("%03d %s", status, http.StatusText(status))
+	}
+
+	return resp
+}
+
 // forwardUpstream starts forwarding the filter processing to upstream once
 // through the internal terminal and parks until the upstream response
 // arrives. It keeps single-shot semantics: calling it twice is a no-op.
@@ -50,20 +68,6 @@ func (c *handlerContext) forwardUpstream() error {
 		return nil
 	}
 	return c.ex.failErr
-}
-
-// Header returns the named request header.
-func (c *handlerContext) Header(key string) string { return c.r.Header.Get(key) }
-
-// SetHeader sets a response header.
-func (c *handlerContext) SetHeader(key, val string) { c.w.Header().Set(key, val) }
-
-// SetRequestHeader sets a request header.
-func (c *handlerContext) SetRequestHeader(key, val string) {
-	if c.r.Header == nil {
-		c.r.Header = make(http.Header)
-	}
-	c.r.Header.Set(key, val)
 }
 
 // Method returns the request method.

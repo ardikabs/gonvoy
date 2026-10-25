@@ -49,7 +49,7 @@ import (
 
 func init() {
 	envoy.Handle("hello", gonvoy.Handler(func(c gonvoy.Context) error {
-		c.SetHeader("x-hello", "world")
+		c.Response().Header.Set("x-hello", "world")
 		return nil
 	}))
 }
@@ -63,7 +63,7 @@ code after it runs when the upstream response arrives:
 ```go
 func Auth(next gonvoy.Handler) gonvoy.Handler {
 	return gonvoy.Handler(func(c gonvoy.Context) error {
-		if c.Header("Authorization") == "" {
+		if c.Request().Header.Get("Authorization") == "" {
 			return c.String(http.StatusUnauthorized, "unauthorized")
 		}
 		return next(c)

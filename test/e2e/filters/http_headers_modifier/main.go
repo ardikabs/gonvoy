@@ -14,10 +14,10 @@ func init() {
 			}
 
 			for k, v := range cfg.RequestHeaders {
-				c.SetRequestHeader(k, v)
+				c.Request().Header.Set(k, v)
 			}
 			for k, v := range cfg.ResponseHeaders {
-				c.SetHeader(k, v)
+				c.Response().Header.Set(k, v)
 			}
 
 			return nil

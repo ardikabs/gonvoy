@@ -125,7 +125,7 @@ Request path:
 
 Response path:
 
-* `c.SetHeader` before forwarding only touches `w.Header()`. `callNext` stashes it into `preHeaders` with `cloneHeader` in `bridge.go:551` and `writeUpstream` in `bridge.go:522` reapplies it on top of the upstream headers. No body bytes are retained for this.
+* `c.Response().Header` writes before forwarding only touch `w.Header()`. `callNext` stashes them into `preHeaders` with `cloneHeader` in `bridge.go:551` and `writeUpstream` in `bridge.go:522` reapplies them on top of the upstream headers. No body bytes are retained for this.
 * Upstream body buffering is gated by `bufferResponseBody` in `bridgefilter.go:160` and by actually reading after `next` returns. Without response read or write access, `gatedRespReader.Read` in `bridge.go:353` fails fast and `EncodeHeaders` in `bridgefilter.go:87` plus `EncodeData` in `bridgefilter.go:130` stream through with `applyHeaderSets` in `bridgefilter.go:259` and `api.Continue`. With access enabled but no read, `feedRespBody` in `bridge.go:299` still runs per callback, yet nothing blocks on `respWake` and `applyPendingBody` in `bridgefilter.go:167` finds no stashed body to replace.
 * Trailers follow the same rule. `DecodeTrailers` in `bridgefilter.go:271` and `EncodeTrailers` in `bridgefilter.go:296` only feed EOF and apply the pending decision. A header-only chain is already done, so both return `api.Continue`.
 

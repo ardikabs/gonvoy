@@ -19,27 +19,27 @@ func One(next gonvoy.Handler) gonvoy.Handler {
 		r.Header.Add("x-key-id", "0")
 		r.Header.Add("x-key-id", "1")
 
-		if c.Header("x-error") == "401" {
+		if c.Request().Header.Get("x-error") == "401" {
 			return unauthorized(c, fmt.Errorf("intentionally return unauthorized"))
 		}
 
-		if c.Header("x-error") == "5xx" {
+		if c.Request().Header.Get("x-error") == "5xx" {
 			return c.String(http.StatusInternalServerError, "intentionally return unidentified error")
 		}
 
-		if c.Header("x-error") == "503" {
+		if c.Request().Header.Get("x-error") == "503" {
 			return plain(c, http.StatusServiceUnavailable, "service unavailable")
 		}
 
-		if c.Header("x-error") == "200" {
+		if c.Request().Header.Get("x-error") == "200" {
 			return c.JSON(http.StatusOK, json.RawMessage(gonvoy.NewMinimalJSONResponse("SUCCESS", "SUCCESS")))
 		}
 
-		if c.Header("x-skip-next-phase") == "true" {
+		if c.Request().Header.Get("x-skip-next-phase") == "true" {
 			return nil
 		}
 
-		if c.Header("x-data") == "global" {
+		if c.Request().Header.Get("x-data") == "global" {
 			data := new(globaldata)
 			data.Name = "from-handler-one"
 
@@ -50,7 +50,7 @@ func One(next gonvoy.Handler) gonvoy.Handler {
 			}
 		}
 
-		if c.Header("x-error") == "panick" {
+		if c.Request().Header.Get("x-error") == "panick" {
 			panicNilMapOuter()
 		}
 
@@ -60,7 +60,7 @@ func One(next gonvoy.Handler) gonvoy.Handler {
 			return err
 		}
 
-		c.SetHeader("via", "gateway.ardikabs.com")
+		c.Response().Header.Set("via", "gateway.ardikabs.com")
 
 		return nil
 	})

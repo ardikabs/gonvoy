@@ -17,15 +17,15 @@ func Two(next gonvoy.Handler) gonvoy.Handler {
 		r.Header.Add("x-user-id", "0")
 		r.Header.Add("x-user-id", "1")
 
-		if c.Header("x-error") == "403" {
+		if c.Request().Header.Get("x-error") == "403" {
 			return plain(c, http.StatusForbidden, "access denied")
 		}
 
-		if c.Header("x-error") == "429" {
+		if c.Request().Header.Get("x-error") == "429" {
 			return plain(c, http.StatusTooManyRequests, "rate limit exceeded")
 		}
 
-		if c.Header("x-error") == "503" {
+		if c.Request().Header.Get("x-error") == "503" {
 			return plain(c, http.StatusServiceUnavailable, "service unavailable")
 		}
 

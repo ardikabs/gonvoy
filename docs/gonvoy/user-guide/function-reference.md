@@ -28,12 +28,12 @@ To proceed upstream *and* run code when the response arrives, wrap the handler i
 ## Reading the request
 
 - Method, host, path, query: `c.Method()`, `c.Host()`, `c.Path()`, `c.QueryParam(name)`. These are live; changing them via `c.SetMethod`, `c.SetHost`, `c.SetPath` changes what goes upstream.
-- Headers: `c.Header(key)`, `c.SetRequestHeader(key, val)`.
+- Headers: `c.Request().Header` with the standard `Get`, `Set`, `Add`, `Del` verbs. Mutations land on the live Envoy map through the request diff any time before proceeding.
 - Body: `io.ReadAll(c.Body())` or `c.Bind(&v)` for JSON. Needs `gonvoy.ReadRequestBody()` at registration. Under the default gate the client must also send `X-Content-Operation: ReadOnly` (or `RO`); `gonvoy.OpenBodyAccess()` drops the gate.
 
 ## Writing the request
 
-- Headers: `c.SetRequestHeader(key, val)`, any time before proceeding.
+- Headers: `c.Request().Header.Set(key, val)` (or `Add` to append, `Del` to drop), any time before proceeding. Writes after proceeding are a no-op; reads stay valid.
 - Body: assign `c.Request().Body = io.NopCloser(bytes.NewReader(modified))` before calling `next`. Needs `gonvoy.WriteRequestBody()`. Replacing the body drops `Content-Length` (chunked encoding) unless you pass `gonvoy.KeepContentLength(...)`.
 - Host, method, path: `c.SetHost`, `c.SetMethod`, `c.SetPath`, then call `c.Reroute()` and register with `gonvoy.ReloadRoute()` so Envoy re-evaluates the route.
 
@@ -43,8 +43,8 @@ Reading without the matching body option fails with a "not accessible" error. Re
 
 Available after `next` returns inside `Use`.
 
-- Status: `c.Status()`. Zero means the upstream response has not been recorded yet, which is your cue that nothing was written.
-- Headers: `c.SetHeader` / `Add` / `Del` to change what reaches the client. There is no response-header reader in v1; gate response work on `c.Status()` and `c.ResponseBody()`.
+- Status: `c.Status()` (or `c.Response().StatusCode`). Zero means the upstream response has not been recorded yet, which is your cue that nothing was written.
+- Headers: `c.Response().Header` with the standard `Get`, `Set`, `Add`, `Del` verbs to change what reaches the client. Writes before `next` merge into the pass-through response or stash for re-application on top of upstream; writes after `next` diff against the upstream snapshot.
 - Body: `c.ResponseBody()` plus `io.ReadAll`. Needs `gonvoy.ReadResponseBody()`. It errors when body access is not enabled; treat that as "leave the response alone", not as fatal.
 
 ## Writing the response
@@ -132,7 +132,7 @@ The logger discards outside the bridge. The cache lives for the life of Envoy: `
 
 ```go
 if value, ok := c.Secret("api-token"); ok {
-    c.SetRequestHeader("x-api-token", value)
+    c.Request().Header.Set("x-api-token", value)
 }
 ```
 

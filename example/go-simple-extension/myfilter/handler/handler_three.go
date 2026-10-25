@@ -23,7 +23,7 @@ func Three(next gonvoy.Handler) gonvoy.Handler {
 		}
 
 		for k, v := range reqHeaders {
-			c.SetRequestHeader(k, v)
+			c.Request().Header.Set(k, v)
 		}
 
 		data := new(globaldata)
@@ -35,7 +35,7 @@ func Three(next gonvoy.Handler) gonvoy.Handler {
 
 		log.Info("handling request", "request", c.Request().Header)
 
-		if ct := c.Header(gonvoy.HeaderContentType); strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
+		if ct := c.Request().Header.Get(gonvoy.HeaderContentType); strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
 			body, err := io.ReadAll(c.Body())
 			if err != nil {
 				return c.String(http.StatusInternalServerError, err.Error())

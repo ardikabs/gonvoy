@@ -25,13 +25,37 @@ func newTestHandlerContext() *handlerContext {
 	return newHandlerContext(w, req)
 }
 
+func TestHandlerContextResponseHeader(t *testing.T) {
+	t.Parallel()
+
+	c := newTestHandlerContext()
+
+	resp := c.Response()
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.Header)
+
+	resp.Header.Set("x-resp", "yes")
+	assert.Equal(t, "yes", c.Response().Header.Get("x-resp"))
+	assert.Equal(t, "yes", c.w.Header().Get("x-resp"))
+
+	resp.Header.Add("x-multi", "1")
+	resp.Header.Add("x-multi", "2")
+	assert.Equal(t, []string{"1", "2"}, c.Response().Header.Values("x-multi"))
+
+	resp.Header.Del("x-resp")
+	assert.Empty(t, c.Response().Header.Get("x-resp"))
+
+	require.NoError(t, c.NoContent(http.StatusCreated))
+	assert.Equal(t, http.StatusCreated, c.Response().StatusCode)
+}
+
 func TestHandlerContextHeaderFlow(t *testing.T) {
 	t.Parallel()
 
 	c := newTestHandlerContext()
 
-	c.SetRequestHeader("x-a", "1")
-	assert.Equal(t, "1", c.Header("x-a"))
+	c.Request().Header.Set("x-a", "1")
+	assert.Equal(t, "1", c.Request().Header.Get("x-a"))
 
 	assert.Equal(t, http.MethodGet, c.Method())
 	assert.Equal(t, "/", c.Path())
@@ -44,7 +68,7 @@ func TestHandlerContextHeaderFlow(t *testing.T) {
 	assert.Equal(t, "/staticreply", c.Path())
 	assert.Equal(t, "staticreply.svc", c.Host())
 
-	c.SetHeader("x-resp", "yes")
+	c.Response().Header.Set("x-resp", "yes")
 	assert.Equal(t, "yes", c.w.Header().Get("x-resp"))
 
 	require.NoError(t, c.forwardUpstream())
@@ -87,13 +111,13 @@ func TestHandlerContextNoProceed(t *testing.T) {
 		c := newTestHandlerContext()
 
 		h := Handler(func(ec Context) error {
-			ec.SetRequestHeader("x-b", "2")
+			ec.Request().Header.Set("x-b", "2")
 			return nil
 		})
 
 		require.NotPanics(t, func() { h.ServeHTTP(c.w, c.r) })
 
-		assert.Equal(t, "2", c.Header("x-b"))
+		assert.Equal(t, "2", c.Request().Header.Get("x-b"))
 		assert.False(t, c.ex.nextCalled.Load())
 		assert.Nil(t, c.ex.failErr)
 	})
@@ -118,7 +142,7 @@ func TestHandlerContextNoProceed(t *testing.T) {
 
 		h := Use(func(next Handler) Handler {
 			return Handler(func(ec Context) error {
-				ec.SetRequestHeader("x-c", "3")
+				ec.Request().Header.Set("x-c", "3")
 				assert.NoError(t, next(ec))
 				return nil
 			})

@@ -43,11 +43,11 @@ jobs:
           make test
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
-          file: ./output/coverage.out
-        env:
-          CODECOV_TOKEN: "${{ secrets.CODECOV_TOKEN }}"
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          files: ./output/coverage.out
+          verbose: true
 
   e2e-test:
     name: E2E Testing

@@ -4,10 +4,14 @@ use (
 	.
 	./example/go-simple-extension
 	./test/e2e/filters/custom_err_response
+	./test/e2e/filters/envoy_property
 	./test/e2e/filters/helloworld
 	./test/e2e/filters/http_body
 	./test/e2e/filters/http_headers_modifier
+	./test/e2e/filters/http_query_validation
 	./test/e2e/filters/http_reroute
+	./test/e2e/filters/jwt_validation
 	./test/e2e/filters/metrics
 	./test/e2e/filters/panic_filter
+	./test/e2e/filters/shared_cache
 )

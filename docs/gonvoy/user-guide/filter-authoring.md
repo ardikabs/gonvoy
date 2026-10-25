@@ -1,6 +1,6 @@
 # Filter Authoring Guide
 
-This guide covers everything a handler can do, one topic at a time. Each section states the API, shows the smallest working example, and names the rule that applies. For a flat need-by-need lookup (including the old phase-based equivalents), see the [Function Reference](function-reference.md).
+This guide covers everything a handler can do, one topic at a time. Each section states the API, shows the smallest working example, and names the rule that applies. For a flat need-by-need lookup (including the old phase-based equivalents), see the [Function Reference](function-reference.md). For the full registration option list with defaults, see [Registration Options](options.md).
 
 ## Single handler vs middleware
 
@@ -135,7 +135,7 @@ Replacing the body converts the request to chunked encoding (the stale `Content-
 
 Under the default gate, body access also needs the client to send `X-Content-Operation: ReadOnly` (or `RO`) for reads, `ReadWrite` (or `RW`) for writes. If an intermediary strips that header, use `gonvoy.OpenBodyAccess()` to drop the gate. Prefer the gate when you can; it keeps body reads explicit.
 
-Rule: reading the body without an option fails with a "not accessible" error. Writing (replacing) without a write option returns 502. These errors protect you from touching bodies you did not ask for.
+Rule: reading the body without an option fails with a "not accessible" error. Writing (replacing) without a write option returns 502. These errors protect you from touching bodies you did not ask for. See [Registration Options](options.md) for the full body-access list.
 
 ## Reading and replacing the response body
 
@@ -176,7 +176,7 @@ How the bridge treats your after-`next` writes:
 - Body-only write (no explicit status): replaces the buffered upstream body.
 - Explicit status (for example `c.String(http.StatusOK, ...)`): wins a full local reply with your status, headers, and body.
 
-Rule: replacing the response body needs `WriteResponseBody()`, otherwise you get a 502. Writing before `next` and then calling `next` is the write-and-proceed bug from above: 500.
+Rule: replacing the response body needs `WriteResponseBody()`, otherwise you get a 502. Writing before `next` and then calling `next` is the write-and-proceed bug from above: 500. See [Registration Options](options.md) for the full body-access list.
 
 ## Plugin config
 
@@ -200,7 +200,7 @@ envoy.Handle("guard",
 )
 ```
 
-Route config merges into listener config field by field. Fields tagged `envoy:"mergeable"` take part; `envoy:"preserve_root"` keeps the listener value when the route value is empty. Use `gonvoy.RouteConfigWins()` to let the route replace the listener config wholesale, and `gonvoy.OnConfigError(gonvoy.UseListener)` to fall back to the listener config when a merge fails (the default stops the plugin).
+Route config merges into listener config field by field. Fields tagged `envoy:"mergeable"` take part; `envoy:"preserve_root"` keeps the listener value when the route value is empty. Use `gonvoy.RouteConfigWins()` to let the route replace the listener config wholesale, and `gonvoy.OnConfigError(gonvoy.UseListener)` to fall back to the listener config when a merge fails (the default stops the plugin). The full option list lives in [Registration Options](options.md).
 
 ## Changing the route
 
@@ -219,7 +219,7 @@ envoy.Handle("reroute",
 )
 ```
 
-`c.SetHost`, `c.SetMethod`, and `c.SetPath` changes all take part in the new routing decision, along with header changes. Without `gonvoy.ReloadRoute()`, the mutations still apply to the request but Envoy keeps the original route.
+`c.SetHost`, `c.SetMethod`, and `c.SetPath` changes all take part in the new routing decision, along with header changes. Without `gonvoy.ReloadRoute()`, the mutations still apply to the request but Envoy keeps the original route. See [Registration Options](options.md) for the default.
 
 ## Envoy attributes
 
@@ -243,7 +243,7 @@ c.Log().Info("handled request", "path", c.Path())
 cache := c.Cache() // filter-wide, for expensive setup
 ```
 
-Metric calls queue up and flush on Envoy callback threads, in order. Outside the bridge they are dropped, so unit tests never touch Envoy. `c.Log()` discards outside the bridge for the same reason. Set a prefix with `gonvoy.MetricPrefix("myfilter_")`.
+Metric calls queue up and flush on Envoy callback threads, in order. Outside the bridge they are dropped, so unit tests never touch Envoy. `c.Log()` discards outside the bridge for the same reason. Set a prefix with `gonvoy.MetricPrefix("myfilter_")`. See [Registration Options](options.md) for the default (no prefix).
 
 ## Replies
 

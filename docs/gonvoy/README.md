@@ -49,6 +49,7 @@ One rule covers the only invalid combination: do not write an answer **and** cal
 - New here: start with [Getting Started](getting-started.md). You will have a working filter in a few minutes.
 - Writing real filters: read the [Filter Authoring Guide](user-guide/filter-authoring.md). It covers middleware, bodies, config, routing, metrics, and the rules that keep you out of trouble.
 - Looking up a specific capability: see the [Function Reference](user-guide/function-reference.md). It lists every handler need side by side with the old phase-based equivalent.
+- Choosing registration options: see [Registration Options](user-guide/options.md). It lists every `Handle` option, what it enables, and its default.
 - Verifying your work: see [Testing Filters](user-guide/testing.md) for unit tests and the end-to-end suite.
 - gRPC traffic: see [gRPC scope](user-guide/grpc-scope.md) before building message or stream logic.
 - Something wrong: check [Troubleshooting](user-guide/troubleshooting.md) first. It lists every common failure and its fix.

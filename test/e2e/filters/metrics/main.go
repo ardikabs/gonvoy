@@ -11,7 +11,7 @@ func init() {
 	envoy.Handle(metricsFilterName,
 		gonvoy.Use(func(next gonvoy.Handler) gonvoy.Handler {
 			return gonvoy.Handler(func(c gonvoy.Context) error {
-				if v := c.Header(HeaderXMetricCounter); v != "" {
+				if v := c.Request().Header.Get(HeaderXMetricCounter); v != "" {
 					c.Stats().Counter("header_appears_total", "header_value", v, "reporter", "gonvoy").Increment(1)
 				}
 

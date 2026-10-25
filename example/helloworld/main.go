@@ -7,7 +7,7 @@ import (
 
 func init() {
 	envoy.Handle("hello", gonvoy.Handler(func(c gonvoy.Context) error {
-		c.SetHeader("x-hello", "world")
+		c.Response().Header.Set("x-hello", "world")
 		return nil
 	}))
 }

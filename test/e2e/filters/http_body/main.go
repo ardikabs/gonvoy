@@ -21,22 +21,22 @@ func init() {
 					return nil
 				}
 
-				if secretName := c.Header("x-get-secret"); secretName != "" {
+				if secretName := c.Request().Header.Get("x-get-secret"); secretName != "" {
 					if value, ok := c.Secret(secretName); ok {
-						c.SetHeader("x-secret-value", value)
+						c.Response().Header.Set("x-secret-value", value)
 					}
 
 					return nil
 				}
 
-				if v := c.Header("x-inspect-body"); v != "true" {
+				if v := c.Request().Header.Get("x-inspect-body"); v != "true" {
 					return nil
 				}
 
-				tryWriteOnRequest := c.Header("x-try-write") == "request"
-				tryWriteOnResponse := c.Header("x-try-write") == "response"
+				tryWriteOnRequest := c.Request().Header.Get("x-try-write") == "request"
+				tryWriteOnResponse := c.Request().Header.Get("x-try-write") == "response"
 
-				body, err := io.ReadAll(c.Body())
+				body, err := io.ReadAll(c.RequestBody())
 				if err != nil {
 					return c.String(http.StatusInternalServerError, err.Error())
 				}
@@ -105,16 +105,16 @@ func init() {
 					return nil
 				}
 
-				if v := c.Header("x-modify-body"); v != "true" {
+				if v := c.Request().Header.Get("x-modify-body"); v != "true" {
 					return nil
 				}
 
-				signature := c.Header("x-signature")
+				signature := c.Request().Header.Get("x-signature")
 				if signature == "" {
 					return c.String(http.StatusBadRequest, "signature can not be empty")
 				}
 
-				raw, err := io.ReadAll(c.Body())
+				raw, err := io.ReadAll(c.RequestBody())
 				if err != nil {
 					return c.String(http.StatusInternalServerError, err.Error())
 				}
@@ -176,7 +176,7 @@ func init() {
 
 	envoy.Handle(echoServerFilterName,
 		func(c gonvoy.Context) error {
-			raw, err := io.ReadAll(c.Body())
+			raw, err := io.ReadAll(c.RequestBody())
 			if err != nil || len(raw) == 0 {
 				return nil
 			}

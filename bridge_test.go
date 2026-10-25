@@ -282,6 +282,7 @@ func TestBridge_EncodePassthroughAppliesHeaders(t *testing.T) {
 	resp := mock_envoy.NewResponseHeaderMap(t)
 	resp.EXPECT().Status().Return(200, true)
 	resp.EXPECT().Range(mock.Anything).Return()
+	resp.EXPECT().Get("X-Hello").Return("", false)
 	resp.EXPECT().Del("X-Hello")
 	resp.EXPECT().Add("X-Hello", "world")
 
@@ -326,6 +327,34 @@ func fakeRespHeaders(t *testing.T, status int) *mock_envoy.ResponseHeaderMap {
 	m.EXPECT().Del(HeaderContentLength).Maybe()
 
 	return m
+}
+
+func TestRecordingWriterSetTerminalUpstreamWins(t *testing.T) {
+	t.Parallel()
+
+	w := newRecordingWriter()
+	w.Header().Set("x-conflict", "pre")
+	w.Header().Set("x-only-pre", "1")
+
+	upstream := http.Header{"X-Conflict": []string{"up"}}
+	w.setTerminal(http.StatusOK, upstream, cloneHeader(w.Header()))
+
+	assert.Equal(t, "up", w.Header().Get("x-conflict"))
+	assert.Equal(t, "1", w.Header().Get("x-only-pre"))
+	assert.Equal(t, http.StatusOK, w.Status())
+}
+
+func TestApplyHeaderSetsUpstreamWins(t *testing.T) {
+	t.Parallel()
+
+	live := mock_envoy.NewResponseHeaderMap(t)
+	live.EXPECT().Get("X-Conflict").Return("up", true)
+	live.EXPECT().Get("X-New").Return("", false)
+	live.EXPECT().Del("X-New")
+	live.EXPECT().Add("X-New", "1")
+
+	current := http.Header{"X-Conflict": []string{"pre"}, "X-New": []string{"1"}}
+	applyHeaderSets(live, current)
 }
 
 func TestBridge_ReadResponseBody(t *testing.T) {

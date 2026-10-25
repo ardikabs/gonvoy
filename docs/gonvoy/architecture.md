@@ -35,7 +35,7 @@ flowchart TD
     Router --> Upstream([upstream endpoint])
 
     Upstream --> WEncodeHeaders["W: EncodeHeaders<br/>bridgefilter.go:87<br/>snapshot respCode respHeader,<br/>respReader, feedRespBody,<br/>close respReady, refreshAttrs"]
-    WEncodeHeaders --> GResume["G resumes from respReady<br/>writeUpstream bridge.go:522<br/>setTerminal bridge.go:672<br/>after-next code reads Status ResponseBody"]
+    WEncodeHeaders --> GResume["G resumes from respReady<br/>writeUpstream bridge.go:564<br/>setTerminal bridge.go:716<br/>after-next code reads Status ResponseBody"]
     GResume --> WApplyAfterNext["W: applyResponseDecision and applyAfterNext<br/>bridgefilter.go:191, bridgefilter.go:213<br/>Continue, local reply, or buffer replace"]
     WApplyAfterNext --> WEncodeData["W: EncodeData and EncodeTrailers<br/>bridgefilter.go:130, bridgefilter.go:296<br/>feedRespBody, applyPendingBody,<br/>StopAndBuffer until endStream"]
     WEncodeData --> Client
@@ -101,7 +101,7 @@ Entry: `DecodeHeaders` in `bridgefilter.go:355`.
 * If `G` already finished (`gDone`), `W` drains any left-behind terminal signal with `drainDecision` and applies it, else returns `api.Continue`.
 * Otherwise `W` appends bytes with `feedBody` in `bridge.go:276` (wakes `bodyWake` on progress through `pingBody` in `bridge.go:324`), then waits in `awaitSignal` and applies the decision.
 
-`gatedBodyReader.Read` in `bridge.go:404` is what handler code blocks on when it calls `io.ReadAll(c.Body())` or `c.Bind(v)`:
+`gatedBodyReader.Read` in `bridge.go:439` is what handler code blocks on when it calls `io.ReadAll(c.RequestBody())` or `c.Bind(v)`:
 
 * With buffered chunks and `enabled`, it returns bytes.
 * At end of stream it returns `io.EOF`.
@@ -114,38 +114,39 @@ Body replacement rule: the handler assigns `c.Request().Body` to a new reader be
 
 ### Header-only guarantee: no body buffering
 
-A filter that touches only headers, host, method, path, query, or attributes never triggers body buffering on either side. Concretely, it never calls `c.Body()` in `context_handler.go:160`, `c.Bind(v)` in `context_handler.go:138`, `c.ResponseBody()` in `context_handler.go:169`, and never assigns `c.Request().Body` or writes a response body with `c.Write()` in `context_handler.go:130`.
+A filter that touches only headers, host, method, path, query, or attributes never triggers body buffering on either side. Concretely, it never calls `c.RequestBody()` in `context_handler.go:187`, `c.Bind(v)` in `context_handler.go:165`, `c.ResponseBody()` in `context_handler.go:199`, and never assigns `c.Request().Body` or writes a response body with `c.Write()` in `context_handler.go:157`.
 
 Request path:
 
-* No `brNeedBody` is emitted, so `W` never takes the buffering branch for this request. `gatedBodyReader.Read` in `bridge.go:404` is the only place that signals `brNeedBody`, and it is never entered. When body access is disabled it would return `ErrOperationNotPermitted` immediately, also without signaling.
+* No `brNeedBody` is emitted, so `W` never takes the buffering branch for this request. `gatedBodyReader.Read` in `bridge.go:439` is the only place that signals `brNeedBody`, and it is never entered. When body access is disabled it would return `ErrOperationNotPermitted` immediately, also without signaling.
 * At `DecodeHeaders` time, `G` returns `brProceed` or `brDone` right away. `W` applies `applyProceed` in `bridgefilter.go:460` or `applyDone` in `bridgefilter.go:515` and returns `api.Continue`. Nothing is held for a body decision.
 * Later `DecodeData` calls in `bridgefilter.go:372` take a fast path. After forwarding (`proceedUpstream` true), `streamRequestBody` in `bridgefilter.go:711` streams each chunk with `api.Continue` and wakes no handler. After a direct return (`gDone` true), `W` drains any late signal with `drainDecision` in `bridgefilter.go:400` or returns `api.Continue`. The `feedBody` queue in `bridge.go:276` only grows in the remaining branch, where `G` is still blocked waiting for body bytes. A header-only `G` is already gone, so `ex.bodyChunks` stays empty and no `bodyWake` wait happens.
 * Enabling `ReadRequestBody` or `WriteRequestBody` alone does not buffer. It only arms the gated reader. Buffering starts on the first `Read`, when `W` must answer `StopAndBuffer` to hold the current bytes while `G` drains them.
 
 Response path:
 
-* `c.SetHeader` before forwarding only touches `w.Header()`. `callNext` stashes it into `preHeaders` with `cloneHeader` in `bridge.go:551` and `writeUpstream` in `bridge.go:522` reapplies it on top of the upstream headers. No body bytes are retained for this.
+* `c.Response().Header` writes before forwarding only touch `w.Header()`. `callNext` stashes them into `preHeaders` with `cloneHeader` in `bridge.go:551` and `writeUpstream` in `bridge.go:564` applies them under the upstream headers: keys the upstream sets keep upstream values, the rest fill in. No body bytes are retained for this.
 * Upstream body buffering is gated by `bufferResponseBody` in `bridgefilter.go:160` and by actually reading after `next` returns. Without response read or write access, `gatedRespReader.Read` in `bridge.go:353` fails fast and `EncodeHeaders` in `bridgefilter.go:87` plus `EncodeData` in `bridgefilter.go:130` stream through with `applyHeaderSets` in `bridgefilter.go:259` and `api.Continue`. With access enabled but no read, `feedRespBody` in `bridge.go:299` still runs per callback, yet nothing blocks on `respWake` and `applyPendingBody` in `bridgefilter.go:167` finds no stashed body to replace.
 * Trailers follow the same rule. `DecodeTrailers` in `bridgefilter.go:271` and `EncodeTrailers` in `bridgefilter.go:296` only feed EOF and apply the pending decision. A header-only chain is already done, so both return `api.Continue`.
 
-Practical check: if the handler imports neither `io` for `c.Body()` nor `c.Bind`, assigns no `c.Request().Body`, and never calls `c.ResponseBody()` or `c.Write()`, the Go side keeps no request or response bytes. Envoy keeps only the chunk it is currently passing through.
+Practical check: if the handler imports neither `io` for `c.RequestBody()` nor `c.Bind`, assigns no `c.Request().Body`, and never calls `c.ResponseBody()` or `c.Write()`, the Go side keeps no request or response bytes. Envoy keeps only the chunk it is currently passing through.
 
 ## 4. Forwarding upstream: the parked handoff
 
 This is the only path that waits for the upstream response. It starts when the innermost `next(c)` reaches the terminal built by `Use`:
 
-`next(c)` -> terminal `Handler` in `use.go:36` -> type assert `interface{ forwardUpstream() error }` -> `forwardUpstream` in `context_handler.go:47` -> `terminal{}.ServeHTTP` in `bridge.go:768` -> `callNext` in `bridge.go:473`.
+`next(c)` -> terminal `Handler` in `use.go:36` -> type assert `interface{ forwardUpstream() error }` -> `forwardUpstream` in `context_handler.go:81` -> `terminal{}.ServeHTTP` in `bridge.go:810` -> `callNext` in `bridge.go:508`.
 
 `callNext` steps:
 
 1. Single-shot guard: `nextCalled.Swap(true)`. A second call is a no-op.
 2. Set `proceedUpstream` true.
 3. Write-then-forward check: if `ex.w.explicit` or `len(ex.w.body) > 0`, this is a competing answer. Call `fail` with `ErrRuntime` wrapped error. The bridge later answers 500 instead of picking a winner.
-4. Read a replacement request body when `r.Body` is not the owned `gatedBodyReader`. Store it in `ex.replacedBody`.
-5. Save `nextWriter = w`. Stash pre-forward response header writes from `w.Header()` into `preHeaders` with `cloneHeader` in `bridge.go:551`, then clear `w.Header()` so upstream headers start clean. Pre-forward headers are re-applied on top of the upstream response later.
-6. Signal `brProceed` (blocking until `W` receives or the stream dies), then park `G` on `respReady` or `done`.
-7. When `W` feeds the upstream response (section 5), it closes `respReady`. `G` resumes and runs `writeUpstream` in `bridge.go:522`: if `w` implements `terminalWriter` (the `recordingWriter` does), install status and merged headers with `setTerminal` in `bridge.go:672` without setting user-write flags. Otherwise write status and headers directly. After-code in the `Middleware` now runs: `c.Status()`, `c.ResponseBody()`, header mutation, body replacement.
+4. Early-response-body check: if `earlyRespBody` is set (a pre-next response body read), fail the same way. Reading the response before it exists is the same class of bug as answering before proceeding.
+5. Read a replacement request body when `r.Body` is not the owned `gatedBodyReader`. Store it in `ex.replacedBody`.
+6. Save `nextWriter = w`. Stash pre-forward response header writes from `w.Header()` into `preHeaders` with `cloneHeader` in `bridge.go:551`, then clear `w.Header()` so upstream headers start clean. Pre-forward headers fill in under the upstream response later: keys the upstream sets keep upstream values.
+7. Signal `brProceed` (blocking until `W` receives or the stream dies), then park `G` on `respReady` or `done`.
+8. When `W` feeds the upstream response (section 5), it closes `respReady`. `G` resumes and runs `writeUpstream` in `bridge.go:564`: if `w` implements `terminalWriter` (the `recordingWriter` does), install status and merged headers with `setTerminal` in `bridge.go:716` without setting user-write flags. Otherwise write status and headers directly. After-code in the `Middleware` now runs: `c.Status()`, `c.ResponseBody()`, header mutation, body replacement. Merged means upstream values win on key conflicts; staged pre-forward headers survive only for keys upstream did not set.
 
 Key point: a plain `Handler` that returns `nil` without calling `next` never parks. `applyDone` in `bridgefilter.go:515` still applies request mutations and returns `api.Continue`. Parking happens only inside `Use` when some layer calls `next(c)`.
 

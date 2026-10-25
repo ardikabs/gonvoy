@@ -11,7 +11,7 @@ import (
 //
 //	func Auth(next Handler) Handler {
 //		return Handler(func(c Context) error {
-//			if c.Header("Authorization") == "" {
+//			if c.Request().Header.Get("Authorization") == "" {
 //				return c.String(401, "unauthorized")
 //			}
 //			return next(c)

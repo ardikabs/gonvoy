@@ -9,7 +9,7 @@ func init() {
 	envoy.Handle(FilterName, func(c gonvoy.Context) error {
 		c.Log().Info("Hello World from the helloworld HTTP filter")
 
-		if c.Header("x-drain") == "true" {
+		if c.Request().Header.Get("x-drain") == "true" {
 			c.Drain()
 		}
 

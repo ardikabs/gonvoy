@@ -6,7 +6,7 @@ If you can write this, you can write a gonvoy filter:
 
 ```go
 envoy.Handle("hello", gonvoy.Handler(func(c gonvoy.Context) error {
-    c.SetHeader("x-hello", "world")
+    c.Response().Header.Set("x-hello", "world")
     return nil
 }))
 ```

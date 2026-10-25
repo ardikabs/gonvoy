@@ -30,11 +30,45 @@ func newHandlerContext(w ResponseWriter, r *http.Request) *handlerContext {
 	if e, ok := exchangeFrom(r); ok {
 		ex = e
 	}
+	if r != nil && r.Header == nil {
+		r.Header = make(http.Header)
+	}
 	return &handlerContext{w: w, r: r, ex: ex}
 }
 
 // Request returns the live request.
 func (c *handlerContext) Request() *http.Request { return c.r }
+
+// Response returns a live view of the response. Header aliases the
+// recording writer headers; StatusCode and Status report the recorded
+// status. Only Header is live: the remaining fields are read-only
+// snapshots, so answer through JSON, String, NoContent, and Write.
+// The view is fresh per call because the upstream publication swaps
+// the header map: a view cached before next detaches and writes to it
+// are lost, so call Response again after next.
+func (c *handlerContext) Response() *http.Response {
+	if c.w == nil {
+		return &http.Response{Header: make(http.Header)}
+	}
+
+	status := c.w.Status()
+	resp := &http.Response{Header: c.w.Header(), StatusCode: status}
+	if text := http.StatusText(status); text != "" {
+		resp.Status = fmt.Sprintf("%03d %s", status, text)
+	}
+
+	switch {
+	case c.ex == nil:
+		// Outside the bridge Body stays nil; ResponseBody reports the
+		// absence instead.
+	case !c.ex.nextCalled.Load():
+		resp.Body = &poisonRespReader{ex: c.ex, log: c.Log()}
+	case c.ex.respReader != nil:
+		resp.Body = c.ex.respReader
+	}
+
+	return resp
+}
 
 // forwardUpstream starts forwarding the filter processing to upstream once
 // through the internal terminal and parks until the upstream response
@@ -50,20 +84,6 @@ func (c *handlerContext) forwardUpstream() error {
 		return nil
 	}
 	return c.ex.failErr
-}
-
-// Header returns the named request header.
-func (c *handlerContext) Header(key string) string { return c.r.Header.Get(key) }
-
-// SetHeader sets a response header.
-func (c *handlerContext) SetHeader(key, val string) { c.w.Header().Set(key, val) }
-
-// SetRequestHeader sets a request header.
-func (c *handlerContext) SetRequestHeader(key, val string) {
-	if c.r.Header == nil {
-		c.r.Header = make(http.Header)
-	}
-	c.r.Header.Set(key, val)
 }
 
 // Method returns the request method.
@@ -94,8 +114,15 @@ func (c *handlerContext) SetPath(path string) {
 // SetMethod sets the request method.
 func (c *handlerContext) SetMethod(method string) { c.r.Method = method }
 
-// Status returns the recorded response status.
-func (c *handlerContext) Status() int { return c.w.Status() }
+// Status returns the recorded response status, or 0 if none was
+// written yet.
+func (c *handlerContext) Status() int {
+	if c.w == nil {
+		return 0
+	}
+
+	return c.w.Status()
+}
 
 // JSON answers with a JSON body. A marshal failure is returned and writes
 // nothing.
@@ -144,7 +171,7 @@ func (c *handlerContext) Bind(v any) error {
 		return fmt.Errorf("cannot bind content type %q, %w", ct, ErrOperationNotPermitted)
 	}
 
-	b, err := io.ReadAll(c.Body())
+	b, err := io.ReadAll(c.RequestBody())
 	if err != nil {
 		return fmt.Errorf("failed to read request body, %w", err)
 	}
@@ -155,9 +182,9 @@ func (c *handlerContext) Bind(v any) error {
 	return nil
 }
 
-// Body returns the request body for reading. A nil request or body reads
+// RequestBody returns the request body for reading. A nil request or body reads
 // as empty; gating failures surface on Read.
-func (c *handlerContext) Body() io.Reader {
+func (c *handlerContext) RequestBody() io.Reader {
 	if c.r == nil || c.r.Body == nil {
 		return http.NoBody
 	}
@@ -165,10 +192,17 @@ func (c *handlerContext) Body() io.Reader {
 	return c.r.Body
 }
 
-// ResponseBody returns the upstream response body for reading.
+// ResponseBody returns the upstream response body for reading. Before
+// next it records a phase violation that answers 500 and halts
+// forwarding; after next it returns the same reader as Response().Body,
+// gated only by the body access option.
 func (c *handlerContext) ResponseBody() (io.Reader, error) {
 	if c.r == nil {
 		return nil, fmt.Errorf("response body is not accessible in this phase, %w", ErrOperationNotPermitted)
+	}
+
+	if c.ex != nil && !c.ex.nextCalled.Load() {
+		return nil, c.ex.failEarlyRespBody(c.Log())
 	}
 
 	return ResponseBody(c.r)

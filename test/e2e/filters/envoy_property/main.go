@@ -31,14 +31,14 @@ func init() {
 
 				missing, missingOK := c.Attr("nonexistent.key", "fallback")
 
-				c.SetHeader("x-request-host", host)
-				c.SetHeader("x-request-method", method)
-				c.SetHeader("x-request-path", path)
-				c.SetHeader("x-xds-cluster", cluster)
-				c.SetHeader("x-xds-route", route)
-				c.SetHeader("x-response-code", code)
-				c.SetHeader("x-missing-value", missing)
-				c.SetHeader("x-missing-ok", strconv.FormatBool(missingOK))
+				c.Response().Header.Set("x-request-host", host)
+				c.Response().Header.Set("x-request-method", method)
+				c.Response().Header.Set("x-request-path", path)
+				c.Response().Header.Set("x-xds-cluster", cluster)
+				c.Response().Header.Set("x-xds-route", route)
+				c.Response().Header.Set("x-response-code", code)
+				c.Response().Header.Set("x-missing-value", missing)
+				c.Response().Header.Set("x-missing-ok", strconv.FormatBool(missingOK))
 
 				c.Log().Info("envoy property response attrs", "cluster", cluster, "route", route, "code", code, "missing", missing, "missing_ok", missingOK)
 

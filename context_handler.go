@@ -30,6 +30,9 @@ func newHandlerContext(w ResponseWriter, r *http.Request) *handlerContext {
 	if e, ok := exchangeFrom(r); ok {
 		ex = e
 	}
+	if r != nil && r.Header == nil {
+		r.Header = make(http.Header)
+	}
 	return &handlerContext{w: w, r: r, ex: ex}
 }
 
@@ -38,8 +41,11 @@ func (c *handlerContext) Request() *http.Request { return c.r }
 
 // Response returns a live view of the response. Header aliases the
 // recording writer headers; StatusCode and Status report the recorded
-// status. The view is fresh per call so it never goes stale across the
-// upstream publication that swaps the header map.
+// status. Only Header is live: the remaining fields are read-only
+// snapshots, so answer through JSON, String, NoContent, and Write.
+// The view is fresh per call because the upstream publication swaps
+// the header map: a view cached before next detaches and writes to it
+// are lost, so call Response again after next.
 func (c *handlerContext) Response() *http.Response {
 	if c.w == nil {
 		return &http.Response{Header: make(http.Header)}
@@ -47,8 +53,8 @@ func (c *handlerContext) Response() *http.Response {
 
 	status := c.w.Status()
 	resp := &http.Response{Header: c.w.Header(), StatusCode: status}
-	if status != 0 {
-		resp.Status = fmt.Sprintf("%03d %s", status, http.StatusText(status))
+	if text := http.StatusText(status); text != "" {
+		resp.Status = fmt.Sprintf("%03d %s", status, text)
 	}
 
 	return resp
@@ -98,8 +104,15 @@ func (c *handlerContext) SetPath(path string) {
 // SetMethod sets the request method.
 func (c *handlerContext) SetMethod(method string) { c.r.Method = method }
 
-// Status returns the recorded response status.
-func (c *handlerContext) Status() int { return c.w.Status() }
+// Status returns the recorded response status, or 0 if none was
+// written yet.
+func (c *handlerContext) Status() int {
+	if c.w == nil {
+		return 0
+	}
+
+	return c.w.Status()
+}
 
 // JSON answers with a JSON body. A marshal failure is returned and writes
 // nothing.

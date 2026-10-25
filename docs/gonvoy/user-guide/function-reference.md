@@ -44,7 +44,7 @@ Reading without the matching body option fails with a "not accessible" error. Re
 Available after `next` returns inside `Use`.
 
 - Status: `c.Status()` (or `c.Response().StatusCode`). Zero means the upstream response has not been recorded yet, which is your cue that nothing was written.
-- Headers: `c.Response().Header` with the standard `Get`, `Set`, `Add`, `Del` verbs to change what reaches the client. Writes before `next` merge into the pass-through response or stash for re-application on top of upstream; writes after `next` diff against the upstream snapshot.
+- Headers: `c.Response().Header` with the standard `Get`, `Set`, `Add`, `Del` verbs to change what reaches the client. Writes before `next` merge into the pass-through response or stash for re-application on top of upstream; writes after `next` diff against the upstream snapshot. `Response()` is fresh per call: call it again after `next`, a view cached before `next` detaches and writes to it are lost.
 - Body: `c.ResponseBody()` plus `io.ReadAll`. Needs `gonvoy.ReadResponseBody()`. It errors when body access is not enabled; treat that as "leave the response alone", not as fatal.
 
 ## Writing the response

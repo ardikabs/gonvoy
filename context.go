@@ -33,10 +33,13 @@ type Context interface {
 	// Get manipulate what reaches the client through the usual
 	// bridge paths: pre-next writes merge or stash, post-next writes
 	// diff against the upstream snapshot. StatusCode and Status report
-	// the recorded status. Body stays nil; read upstream bytes through
-	// ResponseBody and write answers through JSON, String, NoContent,
-	// and Write. The view is fresh per call: do not cache it across
-	// next.
+	// the recorded status. Only Header is live; StatusCode, Status,
+	// Body, and all other fields are read-only snapshots, so answer
+	// through JSON, String, NoContent, and Write instead of assigning
+	// them. Body stays nil; read upstream bytes through ResponseBody.
+	// The view is fresh per call: a view cached before next detaches
+	// when the upstream response publishes and writes to it are lost,
+	// so call Response again after next.
 	Response() *http.Response
 
 	// Method returns the request method, like r.Method.

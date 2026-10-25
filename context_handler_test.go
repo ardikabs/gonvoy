@@ -47,6 +47,40 @@ func TestHandlerContextResponseHeader(t *testing.T) {
 
 	require.NoError(t, c.NoContent(http.StatusCreated))
 	assert.Equal(t, http.StatusCreated, c.Response().StatusCode)
+	assert.Equal(t, "201 Created", c.Response().Status)
+	assert.Nil(t, c.Response().Body)
+}
+
+func TestHandlerContextResponseFreshAfterTerminal(t *testing.T) {
+	t.Parallel()
+
+	c := newTestHandlerContext()
+
+	stale := c.Response()
+	stale.Header.Set("x-stale", "1")
+
+	upstream := http.Header{"X-Upstream": []string{"u"}}
+	rw, ok := c.w.(*recordingWriter)
+	require.True(t, ok, "handlerContext writer is a recording writer")
+	rw.setTerminal(http.StatusOK, upstream, cloneHeader(c.w.Header()))
+
+	fresh := c.Response()
+	assert.Equal(t, "u", fresh.Header.Get("X-Upstream"))
+	assert.Equal(t, "1", fresh.Header.Get("x-stale"))
+	assert.Equal(t, http.StatusOK, fresh.StatusCode)
+	assert.Equal(t, "200 OK", fresh.Status)
+}
+
+func TestHandlerContextNilRequestHeader(t *testing.T) {
+	t.Parallel()
+
+	r, err := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+	require.NoError(t, err)
+	r.Header = nil
+	c := newHandlerContext(newRecordingWriter(), r)
+
+	require.NotPanics(t, func() { c.Request().Header.Set("x-a", "1") })
+	assert.Equal(t, "1", c.Request().Header.Get("x-a"))
 }
 
 func TestHandlerContextHeaderFlow(t *testing.T) {

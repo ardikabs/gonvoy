@@ -57,6 +57,16 @@ func (c *handlerContext) Response() *http.Response {
 		resp.Status = fmt.Sprintf("%03d %s", status, text)
 	}
 
+	switch {
+	case c.ex == nil:
+		// Outside the bridge Body stays nil; ResponseBody reports the
+		// absence instead.
+	case !c.ex.nextCalled.Load():
+		resp.Body = &poisonRespReader{ex: c.ex, log: c.Log()}
+	case c.ex.respReader != nil:
+		resp.Body = c.ex.respReader
+	}
+
 	return resp
 }
 
@@ -161,7 +171,7 @@ func (c *handlerContext) Bind(v any) error {
 		return fmt.Errorf("cannot bind content type %q, %w", ct, ErrOperationNotPermitted)
 	}
 
-	b, err := io.ReadAll(c.Body())
+	b, err := io.ReadAll(c.RequestBody())
 	if err != nil {
 		return fmt.Errorf("failed to read request body, %w", err)
 	}
@@ -172,9 +182,9 @@ func (c *handlerContext) Bind(v any) error {
 	return nil
 }
 
-// Body returns the request body for reading. A nil request or body reads
+// RequestBody returns the request body for reading. A nil request or body reads
 // as empty; gating failures surface on Read.
-func (c *handlerContext) Body() io.Reader {
+func (c *handlerContext) RequestBody() io.Reader {
 	if c.r == nil || c.r.Body == nil {
 		return http.NoBody
 	}
@@ -182,10 +192,17 @@ func (c *handlerContext) Body() io.Reader {
 	return c.r.Body
 }
 
-// ResponseBody returns the upstream response body for reading.
+// ResponseBody returns the upstream response body for reading. Before
+// next it records a phase violation that answers 500 and halts
+// forwarding; after next it returns the same reader as Response().Body,
+// gated only by the body access option.
 func (c *handlerContext) ResponseBody() (io.Reader, error) {
 	if c.r == nil {
 		return nil, fmt.Errorf("response body is not accessible in this phase, %w", ErrOperationNotPermitted)
+	}
+
+	if c.ex != nil && !c.ex.nextCalled.Load() {
+		return nil, c.ex.failEarlyRespBody(c.Log())
 	}
 
 	return ResponseBody(c.r)

@@ -48,7 +48,9 @@ func TestHandlerContextResponseHeader(t *testing.T) {
 	require.NoError(t, c.NoContent(http.StatusCreated))
 	assert.Equal(t, http.StatusCreated, c.Response().StatusCode)
 	assert.Equal(t, "201 Created", c.Response().Status)
-	assert.Nil(t, c.Response().Body)
+	// Pre-next Body is a failing reader, never nil: the violation
+	// triggers on Read.
+	require.NotNil(t, c.Response().Body)
 }
 
 func TestHandlerContextResponseFreshAfterTerminal(t *testing.T) {
@@ -285,7 +287,7 @@ func TestHandlerContextBodyGating(t *testing.T) {
 	t.Parallel()
 
 	c := newTestHandlerContextNoBodyAccess()
-	_, err := c.Body().Read(make([]byte, 1))
+	_, err := c.RequestBody().Read(make([]byte, 1))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrOperationNotPermitted)
 }
@@ -294,9 +296,55 @@ func TestHandlerContextResponseGating(t *testing.T) {
 	t.Parallel()
 
 	c := newTestHandlerContextNoBodyAccess()
+	// Post-next phase: only the body access option gates, reported softly.
+	c.ex.nextCalled.Store(true)
 	_, err := c.ResponseBody()
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrOperationNotPermitted)
+}
+
+func TestHandlerContextResponseBodyPhase(t *testing.T) {
+	t.Parallel()
+
+	t.Run("view read before next poisons and halts", func(t *testing.T) {
+		t.Parallel()
+
+		c := newTestHandlerContext()
+
+		body := c.Response().Body
+		require.NotNil(t, body)
+		_, err := body.Read(make([]byte, 1))
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrRuntime)
+		assert.True(t, c.ex.earlyRespBody.Load())
+
+		err = c.forwardUpstream()
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrRuntime)
+	})
+
+	t.Run("method before next reports runtime error", func(t *testing.T) {
+		t.Parallel()
+
+		c := newTestHandlerContext()
+
+		_, err := c.ResponseBody()
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrRuntime)
+		assert.True(t, c.ex.earlyRespBody.Load())
+	})
+
+	t.Run("post-next view matches method reader", func(t *testing.T) {
+		t.Parallel()
+
+		c := newTestHandlerContext()
+		c.ex.nextCalled.Store(true)
+		c.ex.respReader = &gatedRespReader{ex: c.ex, enabled: true}
+
+		rb, err := c.ResponseBody()
+		require.NoError(t, err)
+		assert.Same(t, rb, c.Response().Body)
+	})
 }
 
 func TestHandlerContextPlatform(t *testing.T) {

@@ -18,7 +18,7 @@ Each direction, request and response, has its own rule with three levels: no acc
 | Option | Direction | Level |
 |---|---|---|
 | (none) | Request, response | No access |
-| `ReadRequestBody()` | Request | Read: `c.Body()`, `c.Bind` work |
+| `ReadRequestBody()` | Request | Read: `c.RequestBody()`, `c.Bind` work |
 | `WriteRequestBody()` | Request | Read and write: you may also replace `c.Request().Body` |
 | `ReadResponseBody()` | Response | Read: after `next` returns, `c.ResponseBody()` works |
 | `WriteResponseBody()` | Response | Read and write: a body-only `c.Write` replaces the buffered upstream body |

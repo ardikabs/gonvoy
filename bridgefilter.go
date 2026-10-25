@@ -254,10 +254,16 @@ func (f *bridgeFilter) applyAfterNext(ex *bridgeExchange, header api.ResponseHea
 	return api.StopAndBuffer
 }
 
-// applyHeaderSets adds every header without removing existing ones.
-// Used when there is no upstream snapshot to diff against.
+// applyHeaderSets adds recorded headers the live map does not already
+// carry. Keys present on the live (upstream) map are left untouched:
+// upstream wins on conflict, and only post-next writes override it
+// through the header diff. Used when there is no upstream snapshot to
+// diff against.
 func applyHeaderSets(live api.HeaderMap, current http.Header) {
 	for k, v := range current {
+		if _, ok := live.Get(k); ok {
+			continue
+		}
 		live.Del(k)
 		for _, vv := range v {
 			live.Add(k, vv)
@@ -514,6 +520,12 @@ func (f *bridgeFilter) requestMutated(ex *bridgeExchange) bool {
 // applyDone handles a returned handler: local reply or continue.
 func (f *bridgeFilter) applyDone(ex *bridgeExchange) api.StatusType {
 	w := ex.w
+
+	// A pre-next response body touch that never proceeded still halts:
+	// the read already failed, and passing through would hide the bug.
+	if ex.earlyRespBody.Load() {
+		return f.errorHandler(f.ctx, fmt.Errorf("handler read response body without next, %w", ErrRuntime))
+	}
 
 	if !w.wroteHeader && len(w.body) == 0 {
 		// No answer written: mutations still apply, mirroring immediate

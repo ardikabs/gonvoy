@@ -2,6 +2,7 @@ package gonvoy
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 
 	mock_envoy "github.com/ardikabs/gonvoy/test/mock/envoy"
@@ -171,6 +172,68 @@ func TestContext(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestContext_ResponseBodyAccessibility(t *testing.T) {
+	testcases := []struct {
+		name           string
+		config         *internalConfig
+		contentType    string
+		expectedAccess bool
+		expectedRead   bool
+		expectedWrite  bool
+	}{
+		{
+			name: "readable| content-type: application/json",
+			config: &internalConfig{
+				allowResponseBodyRead: true,
+			},
+			contentType:    MIMEApplicationJSON,
+			expectedAccess: true,
+			expectedRead:   true,
+			expectedWrite:  false,
+		},
+		{
+			name: "writable| content-type: application/json",
+			config: &internalConfig{
+				allowResponseBodyWrite: true,
+			},
+			contentType:    MIMEApplicationJSON,
+			expectedAccess: true,
+			expectedRead:   true,
+			expectedWrite:  true,
+		},
+		{
+			name: "inaccessible| content-type: application/grpc",
+			config: &internalConfig{
+				allowResponseBodyRead: true,
+			},
+			contentType:    MIMEApplicationGRPC,
+			expectedAccess: false,
+			expectedRead:   false,
+			expectedWrite:  false,
+		},
+	}
+
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			respHeaderMapMock := mock_envoy.NewResponseHeaderMap(t)
+			respHeaderMapMock.EXPECT().Status().Return(http.StatusOK, true)
+			respHeaderMapMock.EXPECT().Range(mock.Anything).Run(func(f func(string, string) bool) {
+				f("content-type", tc.contentType)
+			})
+
+			ctx := fakeDummyContext(t, tc.config)
+			ctx.LoadResponseHeaders(respHeaderMapMock)
+
+			assert.Equal(t, tc.expectedAccess, ctx.IsResponseBodyAccessible())
+			assert.Equal(t, tc.expectedRead, ctx.IsResponseBodyReadable())
+			assert.Equal(t, tc.expectedWrite, ctx.IsResponseBodyWritable())
+		})
+	}
 }
 
 func TestContext_Property(t *testing.T) {

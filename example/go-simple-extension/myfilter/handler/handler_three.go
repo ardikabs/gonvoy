@@ -36,7 +36,7 @@ func Three(next gonvoy.Handler) gonvoy.Handler {
 		log.Info("handling request", "request", c.Request().Header)
 
 		if ct := c.Request().Header.Get(gonvoy.HeaderContentType); strings.Contains(ct, gonvoy.MIMEApplicationJSON) {
-			body, err := io.ReadAll(c.Body())
+			body, err := io.ReadAll(c.RequestBody())
 			if err != nil {
 				return c.String(http.StatusInternalServerError, err.Error())
 			}

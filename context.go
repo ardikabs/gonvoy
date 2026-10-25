@@ -32,12 +32,15 @@ type Context interface {
 	// Header aliases the recording writer headers, so Set, Add, Del, and
 	// Get manipulate what reaches the client through the usual
 	// bridge paths: pre-next writes merge or stash, post-next writes
-	// diff against the upstream snapshot. StatusCode and Status report
+	// diff against the upstream snapshot. On key conflicts upstream
+	// always wins over pre-next writes; only post-next writes override
+	// upstream. StatusCode and Status report
 	// the recorded status. Only Header is live; StatusCode, Status,
 	// Body, and all other fields are read-only snapshots, so answer
 	// through JSON, String, NoContent, and Write instead of assigning
-	// them. Body stays nil; read upstream bytes through ResponseBody.
-	// The view is fresh per call: a view cached before next detaches
+	// them. Body mirrors ResponseBody: nil outside the bridge, a failing
+	// reader before next that records a 500-tracked phase violation, and
+	// the live upstream reader after next. The view is fresh per call: a view cached before next detaches
 	// when the upstream response publishes and writes to it are lost,
 	// so call Response again after next.
 	Response() *http.Response
@@ -92,14 +95,17 @@ type Context interface {
 	// status. It never panics.
 	Bind(v any) error
 
-	// Body returns the request body for reading. Reads go through the
-	// gated reader, so without body access they fail with
+	// RequestBody returns the request body for reading. Reads go through
+	// the gated reader, so without body access they fail with
 	// ErrOperationNotPermitted.
-	Body() io.Reader
+	RequestBody() io.Reader
 
-	// ResponseBody returns the upstream response body for reading. The
-	// second value reports gating: without response body access it is a
-	// ErrOperationNotPermitted-wrapped error.
+	// ResponseBody returns the upstream response body for reading. It is
+	// only readable after next returns inside Use: touching it before
+	// next records a phase violation that answers 500 and halts
+	// forwarding with ErrRuntime. After next the only gate is the body
+	// access option, reported as an ErrOperationNotPermitted-wrapped
+	// error. It returns the same reader as Response().Body.
 	ResponseBody() (io.Reader, error)
 
 	// Log returns the request logger, like the Log helper. Outside the
@@ -251,9 +257,6 @@ type context struct {
 	cb  api.FilterCallbackHandler
 	pcb api.FilterProcessCallbacks
 
-	reqHeaderMap  api.RequestHeaderMap
-	respHeaderMap api.ResponseHeaderMap
-
 	autoReloadRoute bool
 
 	strictBodyAccess                bool
@@ -264,8 +267,7 @@ type context struct {
 	preserveContentLengthOnRequest  bool
 	preserveContentLengthOnResponse bool
 
-	httpReq  *http.Request
-	httpResp *http.Response
+	httpReq *http.Request
 
 	filterConfig interface{}
 	cache        Cache

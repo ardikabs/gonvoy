@@ -36,7 +36,7 @@ func init() {
 				tryWriteOnRequest := c.Request().Header.Get("x-try-write") == "request"
 				tryWriteOnResponse := c.Request().Header.Get("x-try-write") == "response"
 
-				body, err := io.ReadAll(c.Body())
+				body, err := io.ReadAll(c.RequestBody())
 				if err != nil {
 					return c.String(http.StatusInternalServerError, err.Error())
 				}
@@ -114,7 +114,7 @@ func init() {
 					return c.String(http.StatusBadRequest, "signature can not be empty")
 				}
 
-				raw, err := io.ReadAll(c.Body())
+				raw, err := io.ReadAll(c.RequestBody())
 				if err != nil {
 					return c.String(http.StatusInternalServerError, err.Error())
 				}
@@ -176,7 +176,7 @@ func init() {
 
 	envoy.Handle(echoServerFilterName,
 		func(c gonvoy.Context) error {
-			raw, err := io.ReadAll(c.Body())
+			raw, err := io.ReadAll(c.RequestBody())
 			if err != nil || len(raw) == 0 {
 				return nil
 			}

@@ -83,6 +83,12 @@ type bridgeExchange struct {
 	proceedUpstream atomic.Bool
 	gDone           atomic.Bool
 
+	// earlyRespBody flags a pre-next response body touch. Reads before
+	// next are a sequencing bug: the read fails with ErrRuntime and the
+	// flag halts forwarding in callNext and applyDone, mirroring the
+	// write-then-proceed guard.
+	earlyRespBody atomic.Bool
+
 	// nextWriter is the writer passed to next; after-next reads and writes
 	// go through it. Set once by G before signaling proceed.
 	nextWriter ResponseWriter
@@ -389,6 +395,35 @@ func (r *gatedRespReader) Read(p []byte) (int, error) {
 	}
 }
 
+// poisonRespReader fails response body reads before next was called.
+// Evaluating the Body field is harmless; the violation triggers on Read,
+// the harmful act, so debug prints and nil checks never false-positive.
+// It mirrors the write-then-proceed halt: the read logs, flags the
+// exchange, and errors with ErrRuntime so returning it answers 500;
+// proceeding anyway fails in callNext all the same.
+type poisonRespReader struct {
+	ex  *bridgeExchange
+	log logr.Logger
+}
+
+// Close is a no-op; nothing was opened.
+func (p *poisonRespReader) Close() error { return nil }
+
+// Read records the phase violation and fails.
+func (p *poisonRespReader) Read([]byte) (int, error) {
+	return 0, p.ex.failEarlyRespBody(p.log)
+}
+
+// failEarlyRespBody records a pre-next response body touch and reports it
+// with ErrRuntime so the error handler answers 500.
+func (ex *bridgeExchange) failEarlyRespBody(log logr.Logger) error {
+	err := fmt.Errorf("response body is not available before next, %w", ErrRuntime)
+	log.Error(err, "response body read before next; proceed upstream with next(c) first")
+	ex.earlyRespBody.Store(true)
+
+	return err
+}
+
 // ResponseBody returns the upstream response body for reading.
 // Bytes are available once the handler runs after next was called and
 // response body access is enabled; otherwise reads fail immediately.
@@ -476,6 +511,13 @@ func (ex *bridgeExchange) callNext(w ResponseWriter, r *http.Request) {
 	}
 	ex.proceedUpstream.Store(true)
 
+	// A pre-next response body touch is a sequencing bug, like writing a
+	// response and then proceeding. Fail instead of forwarding silently.
+	if ex.earlyRespBody.Load() {
+		ex.fail(fmt.Errorf("handler read response body before next, %w", ErrRuntime))
+		return
+	}
+
 	// A response written before next is a competing answer. This checks
 	// the handler's own writer; wrappers own their bytes.
 	if ex.w.explicit || len(ex.w.body) > 0 {
@@ -526,10 +568,10 @@ func (ex *bridgeExchange) writeUpstream(w ResponseWriter) {
 	}
 
 	w.WriteHeader(ex.respCode)
-	for k, v := range ex.respHeader {
+	for k, v := range ex.preHeaders {
 		w.Header()[k] = v
 	}
-	for k, v := range ex.preHeaders {
+	for k, v := range ex.respHeader {
 		w.Header()[k] = v
 	}
 }
@@ -668,15 +710,17 @@ func (w *recordingWriter) writeHeader(statusCode int, explicit bool) {
 }
 
 // setTerminal installs the upstream response without tripping the wrote
-// flags user writes set, so the bridge can tell them apart.
+// flags user writes set, so the bridge can tell them apart. Upstream wins
+// on key conflicts: pre-next writes staged below only fill keys the
+// upstream did not set, and post-next writes win through the header diff.
 func (w *recordingWriter) setTerminal(status int, upstream, stashed http.Header) {
 	w.status = status
 
 	h := make(http.Header, len(upstream)+len(stashed))
-	for k, v := range upstream {
+	for k, v := range stashed {
 		h[k] = append([]string(nil), v...)
 	}
-	for k, v := range stashed {
+	for k, v := range upstream {
 		h[k] = append([]string(nil), v...)
 	}
 	w.header = h

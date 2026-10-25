@@ -24,27 +24,17 @@ func (c *context) LoadRequestHeaders(header api.RequestHeaderMap) {
 	}
 
 	c.httpReq = req
-	c.reqHeaderMap = header
 	c.checkRequestBodyAccessibility()
 }
 
 func (c *context) LoadResponseHeaders(header api.ResponseHeaderMap) {
 	c.reset()
 
-	code, ok := header.Status()
-	if !ok {
+	if _, ok := header.Status(); !ok {
 		return
 	}
 
-	resp, err := types.NewResponse(code, types.WithResponseHeaderRangeSetter(header))
-	if err != nil {
-		c.Log().Error(err, "while initialize Http Response")
-		return
-	}
-
-	c.httpResp = resp
-	c.respHeaderMap = header
-	c.checkResponseBodyAccessibility()
+	c.checkResponseBodyAccessibility(snapshotRequestHeaders(header))
 }
 
 func (c *context) IsRequestBodyAccessible() bool {
@@ -141,8 +131,7 @@ func (c *context) checkRequestBodyAccessibility() {
 }
 
 // checkResponseBodyAccessibility checks the accessibility of the response body based on the response header.
-func (c *context) checkResponseBodyAccessibility() {
-	header := c.httpResp.Header
+func (c *context) checkResponseBodyAccessibility(header http.Header) {
 
 	if off := header.Get(HeaderXResponseBodyAccess) == XResponseBodyAccessOff; off {
 		c.responseBodyAccessRead, c.responseBodyAccessWrite = false, false

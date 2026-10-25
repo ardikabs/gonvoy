@@ -105,6 +105,25 @@ Rule: a handler that writes a response **and** calls `next` is a bug. The bridge
 
 Need an explicit endpoint for tests or direct answers? Use `gonvoy.Chain(final, Auth, Log)`. See why `final` stays separate above.
 
+## Reading and writing headers
+
+Headers live on their struct with standard `net/http` verbs. Request headers sit on `c.Request().Header`, response headers on `c.Response().Header`. `Get`, `Set`, `Add`, and `Del` all behave like the standard library:
+
+```go
+// Request: read or stage before proceeding.
+token := c.Request().Header.Get("x-api-token")
+c.Request().Header.Set("x-api-token", value)
+
+// Response: anytime; staged writes flush when the response resolves.
+c.Response().Header.Set("via", "my-gateway")
+```
+
+Rules:
+
+1. Request writes apply any time before proceeding and land upstream through the request diff. Writes after `next` are a no-op; reads stay valid.
+2. Response writes before `next` are staged and applied when the response resolves, merged on the cheap path or stashed under upstream with `next`. On key conflicts upstream always wins; only post-`next` writes override upstream. A pre-`next` `Del` removes only pre-`next` sets, so stripping an upstream header needs a post-`next` `Del`.
+3. `c.Response()` is fresh per call. Call it again after `next`, since a cached view detaches when the upstream response publishes.
+
 ## Reading and replacing the request body
 
 Body access is off by default. Opt in at registration. The example is a single handler, so it passes through with `return nil` (the same mutation pattern applies inside `Use` layers before calling `next`):
@@ -112,7 +131,7 @@ Body access is off by default. Opt in at registration. The example is a single h
 ```go
 envoy.Handle("inspect",
     gonvoy.Handler(func(c gonvoy.Context) error {
-        body, err := io.ReadAll(c.Body())
+        body, err := io.ReadAll(c.RequestBody())
         if err != nil {
             return c.String(http.StatusInternalServerError, err.Error())
         }
@@ -123,7 +142,7 @@ envoy.Handle("inspect",
 )
 ```
 
-- `gonvoy.ReadRequestBody()`: `c.Body()` is readable. Reading it never disturbs the stream.
+- `gonvoy.ReadRequestBody()`: `c.RequestBody()` is readable. Reading it never disturbs the stream.
 - `gonvoy.WriteRequestBody()`: you may also replace it. Assign a new body through the wrapped request **before** calling `next`, and the upstream receives your bytes:
 
 ```go

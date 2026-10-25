@@ -29,7 +29,7 @@ To proceed upstream *and* run code when the response arrives, wrap the handler i
 
 - Method, host, path, query: `c.Method()`, `c.Host()`, `c.Path()`, `c.QueryParam(name)`. These are live; changing them via `c.SetMethod`, `c.SetHost`, `c.SetPath` changes what goes upstream.
 - Headers: `c.Request().Header` with the standard `Get`, `Set`, `Add`, `Del` verbs. Mutations land on the live Envoy map through the request diff any time before proceeding.
-- Body: `io.ReadAll(c.Body())` or `c.Bind(&v)` for JSON. Needs `gonvoy.ReadRequestBody()` at registration. Under the default gate the client must also send `X-Content-Operation: ReadOnly` (or `RO`); `gonvoy.OpenBodyAccess()` drops the gate.
+- Body: `io.ReadAll(c.RequestBody())` or `c.Bind(&v)` for JSON. Needs `gonvoy.ReadRequestBody()` at registration. Under the default gate the client must also send `X-Content-Operation: ReadOnly` (or `RO`); `gonvoy.OpenBodyAccess()` drops the gate.
 
 ## Writing the request
 
@@ -44,8 +44,8 @@ Reading without the matching body option fails with a "not accessible" error. Re
 Available after `next` returns inside `Use`.
 
 - Status: `c.Status()` (or `c.Response().StatusCode`). Zero means the upstream response has not been recorded yet, which is your cue that nothing was written.
-- Headers: `c.Response().Header` with the standard `Get`, `Set`, `Add`, `Del` verbs to change what reaches the client. Writes before `next` merge into the pass-through response or stash for re-application on top of upstream; writes after `next` diff against the upstream snapshot. `Response()` is fresh per call: call it again after `next`, a view cached before `next` detaches and writes to it are lost.
-- Body: `c.ResponseBody()` plus `io.ReadAll`. Needs `gonvoy.ReadResponseBody()`. It errors when body access is not enabled; treat that as "leave the response alone", not as fatal.
+- Headers: `c.Response().Header` with the standard `Get`, `Set`, `Add`, `Del` verbs to change what reaches the client. Writes before `next` merge into the pass-through response or stash for re-application under upstream; writes after `next` diff against the upstream snapshot. On key conflicts upstream always wins over pre-`next` writes — only post-`next` writes override upstream. `Response()` is fresh per call: call it again after `next`, a view cached before `next` detaches and writes to it are lost.
+- Body: `c.ResponseBody()` (same reader as `c.Response().Body`) plus `io.ReadAll`. Needs `gonvoy.ReadResponseBody()`. Reading before `next` returns is a phase violation: the read fails and forwarding halts with 500. After `next`, a denied read errors softly; treat that as "leave the response alone", not as fatal.
 
 ## Writing the response
 

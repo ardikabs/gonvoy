@@ -1,0 +1,71 @@
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 8000
+
+static_resources:
+  listeners:
+    - name: main
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 10000
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: auto
+                http_filters:
+                  - name: envoy.filters.http.jwt_authn
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+                      providers:
+                        test:
+                          issuer: https://test-issuer.example.com/
+                          audiences:
+                            - test-audience
+                          local_jwks:
+                            inline_string: '{"keys":[{"kty":"oct","k":"Z29udm95LWUyZS1qd3QtdGVzdC1zZWNyZXQtMDEyMzQ1Njc4OQ","alg":"HS256","kid":"test-key"}]}'
+                          from_headers:
+                            - name: Authorization
+                              value_prefix: "Bearer "
+                          from_params:
+                            - access_token
+                          from_cookies:
+                            - access_token
+                          claim_to_headers:
+                            - header_name: x-claim-name
+                              claim_name: name
+                      requirement_map:
+                        valid:
+                          provider_name: test
+                      rules:
+                        - match:
+                            prefix: /
+                          requirement_name: valid
+                  - name: envoy.filters.http.golang
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+                      library_id: jwt_validation
+                      library_path: "/filter.so"
+                      plugin_name: jwt_validation
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains: ["*"]
+                      routes:
+                        - name: root
+                          match:
+                            prefix: "/"
+                          direct_response:
+                            status: 200
+                            body:
+                              inline_string: "OK"

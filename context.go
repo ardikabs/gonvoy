@@ -267,6 +267,8 @@ type context struct {
 	responseBodyAccessWrite         bool
 	preserveContentLengthOnRequest  bool
 	preserveContentLengthOnResponse bool
+	attrFetch                       *attrFetchConfig
+	enableDownstreamTLS             bool
 
 	httpReq *http.Request
 

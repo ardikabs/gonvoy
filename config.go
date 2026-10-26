@@ -26,6 +26,11 @@ type internalConfig struct {
 	allowResponseBodyWrite          bool
 	preserveContentLengthOnRequest  bool
 	preserveContentLengthOnResponse bool
+	// attrFetch is the shared attribute prefetch state. Pointer-shared
+	// across config copies (parent/child merge) like the metric cache.
+	attrFetch *attrFetchConfig
+	// enableDownstreamTLS snapshots the downstream TLS connection.
+	enableDownstreamTLS bool
 
 	autoReloadRoute bool
 
@@ -42,6 +47,30 @@ type metricHandleCache struct {
 	gauges   map[string]api.GaugeMetric
 }
 
+// attrFetchConfig carries attribute prefetch state shared across the config
+// copies of one filter registration: the declared key list plus the
+// once-only migration warning for undeclared reads.
+type attrFetchConfig struct {
+	fetch []string
+	warn  sync.Once
+}
+
+// declares reports whether name was declared for prefetch. Nil-safe: a nil
+// config declares nothing.
+func (a *attrFetchConfig) declares(name string) bool {
+	if a == nil {
+		return false
+	}
+
+	for _, k := range a.fetch {
+		if k == name {
+			return true
+		}
+	}
+
+	return false
+}
+
 func newInternalConfig(options ConfigOptions) *internalConfig {
 	gc := &internalConfig{
 		internalCache:   newInternalCache(),
@@ -56,6 +85,8 @@ func newInternalConfig(options ConfigOptions) *internalConfig {
 		allowResponseBodyWrite:          options.EnableResponseBodyWrite,
 		preserveContentLengthOnRequest:  options.DisableChunkedEncodingRequest,
 		preserveContentLengthOnResponse: options.DisableChunkedEncodingResponse,
+		attrFetch:                       &attrFetchConfig{fetch: options.AttrFetch},
+		enableDownstreamTLS:             options.EnableDownstreamTLS,
 	}
 
 	return gc
@@ -172,5 +203,7 @@ func applyInternalConfig(c *context, cfg *internalConfig) error {
 	c.responseBodyAccessWrite = cfg.allowResponseBodyWrite
 	c.preserveContentLengthOnRequest = cfg.preserveContentLengthOnRequest
 	c.preserveContentLengthOnResponse = cfg.preserveContentLengthOnResponse
+	c.attrFetch = cfg.attrFetch
+	c.enableDownstreamTLS = cfg.enableDownstreamTLS
 	return nil
 }

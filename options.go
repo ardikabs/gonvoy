@@ -85,6 +85,15 @@ type MergePolicy struct {
 	OnError MergeOnError
 }
 
+// AttrPolicy describes Envoy attribute prefetching for a filter.
+type AttrPolicy struct {
+	// Fetch lists the Envoy attribute names prefetched per request for Attr
+	// lookups (for example "xds.cluster_name"). Nil (the default) prefetches
+	// nothing: only the always-free request fields and the synthesized
+	// response code resolve.
+	Fetch []string
+}
+
 // Options represents the configuration options for a filter.
 // Field semantics match ConfigOptions; names say what they do.
 type Options struct {
@@ -102,6 +111,12 @@ type Options struct {
 
 	// Body describes HTTP body access.
 	Body BodyPolicy
+
+	// Attrs describes Envoy attribute prefetching.
+	Attrs AttrPolicy
+
+	// DownstreamTLS snapshots the downstream TLS connection per request.
+	DownstreamTLS bool
 }
 
 // Option configures a handler registration. Options compose; each sets one
@@ -129,6 +144,23 @@ func ReloadRoute() Option {
 // instead of merging field by field.
 func RouteConfigWins() Option {
 	return func(o *Options) { o.Merge.ChildWins = true }
+}
+
+// EnableEnvoyAttributes declares the Envoy attributes the filter reads
+// through Attr (for example "xds.cluster_name"), prefetched per request.
+// Without it only request host/method/path and the response code resolve;
+// anything else reports absent with a one-time migration warning naming the
+// key. The request fields stay free and need no declaration.
+func EnableEnvoyAttributes(names ...string) Option {
+	return func(o *Options) { o.Attrs.Fetch = names }
+}
+
+// EnableDownstreamTLS snapshots the downstream TLS connection per request
+// for TLS lookups. Without it TLS reports absent even on TLS listeners
+// (with a one-time migration warning when a connection is present).
+// Plaintext listeners pay nothing either way.
+func EnableDownstreamTLS() Option {
+	return func(o *Options) { o.DownstreamTLS = true }
 }
 
 // ConfigErrorAction selects merge-failure handling for struct configs.
@@ -235,6 +267,14 @@ func ConfigOptionsFromOptions(opts Options) ConfigOptions {
 		o.IgnoreMergeError = true
 	}
 
+	if opts.Attrs.Fetch != nil {
+		o.AttrFetch = append([]string(nil), opts.Attrs.Fetch...)
+	}
+
+	if opts.DownstreamTLS {
+		o.EnableDownstreamTLS = true
+	}
+
 	if opts.Body.KeepContentLength == KeepLengthRequest || opts.Body.KeepContentLength == KeepLengthBoth {
 		o.DisableChunkedEncodingRequest = true
 	}
@@ -283,6 +323,14 @@ func OptionsFromConfigOptions(o ConfigOptions) Options {
 
 	if o.IgnoreMergeError {
 		opts.Merge.OnError = MergeOnErrorFallbackToParent
+	}
+
+	if o.AttrFetch != nil {
+		opts.Attrs.Fetch = append([]string(nil), o.AttrFetch...)
+	}
+
+	if o.EnableDownstreamTLS {
+		opts.DownstreamTLS = true
 	}
 
 	switch {

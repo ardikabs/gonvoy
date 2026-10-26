@@ -666,10 +666,10 @@ func (f *bridgeFilter) flushMetrics(ex *bridgeExchange) {
 	}
 }
 
-// refreshAttrs snapshots Envoy attributes for Attr lookups.
-// request.* come from the live request (no cgo); xds.* and response.* come
-// from GetProperty. request.* never change after decode, so the response
-// phase refreshes only response.*.
+// refreshAttrs snapshots Envoy attributes for Attr lookups. request.* come
+// from the live request (no cgo) and always land; response.code is
+// synthesized. Every other key fetches via GetProperty only when declared
+// through EnableEnvoyAttributes. request.* never change after decode.
 func (f *bridgeFilter) refreshAttrs(ex *bridgeExchange, r *http.Request, response bool) {
 	if !response {
 		ex.attrMu.Lock()
@@ -695,22 +695,10 @@ func (f *bridgeFilter) refreshAttrs(ex *bridgeExchange, r *http.Request, respons
 		}
 		ex.attrMu.Unlock()
 
-		c := f.ctx
-		for _, key := range xdsAttrKeys {
-			if v, err := c.GetProperty(key, ""); err == nil && v != "" {
-				ex.attrMu.Lock()
-				if ex.attrs == nil {
-					ex.attrs = make(map[string]string)
-				}
-				ex.attrs[key] = v
-				ex.attrMu.Unlock()
-			}
-		}
+		f.refreshDeclaredAttrs(ex)
 
 		return
 	}
-
-	c := f.ctx
 
 	if ex.respCode != 0 {
 		ex.attrMu.Lock()
@@ -721,18 +709,22 @@ func (f *bridgeFilter) refreshAttrs(ex *bridgeExchange, r *http.Request, respons
 		ex.attrMu.Unlock()
 	}
 
-	for _, key := range xdsAttrKeys {
-		if v, err := c.GetProperty(key, ""); err == nil && v != "" {
-			ex.attrMu.Lock()
-			if ex.attrs == nil {
-				ex.attrs = make(map[string]string)
-			}
-			ex.attrs[key] = v
-			ex.attrMu.Unlock()
-		}
+	f.refreshDeclaredAttrs(ex)
+}
+
+// refreshDeclaredAttrs fetches exactly the declared attribute names. Nil
+// config (hand-built contexts in tests) or an empty declaration fetches
+// nothing: only the free request fields and the synthesized response code
+// resolve then.
+func (f *bridgeFilter) refreshDeclaredAttrs(ex *bridgeExchange) {
+	c := f.ctx
+
+	var fetch []string
+	if c.attrFetch != nil {
+		fetch = c.attrFetch.fetch
 	}
 
-	for _, key := range responseAttrKeys {
+	for _, key := range fetch {
 		if v, err := c.GetProperty(key, ""); err == nil && v != "" {
 			ex.attrMu.Lock()
 			if ex.attrs == nil {
@@ -744,15 +736,22 @@ func (f *bridgeFilter) refreshAttrs(ex *bridgeExchange, r *http.Request, respons
 	}
 }
 
-// xdsAttrKeys and responseAttrKeys are hoisted from per-call slice literals:
-// refreshAttrs runs on every request.
-var (
-	xdsAttrKeys      = []string{"xds.cluster_name", "xds.route_name"}
-	responseAttrKeys = []string{"response.code_details", "response.flags"}
-)
-
 func itoa(i int) string {
 	return strconv.Itoa(i)
+}
+
+// warnUndeclaredTLS logs the one-time migration warning when a downstream
+// TLS connection is present but snapshotting is off. Runs on W only, at most
+// once per filter registration. Plaintext (nil connection) stays silent.
+func warnUndeclaredTLS(c *context, ex *bridgeExchange) {
+	cfg := ex.attrFetch
+	if cfg == nil {
+		return
+	}
+
+	cfg.warn.Do(func() {
+		c.Log().Info("TLS connection present without a snapshot; declare it with EnableDownstreamTLS")
+	})
 }
 
 // newExchange builds the per-request exchange: snapshots, hooks, reader.
@@ -792,11 +791,21 @@ func (f *bridgeFilter) newExchange(header api.RequestHeaderMap, endStream bool) 
 		ex.origPath = r.URL.Path
 	}
 
+	// The prefetch config crosses pooled reuses like the log trio below:
+	// plain pointer assignment, no allocation.
+	ex.attrFetch = c.attrFetch
+
 	if si := c.cb.StreamInfo(); si != nil {
 		ex.streamInfo = si
 		if sc := si.DownstreamSslConnection(); sc != nil {
-			ex.tls = snapshotTLS(sc)
-			ex.tlsOK = true
+			if c.enableDownstreamTLS {
+				ex.tls = snapshotTLS(sc)
+				ex.tlsOK = true
+			} else {
+				// TLS present but undeclared: migration warning, no
+				// 19-getter snapshot. Plaintext (nil conn) stays silent.
+				warnUndeclaredTLS(c, ex)
+			}
 		}
 	}
 
@@ -822,8 +831,11 @@ func (f *bridgeFilter) newExchange(header api.RequestHeaderMap, endStream bool) 
 		ex.hooks = bridgeHooks{
 			attr: func(name string) (string, bool) {
 				ex.attrMu.Lock()
-				defer ex.attrMu.Unlock()
 				v, ok := ex.attrs[name]
+				ex.attrMu.Unlock()
+				if !ok && cgoBackedAttr(name) {
+					ex.warnUndeclaredAttr(name)
+				}
 				return v, ok
 			},
 			reroute: func() { ex.reroute = true },
@@ -855,7 +867,13 @@ func (f *bridgeFilter) newExchange(header api.RequestHeaderMap, endStream bool) 
 	ex.req = r
 
 	f.refreshAttrs(ex, r, false)
-	ex.feedBody(nil, endStream)
+
+	// Record stream end without waking: no reader can wait yet (the handler
+	// submits after this), so feedBody's ping would only leave a stale token
+	// for the first read to burn.
+	ex.bodyMu.Lock()
+	ex.bodyEnded = endStream
+	ex.bodyMu.Unlock()
 
 	return ex
 }

@@ -161,6 +161,10 @@ type bridgeExchange struct {
 	attrMu sync.Mutex
 	attrs  map[string]string
 
+	// attrFetch is the shared prefetch config, refreshed per use: pooled
+	// exchanges cross configs, so the pointer must never go stale.
+	attrFetch *attrFetchConfig
+
 	// Hooks. Attr reads snapshots; reroute and emitMetric touch pure Go
 	// state only. W applies the rest on callback threads.
 	hooks bridgeHooks
@@ -299,6 +303,39 @@ drainSig:
 	} else {
 		ex.attrs = make(map[string]string)
 	}
+	// Drop the config pointer across pool lifetime: newExchange refreshes it
+	// before any Attr read, so a pooled exchange never pins a stale config.
+	ex.attrFetch = nil
+}
+
+// warnUndeclaredAttr logs the one-time migration warning for cgo-backed Attr
+// misses with nothing declared. Runs on G; the shared Once keeps it to one
+// line per filter registration.
+func (ex *bridgeExchange) warnUndeclaredAttr(name string) {
+	cfg := ex.attrFetch
+	if cfg == nil || cfg.declares(name) {
+		return
+	}
+
+	cfg.warn.Do(func() {
+		log := logr.Discard()
+		if ex.hooks.log != nil {
+			log = ex.hooks.log()
+		}
+
+		log.Info("Attr has no snapshot; declare it with EnableEnvoyAttributes", "name", name)
+	})
+}
+
+// cgoBackedAttr reports whether name needs an Envoy fetch: anything but the
+// always-free request fields and the synthesized response code.
+func cgoBackedAttr(name string) bool {
+	switch name {
+	case "request.host", "request.method", "request.path", "response.code":
+		return false
+	}
+
+	return true
 }
 
 // drainSignal drops one pending wakeup, if any.

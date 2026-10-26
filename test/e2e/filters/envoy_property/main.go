@@ -45,6 +45,7 @@ func init() {
 				return nil
 			})
 		}),
+		gonvoy.EnableEnvoyAttributes("xds.cluster_name", "xds.route_name"),
 	)
 }
 

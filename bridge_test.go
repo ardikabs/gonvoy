@@ -893,3 +893,136 @@ func TestRefillHeader_ReusesBacking(t *testing.T) {
 
 	assert.Empty(t, refillHeader(nil, nil))
 }
+
+func TestBridge_AttrUndeclared(t *testing.T) {
+	t.Parallel()
+
+	h := HandlerFunc(func(ResponseWriter, *http.Request) {})
+	fc := mock_envoy.NewFilterCallbackHandler(t)
+	fc.EXPECT().DecoderFilterCallbacks().Return(fakeDecoderCallbacks{}).Maybe()
+	fc.EXPECT().StreamInfo().Return(nil).Maybe()
+	// Strict: no GetProperty expectation. Any prefetch call fails the test.
+	// Log has a Maybe: only the migration warning may call it.
+	fc.EXPECT().Log(mock.Anything, mock.Anything).Return().Maybe()
+	c, err := newBridgeContext(fc, contextOptions{config: &internalConfig{
+		internalCache: newInternalCache(),
+		attrFetch:     &attrFetchConfig{},
+	}})
+	require.NoError(t, err)
+
+	f := newBridgeFilter(mustCastToContext(c), h)
+	ex := f.newExchange(fakeBridgeHeaders(t, ""), true)
+
+	host, ok := Attr(ex.req, "request.host", "-")
+	assert.True(t, ok)
+	assert.Equal(t, "example.com", host)
+
+	_, ok = Attr(ex.req, "xds.cluster_name", "-")
+	assert.False(t, ok, "undeclared attrs stay absent")
+}
+
+func TestBridge_AttrDeclared(t *testing.T) {
+	t.Parallel()
+
+	h := HandlerFunc(func(ResponseWriter, *http.Request) {})
+	fc := mock_envoy.NewFilterCallbackHandler(t)
+	fc.EXPECT().DecoderFilterCallbacks().Return(fakeDecoderCallbacks{}).Maybe()
+	fc.EXPECT().StreamInfo().Return(nil).Maybe()
+	fc.EXPECT().GetProperty("xds.cluster_name").Return("egress", nil)
+	fc.EXPECT().GetProperty("xds.route_name").Return("local", nil)
+	c, err := newBridgeContext(fc, contextOptions{config: &internalConfig{
+		internalCache: newInternalCache(),
+		attrFetch:     &attrFetchConfig{fetch: []string{"xds.cluster_name", "xds.route_name"}},
+	}})
+	require.NoError(t, err)
+
+	f := newBridgeFilter(mustCastToContext(c), h)
+	ex := f.newExchange(fakeBridgeHeaders(t, ""), true)
+
+	cluster, ok := Attr(ex.req, "xds.cluster_name", "-")
+	assert.True(t, ok)
+	assert.Equal(t, "egress", cluster)
+}
+
+func TestBridge_AttrUndeclaredWarnsOnce(t *testing.T) {
+	t.Parallel()
+
+	h := HandlerFunc(func(ResponseWriter, *http.Request) {})
+	fc := mock_envoy.NewFilterCallbackHandler(t)
+	fc.EXPECT().DecoderFilterCallbacks().Return(fakeDecoderCallbacks{}).Maybe()
+	fc.EXPECT().StreamInfo().Return(nil).Maybe()
+	logged := make(chan string, 8)
+	fc.EXPECT().Log(mock.Anything, mock.Anything).Run(func(_ api.LogType, msg string) {
+		logged <- msg
+	}).Return().Maybe()
+	c, err := newBridgeContext(fc, contextOptions{config: &internalConfig{
+		internalCache: newInternalCache(),
+		attrFetch:     &attrFetchConfig{},
+	}})
+	require.NoError(t, err)
+
+	f := newBridgeFilter(mustCastToContext(c), h)
+	ex := f.newExchange(fakeBridgeHeaders(t, ""), true)
+
+	_, _ = Attr(ex.req, "xds.cluster_name", "-")
+	_, _ = Attr(ex.req, "xds.route_name", "-")
+	_, _ = Attr(ex.req, "request.host", "-")
+
+	select {
+	case msg := <-logged:
+		assert.Contains(t, msg, "EnableEnvoyAttributes")
+	case <-time.After(5 * time.Second):
+		t.Fatal("undeclared attr miss produced no migration warning")
+	}
+
+	select {
+	case extra := <-logged:
+		t.Fatalf("warning must fire once, got extra: %q", extra)
+	default:
+	}
+}
+
+func TestBridge_TLSGated(t *testing.T) {
+	t.Parallel()
+
+	newTLSFilter := func(t *testing.T, enable bool) (*bridgeFilter, *mock_envoy.FilterCallbackHandler) {
+		t.Helper()
+
+		h := HandlerFunc(func(ResponseWriter, *http.Request) {})
+		fc := mock_envoy.NewFilterCallbackHandler(t)
+		fc.EXPECT().DecoderFilterCallbacks().Return(fakeDecoderCallbacks{}).Maybe()
+		fc.EXPECT().GetProperty(mock.Anything).Return("", nil).Maybe()
+		fc.EXPECT().Log(mock.Anything, mock.Anything).Return().Maybe()
+		si := &fakeStreamInfo{ssl: fakeSslConnection{}}
+		fc.EXPECT().StreamInfo().Return(si).Maybe()
+		c, err := newBridgeContext(fc, contextOptions{config: &internalConfig{
+			internalCache:       newInternalCache(),
+			enableDownstreamTLS: enable,
+			attrFetch:           &attrFetchConfig{},
+		}})
+		require.NoError(t, err)
+
+		return newBridgeFilter(mustCastToContext(c), h), fc
+	}
+
+	t.Run("declared snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		f, _ := newTLSFilter(t, true)
+		ex := f.newExchange(fakeBridgeHeaders(t, ""), true)
+
+		conn, ok := TLS(ex.req)
+		require.True(t, ok, "declared TLS must snapshot")
+		assert.Equal(t, "ABCD", conn.Sha256PeerCertificateDigest)
+	})
+
+	t.Run("undeclared skips snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		f, _ := newTLSFilter(t, false)
+		ex := f.newExchange(fakeBridgeHeaders(t, ""), true)
+
+		_, ok := TLS(ex.req)
+		assert.False(t, ok, "undeclared TLS must stay absent")
+	})
+}

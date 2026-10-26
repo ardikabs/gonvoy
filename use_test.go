@@ -136,6 +136,30 @@ func TestOption_Apply(t *testing.T) {
 		KeepContentLength(KeepLengthBoth)(&o)
 		assert.Equal(t, KeepLengthBoth, o.Body.KeepContentLength)
 	})
+
+	t.Run("attr prefetch", func(t *testing.T) {
+		t.Parallel()
+
+		o := Options{}
+		assert.Nil(t, o.Attrs.Fetch)
+		assert.False(t, o.DownstreamTLS)
+
+		EnableEnvoyAttributes("xds.cluster_name")(&o)
+		assert.Equal(t, []string{"xds.cluster_name"}, o.Attrs.Fetch)
+		assert.Equal(t, []string{"xds.cluster_name"}, ConfigOptionsFromOptions(o).AttrFetch)
+
+		EnableDownstreamTLS()(&o)
+		assert.True(t, o.DownstreamTLS)
+		assert.True(t, ConfigOptionsFromOptions(o).EnableDownstreamTLS)
+
+		back := OptionsFromConfigOptions(ConfigOptionsFromOptions(o))
+		assert.Equal(t, []string{"xds.cluster_name"}, back.Attrs.Fetch)
+		assert.True(t, back.DownstreamTLS)
+
+		plain := OptionsFromConfigOptions(ConfigOptions{})
+		assert.Nil(t, plain.Attrs.Fetch)
+		assert.False(t, plain.DownstreamTLS)
+	})
 }
 
 // TestUse_MiddlewareReachesUpstream pins the explicit chaining flow: a

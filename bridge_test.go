@@ -767,3 +767,101 @@ func TestBridgeExchange_ReuseThroughFilter(t *testing.T) {
 	f.exchange = ex2
 	f.OnDestroy(0)
 }
+
+func TestHandlerWorkerPool_RunsTask(t *testing.T) {
+	t.Parallel()
+
+	done := make(chan struct{})
+	h := HandlerFunc(func(ResponseWriter, *http.Request) { close(done) })
+	r, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+	ex := newBridgeExchange(h, r, newRecordingWriter(), bridgeHooks{})
+
+	submitHandlerTask(ex)
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pooled worker did not run the task")
+	}
+
+	assert.True(t, ex.gDone.Load())
+}
+
+func TestHandlerWorkerPool_PanicSurvival(t *testing.T) {
+	t.Parallel()
+
+	h := HandlerFunc(func(ResponseWriter, *http.Request) { panic("boom") })
+	r, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+	ex := newBridgeExchange(h, r, newRecordingWriter(), bridgeHooks{})
+
+	submitHandlerTask(ex)
+
+	select {
+	case sig := <-ex.sigCh:
+		assert.Equal(t, brFailed, sig)
+		assert.ErrorContains(t, ex.failErr, "boom")
+	case <-time.After(5 * time.Second):
+		t.Fatal("panicked task produced no signal")
+	}
+
+	// The worker that absorbed the panic still serves: a second task runs.
+	done := make(chan struct{})
+	h2 := HandlerFunc(func(ResponseWriter, *http.Request) { close(done) })
+	r2, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+	ex2 := newBridgeExchange(h2, r2, newRecordingWriter(), bridgeHooks{})
+
+	submitHandlerTask(ex2)
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker did not survive the panic")
+	}
+}
+
+func TestHandlerWorkerPool_OverflowRuns(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	defer close(release)
+
+	block := HandlerFunc(func(w ResponseWriter, r *http.Request) {
+		ex, _ := exchangeFrom(r)
+		if ex == nil {
+			return
+		}
+
+		select {
+		case <-release:
+		case <-ex.done:
+		}
+	})
+
+	// Occupy every worker with a parked task.
+	held := make([]*bridgeExchange, 0, numHandlerWorkers)
+	for i := 0; i < numHandlerWorkers; i++ {
+		r, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+		ex := newBridgeExchange(block, r, newRecordingWriter(), bridgeHooks{})
+		ex.req = withBridgeExchange(r, ex)
+		held = append(held, ex)
+		submitHandlerTask(ex)
+	}
+
+	// Saturation overflows to a one-off goroutine: still runs, never stalls W.
+	done := make(chan struct{})
+	h := HandlerFunc(func(ResponseWriter, *http.Request) { close(done) })
+	r, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+	ex := newBridgeExchange(h, r, newRecordingWriter(), bridgeHooks{})
+
+	submitHandlerTask(ex)
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("overflow task did not run under a saturated pool")
+	}
+
+	for _, ex := range held {
+		ex.destroy()
+	}
+}

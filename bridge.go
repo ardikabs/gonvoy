@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -658,6 +659,51 @@ func (ex *bridgeExchange) runHandler() {
 	}()
 
 	ex.handler.ServeHTTP(ex.w, ex.req)
+}
+
+// handlerTaskQueue hands exchanges to pooled handler workers. Unbuffered: a
+// send rendezvous with an idle worker, so saturation overflows instead of
+// queueing latency behind busy workers.
+var handlerTaskQueue = make(chan *bridgeExchange)
+
+// numHandlerWorkers sizes the pool: twice the CPUs, at least 8. Fast tasks
+// (deny, passthrough) recycle a worker in microseconds; parked next-paths
+// hold one for milliseconds, so saturation overflows to one-off goroutines
+// instead of hogging the pool.
+var numHandlerWorkers = handlerWorkerCount()
+
+func handlerWorkerCount() int {
+	if n := 2 * runtime.NumCPU(); n >= 8 {
+		return n
+	}
+
+	return 8
+}
+
+func init() {
+	for i := 0; i < numHandlerWorkers; i++ {
+		go handlerWorkerLoop()
+	}
+}
+
+// handlerWorkerLoop runs exchange handlers until the process exits. Idle
+// workers park on the queue with no CPU cost. Panics stay isolated per task
+// inside runHandler's own recovery.
+func handlerWorkerLoop() {
+	for ex := range handlerTaskQueue {
+		ex.runHandler()
+	}
+}
+
+// submitHandlerTask runs ex's handler without spawning per request: an idle
+// worker takes it, otherwise a one-off goroutine does, identical to the old
+// go statement. W never blocks here.
+func submitHandlerTask(ex *bridgeExchange) {
+	select {
+	case handlerTaskQueue <- ex:
+	default:
+		go ex.runHandler()
+	}
 }
 
 // callNext implements next.ServeHTTP for the terminal hop: it records the

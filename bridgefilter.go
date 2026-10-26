@@ -394,7 +394,7 @@ func (f *bridgeFilter) DecodeHeaders(header api.RequestHeaderMap, endStream bool
 
 	ex := f.newExchange(header, endStream)
 	f.exchange = ex
-	go ex.runHandler()
+	submitHandlerTask(ex)
 
 	sig, ok := ex.awaitSignal()
 	if !ok {

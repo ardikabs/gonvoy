@@ -673,9 +673,14 @@ func TestBridgeExchange_PoolResetDropsState(t *testing.T) {
 	assert.Empty(t, ex2.w.Header())
 	assert.Empty(t, ex2.attrs)
 	assert.Empty(t, ex2.metricOps)
-	assert.Empty(t, ex2.reqSnapshot)
-	assert.Empty(t, ex2.respHeader)
-	assert.Empty(t, ex2.preHeaders)
+	// Snapshot maps refill before every use instead of clearing on reset:
+	// refilling must drop the stale keys (mirrors newExchange/EncodeHeaders).
+	ex2.reqSnapshot = refillHeader(ex2.reqSnapshot, http.Header{"X-Fresh": {"1"}})
+	assert.Equal(t, http.Header{"X-Fresh": {"1"}}, ex2.reqSnapshot)
+	ex2.respHeader = refillHeader(ex2.respHeader, http.Header{"X-Fresh": {"1"}})
+	assert.Equal(t, http.Header{"X-Fresh": {"1"}}, ex2.respHeader)
+	ex2.preHeaders = refillHeader(ex2.preHeaders, http.Header{"X-Fresh": {"1"}})
+	assert.Equal(t, http.Header{"X-Fresh": {"1"}}, ex2.preHeaders)
 	assert.False(t, ex2.tlsOK)
 	assert.Equal(t, TLSConnection{}, ex2.tls)
 	assert.Nil(t, ex2.reqHeaderMap)
@@ -864,4 +869,27 @@ func TestHandlerWorkerPool_OverflowRuns(t *testing.T) {
 	for _, ex := range held {
 		ex.destroy()
 	}
+}
+
+func TestRefillHeader_ReusesBacking(t *testing.T) {
+	t.Parallel()
+
+	dst := http.Header{"X-A": {"12345"}, "X-Stale": {"x"}}
+	src := http.Header{"X-A": {"abcde"}, "X-B": {"y"}}
+
+	out := refillHeader(dst, src)
+
+	assert.Equal(t, []string{"abcde"}, out["X-A"])
+	assert.Equal(t, []string{"y"}, out["X-B"])
+	_, leaked := out["X-Stale"]
+	assert.False(t, leaked, "keys absent from src must be dropped")
+
+	// Value backing arrays survive across refills with equal-length values.
+	second := http.Header{"X-A": {"vwxyz"}, "X-B": {"z"}}
+	capBefore := cap(out["X-A"])
+	out2 := refillHeader(out, second)
+	assert.Equal(t, []string{"vwxyz"}, out2["X-A"])
+	assert.GreaterOrEqual(t, cap(out2["X-A"]), capBefore)
+
+	assert.Empty(t, refillHeader(nil, nil))
 }

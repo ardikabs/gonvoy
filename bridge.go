@@ -230,17 +230,11 @@ func resetBridgeExchange(ex *bridgeExchange) {
 	resetRecordingWriter(ex.w)
 
 	ex.req = nil
-	// Snapshot maps clear but survive: newExchange and EncodeHeaders refill
-	// them in place, reusing buckets instead of reallocating per request.
-	if ex.reqSnapshot != nil {
-		clear(ex.reqSnapshot)
-	}
-	if ex.respHeader != nil {
-		clear(ex.respHeader)
-	}
-	if ex.preHeaders != nil {
-		clear(ex.preHeaders)
-	}
+	// Snapshot maps are NOT cleared here: every read site refills them
+	// before use (newExchange, EncodeHeaders, callNext), and refill drops
+	// keys absent from the fresh headers. Clearing would only throw away
+	// the value backing arrays refill reuses. Attrs and the secret cache
+	// fill incrementally instead, so they clear below.
 	ex.reqHeaderMap = nil
 	ex.liveRespHeader = nil
 	ex.streamInfo = nil
@@ -808,16 +802,22 @@ func cloneHeader(h http.Header) http.Header {
 	return out
 }
 
-// refillHeader copies src into dst, reusing dst's buckets. A nil dst clones.
-// Pooled exchanges refill snapshots instead of reallocating them per request.
+// refillHeader copies src into dst, reusing dst's buckets and value backing
+// arrays. A nil dst clones. Keys absent from src are dropped so pooled maps
+// never leak a previous request's headers. Appends copy bytes, so no state
+// aliases across requests.
 func refillHeader(dst, src http.Header) http.Header {
 	if dst == nil {
 		return cloneHeader(src)
 	}
 
-	clear(dst)
 	for k, v := range src {
-		dst[k] = append([]string(nil), v...)
+		dst[k] = append(dst[k][:0], v...)
+	}
+	for k := range dst {
+		if _, ok := src[k]; !ok {
+			delete(dst, k)
+		}
 	}
 
 	return dst

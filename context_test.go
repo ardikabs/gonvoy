@@ -141,6 +141,17 @@ func TestContext(t *testing.T) {
 				expectedRead:   true,
 				expectedWrite:  false,
 			},
+			{
+				name: "all disabled| strict content-type: application/json stays off",
+				config: &internalConfig{
+					strictBodyAccess: true,
+				},
+				contentType:    MIMEApplicationJSON,
+				contentLength:  "100",
+				expectedAccess: false,
+				expectedRead:   false,
+				expectedWrite:  false,
+			},
 		}
 
 		for _, tc := range testcases {
@@ -209,6 +220,16 @@ func TestContext_ResponseBodyAccessibility(t *testing.T) {
 				allowResponseBodyRead: true,
 			},
 			contentType:    MIMEApplicationGRPC,
+			expectedAccess: false,
+			expectedRead:   false,
+			expectedWrite:  false,
+		},
+		{
+			name: "disabled| strict content-type: application/json stays off",
+			config: &internalConfig{
+				strictBodyAccess: true,
+			},
+			contentType:    MIMEApplicationJSON,
 			expectedAccess: false,
 			expectedRead:   false,
 			expectedWrite:  false,

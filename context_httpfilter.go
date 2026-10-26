@@ -118,8 +118,22 @@ func (c *context) ReloadRoute() {
 	c.cb.ClearRouteCache()
 }
 
+// bodyAccessPossible reports whether any body rule is enabled. With every
+// rule off the outcome is forced false in both strict and open modes, so the
+// header inspection below short-circuits. The response path consults the
+// request flags, mirroring checkResponseBodyAccessibility exactly.
+func (c *context) bodyAccessPossible() bool {
+	return c.requestBodyAccessRead || c.requestBodyAccessWrite ||
+		c.responseBodyAccessRead || c.responseBodyAccessWrite
+}
+
 // checkRequestBodyAccessibility checks the accessibility of the request body based on the request header.
 func (c *context) checkRequestBodyAccessibility() {
+	if !c.bodyAccessPossible() {
+		c.requestBodyAccessRead, c.requestBodyAccessWrite = false, false
+		return
+	}
+
 	header := c.httpReq.Header
 
 	if off := header.Get(HeaderXRequestBodyAccess) == XRequestBodyAccessOff; off {
@@ -133,6 +147,11 @@ func (c *context) checkRequestBodyAccessibility() {
 // checkResponseBodyAccessibility checks the accessibility of the response body based on the response header.
 func (c *context) checkResponseBodyAccessibility(header http.Header) {
 
+	if !c.bodyAccessPossible() {
+		c.responseBodyAccessRead, c.responseBodyAccessWrite = false, false
+		return
+	}
+
 	if off := header.Get(HeaderXResponseBodyAccess) == XResponseBodyAccessOff; off {
 		c.responseBodyAccessRead, c.responseBodyAccessWrite = false, false
 		return
@@ -145,6 +164,11 @@ func (c *context) checkResponseBodyAccessibility(header http.Header) {
 // as checkResponseBodyAccessibility but reads 2-4 headers via direct Gets instead
 // of materializing the full map. Saves one full C-iterator walk per response.
 func (c *context) checkResponseBodyAccessibilityLive(header api.HeaderMap) {
+	if !c.bodyAccessPossible() {
+		c.responseBodyAccessRead, c.responseBodyAccessWrite = false, false
+		return
+	}
+
 	if v, ok := header.Get(HeaderXResponseBodyAccess); ok && v == XResponseBodyAccessOff {
 		c.responseBodyAccessRead, c.responseBodyAccessWrite = false, false
 		return

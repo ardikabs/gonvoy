@@ -2,7 +2,6 @@ package gonvoy
 
 import (
 	"net/http"
-	"runtime"
 
 	"github.com/ardikabs/gonvoy/pkg/types"
 	"github.com/ardikabs/gonvoy/pkg/util"
@@ -34,7 +33,9 @@ func (c *context) LoadResponseHeaders(header api.ResponseHeaderMap) {
 		return
 	}
 
-	c.checkResponseBodyAccessibility(snapshotRequestHeaders(header))
+	// Single-materialization: body-access check needs 2-3 headers, not a full
+	// C-iterator walk. Direct Gets cost 2-3 cgo calls vs N callbacks.
+	c.checkResponseBodyAccessibilityLive(header)
 }
 
 func (c *context) IsRequestBodyAccessible() bool {
@@ -110,7 +111,6 @@ func (c *context) JSON(code int, body []byte, opts ...LocalReplyOption) error {
 	c.pcb.SendLocalReply(code, string(body), reply.headers, reply.grpcStatusCode, reply.responseCodeDetails)
 	c.committed = true
 
-	runtime.GC()
 	return nil
 }
 
@@ -139,6 +139,73 @@ func (c *context) checkResponseBodyAccessibility(header http.Header) {
 	}
 
 	c.responseBodyAccessRead, c.responseBodyAccessWrite = c.checkHTTPBodyAccessibility(c.strictBodyAccess, c.responseBodyAccessRead, c.responseBodyAccessWrite, header)
+}
+
+// checkResponseBodyAccessibilityLive is the EncodeHeaders fast path: same semantics
+// as checkResponseBodyAccessibility but reads 2-4 headers via direct Gets instead
+// of materializing the full map. Saves one full C-iterator walk per response.
+func (c *context) checkResponseBodyAccessibilityLive(header api.HeaderMap) {
+	if v, ok := header.Get(HeaderXResponseBodyAccess); ok && v == XResponseBodyAccessOff {
+		c.responseBodyAccessRead, c.responseBodyAccessWrite = false, false
+		return
+	}
+
+	c.responseBodyAccessRead, c.responseBodyAccessWrite = c.checkHTTPBodyAccessibilityLive(c.strictBodyAccess, c.responseBodyAccessRead, c.responseBodyAccessWrite, header)
+}
+
+// checkHTTPBodyAccessibilityLive mirrors checkHTTPBodyAccessibility for a live Envoy map.
+func (c *context) checkHTTPBodyAccessibilityLive(strict, allowRead, allowWrite bool, header api.HeaderMap) (read, write bool) {
+	access := c.isHTTPBodyAccessibleLive(header)
+	if !access {
+		return
+	}
+
+	if !strict {
+		read = access && (allowRead || allowWrite)
+		write = access && allowWrite
+		return
+	}
+
+	operation := ""
+	if v, ok := header.Get(HeaderXContentOperation); ok {
+		operation = v
+	}
+
+	if util.In(operation, ContentOperationReadOnly, ContentOperationRO) {
+		read = access && allowRead
+		return
+	}
+
+	if util.In(operation, ContentOperationReadWrite, ContentOperationRW) {
+		write = access && allowWrite
+		read = write
+		return
+	}
+
+	return
+}
+
+// isHTTPBodyAccessibleLive mirrors isHTTPBodyAccessible for a live Envoy map.
+func (c *context) isHTTPBodyAccessibleLive(header api.HeaderMap) bool {
+	cType, ok := header.Get(HeaderContentType)
+	if !ok || cType == "" {
+		return false
+	}
+
+	if util.StringStartsWith(cType, validContentTypes...) {
+		return true
+	}
+
+	if util.StringStartsWith(cType, MIMEApplicationGRPC) &&
+		(cType == MIMEApplicationGRPC || cType[len(MIMEApplicationGRPC)] == '+') {
+		return false
+	}
+
+	if cLength, ok := header.Get(HeaderContentLength); ok && cLength != "" {
+		return cLength != "0"
+	}
+
+	return false
 }
 
 // checkHTTPBodyAccessibility checks the accessibility of the HTTP body based on the provided parameters.
@@ -174,6 +241,19 @@ func (c *context) checkHTTPBodyAccessibility(strict, allowRead, allowWrite bool,
 	return
 }
 
+// validContentTypes is the package-level allowlist for HTTP body access.
+// Hoisted from per-call literal: isHTTPBodyAccessible runs on every request.
+var validContentTypes = []string{
+	MIMEApplicationJSON,
+	MIMEApplicationXML,
+	MIMEApplicationForm,
+	MIMEApplicationProtobuf,
+	MIMEApplicationMsgpack,
+	MIMETextXML,
+	MIMEMultipartForm,
+	MIMEOctetStream,
+}
+
 // isHTTPBodyAccessible checks if the HTTP body is accessible based on the provided header.
 // It returns true if the body is accessible, otherwise false.
 // It checks the accessibility of the body based on the content type and/or content length.
@@ -182,17 +262,6 @@ func (c *context) isHTTPBodyAccessible(header http.Header) bool {
 
 	if cType == "" {
 		return false
-	}
-
-	validContentTypes := []string{
-		MIMEApplicationJSON,
-		MIMEApplicationXML,
-		MIMEApplicationForm,
-		MIMEApplicationProtobuf,
-		MIMEApplicationMsgpack,
-		MIMETextXML,
-		MIMEMultipartForm,
-		MIMEOctetStream,
 	}
 
 	if util.StringStartsWith(cType, validContentTypes...) {

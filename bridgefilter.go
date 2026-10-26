@@ -3,6 +3,7 @@ package gonvoy
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -21,6 +22,13 @@ type bridgeFilter struct {
 
 	errorHandler func(bridgeContext, error) api.StatusType
 	sendReply    func(ex *bridgeExchange, status int, body []byte) api.StatusType
+
+	// Shared per-stream closures: hoisted from per-request allocs.
+	// logFn/cacheFn/secretLookupFn close over ctx only, identical for every
+	// request on this stream. Per-request hooks still close over ex.
+	sharedLog          func() logr.Logger
+	sharedCache        func() Cache
+	sharedSecretLookup func(name string) (string, bool)
 }
 
 var NoOpHttpFilter = &api.PassThroughStreamFilter{}
@@ -40,13 +48,12 @@ func NewHandlerChainFactory(h Handler) api.StreamFilterFactory {
 			panic(fmt.Sprintf("handlerChainFactory: unexpected config type '%T', expecting '%T'", cfg, config))
 		}
 
-		logger := newLogger(cb)
+		// Logger builds lazily on first Log: the hot path pays nothing here.
 		ctx, err := newBridgeContext(cb, contextOptions{
 			config: config,
-			logger: logger,
 		})
 		if err != nil {
-			logger.Error(err, "failed to initialize context for filter, ignoring filter ...")
+			newLogger(cb).Error(err, "failed to initialize context for filter, ignoring filter ...")
 			return NoOpHttpFilter
 		}
 
@@ -61,6 +68,12 @@ func newBridgeFilter(c *context, h httpHandler) *bridgeFilter {
 		errorHandler: func(c bridgeContext, err error) api.StatusType { return defaultErrorHandler(c, err) },
 	}
 	f.sendReply = f.defaultSendReply
+	// Hoist stream-stable closures once: identical for every request.
+	f.sharedLog = func() logr.Logger { return c.Log() }
+	f.sharedCache = func() Cache { return c.GetCache() }
+	f.sharedSecretLookup = func(name string) (string, bool) {
+		return c.cb.SecretManager().GetGenericSecret(name)
+	}
 	return f
 }
 
@@ -90,15 +103,39 @@ func (f *bridgeFilter) EncodeHeaders(header api.ResponseHeaderMap, endStream boo
 		return api.Continue
 	}
 
+	// Clean passthrough: the handler returned without proceeding and left no
+	// late signal. Nobody waits for this response and nobody reads it, so
+	// skip the snapshot, the reader setup, the refresh, and the flush: only
+	// pre-next response header sets still apply. A drained late signal takes
+	// the full path instead.
+	if ex.gDone.Load() && !ex.nextCalled.Load() {
+		if sig, ok := ex.drainDecision(); ok {
+			return f.applyResponseDecision(ex, header, nil, endStream, sig)
+		}
+
+		if len(ex.w.Header()) > 0 {
+			applyHeaderSets(header, ex.w.Header())
+		}
+
+		return api.Continue
+	}
+
 	c := f.ctx
 	c.pcb = c.cb.EncoderFilterCallbacks()
 	c.LoadResponseHeaders(header)
 
 	code, _ := header.Status()
 	ex.respCode = code
-	ex.respHeader = snapshotRequestHeaders(header)
+	ex.respHeader = refillRequestHeaders(header, ex.respHeader)
 	ex.liveRespHeader = header
-	ex.respReader = &gatedRespReader{ex: ex, enabled: c.IsResponseBodyReadable() || c.IsResponseBodyWritable()}
+	// Reuse the respReader built in newExchange: only the gate flips per
+	// phase. Encode used to allocate a second reader per request.
+	respEnabled := c.IsResponseBodyReadable() || c.IsResponseBodyWritable()
+	if ex.respReader == nil {
+		ex.respReader = &gatedRespReader{ex: ex, enabled: respEnabled}
+	} else {
+		ex.respReader.enabled = respEnabled
+	}
 	if c.IsResponseBodyWritable() {
 		_ = shouldOmitContentLengthOnResponse(c, header)
 	}
@@ -107,15 +144,6 @@ func (f *bridgeFilter) EncodeHeaders(header api.ResponseHeaderMap, endStream boo
 
 	f.refreshAttrs(ex, ex.req, true)
 	f.flushMetrics(ex)
-
-	if ex.gDone.Load() && !ex.nextCalled.Load() {
-		if sig, ok := ex.drainDecision(); ok {
-			return f.applyResponseDecision(ex, header, nil, endStream, sig)
-		}
-
-		applyHeaderSets(header, ex.w.Header())
-		return api.Continue
-	}
 
 	sig, ok := ex.awaitSignal()
 	if !ok {
@@ -325,10 +353,12 @@ func (f *bridgeFilter) EncodeTrailers(api.ResponseTrailerMap) api.StatusType {
 	return f.applyResponseDecision(ex, nil, nil, true, sig)
 }
 
-// OnDestroy unblocks the handler goroutine and drops queued work.
+// OnDestroy unblocks the handler goroutine and drops queued work. Cleanly
+// finished exchanges return to the pool; aborted ones drop.
 func (f *bridgeFilter) OnDestroy(api.DestroyReason) {
 	if ex := f.exchange; ex != nil {
 		ex.destroy()
+		releaseBridgeExchange(ex)
 	}
 
 	f.exchange = nil
@@ -439,26 +469,31 @@ func (f *bridgeFilter) applyRequestDecision(ex *bridgeExchange, header api.Reque
 	return api.Continue
 }
 
+// propagateRequestLine applies the exchange's mutated request-line fields to
+// the live Envoy map.
+func (f *bridgeFilter) propagateRequestLine(ex *bridgeExchange, live api.RequestHeaderMap) {
+	propagateRequestLine(ex.req, ex.origHost, ex.origMethod, ex.origPath, live)
+}
+
 // propagateRequestLine applies handler-mutated request-line fields (path,
 // host, method) to the live Envoy map. Plain header diffing cannot do this:
 // :path, :authority, and :method are pseudo-headers outside http.Header.
-// Mirrors SetRequestPath/SetRequestHost/SetRequestMethod.
-func (f *bridgeFilter) propagateRequestLine(ex *bridgeExchange, live api.RequestHeaderMap) {
+func propagateRequestLine(r *http.Request, origHost, origMethod, origPath string, live api.RequestHeaderMap) {
 	path := ""
-	if ex.req.URL != nil {
-		path = ex.req.URL.Path
+	if r.URL != nil {
+		path = r.URL.Path
 	}
 
-	if path != ex.origPath {
+	if path != origPath {
 		live.SetPath(path)
 	}
 
-	if ex.req.Host != ex.origHost {
-		live.SetHost(ex.req.Host)
+	if r.Host != origHost {
+		live.SetHost(r.Host)
 	}
 
-	if ex.req.Method != ex.origMethod {
-		live.SetMethod(ex.req.Method)
+	if r.Method != origMethod {
+		live.SetMethod(r.Method)
 	}
 }
 
@@ -492,23 +527,30 @@ func (f *bridgeFilter) applyProceed(ex *bridgeExchange, header api.RequestHeader
 // requestMutated reports whether the handler changed routing-relevant
 // request state since DecodeHeaders.
 func (f *bridgeFilter) requestMutated(ex *bridgeExchange) bool {
+	return headersMutated(ex.req, ex.reqSnapshot, ex.origHost, ex.origMethod, ex.origPath)
+}
+
+// headersMutated reports whether r drifted from its DecodeHeaders snapshot in
+// routing-relevant state: host, method, path, or any header addition, change,
+// or removal. Pure Go, shared by the coroutine bridge and the header-only path.
+func headersMutated(r *http.Request, snapshot http.Header, origHost, origMethod, origPath string) bool {
 	path := ""
-	if ex.req.URL != nil {
-		path = ex.req.URL.Path
+	if r.URL != nil {
+		path = r.URL.Path
 	}
 
-	if ex.req.Host != ex.origHost || ex.req.Method != ex.origMethod || path != ex.origPath {
+	if r.Host != origHost || r.Method != origMethod || path != origPath {
 		return true
 	}
 
-	current := ex.req.Header
+	current := r.Header
 	for k, v := range current {
-		if old, ok := ex.reqSnapshot[k]; !ok || !equalHeaderValues(old, v) {
+		if old, ok := snapshot[k]; !ok || !equalHeaderValues(old, v) {
 			return true
 		}
 	}
 
-	for k := range ex.reqSnapshot {
+	for k := range snapshot {
 		if _, ok := current[k]; !ok {
 			return true
 		}
@@ -598,8 +640,14 @@ func (f *bridgeFilter) applyDrain(ex *bridgeExchange) {
 }
 
 // flushMetrics applies queued metric intents in order. Runs on W only.
+// Empty flushes are skipped without touching Metrics(): most requests queue
+// nothing, but flush runs on every decision point plus OnLog/OnStreamComplete.
 func (f *bridgeFilter) flushMetrics(ex *bridgeExchange) {
 	ex.metricMu.Lock()
+	if len(ex.metricOps) == 0 {
+		ex.metricMu.Unlock()
+		return
+	}
 	ops := ex.metricOps
 	ex.metricOps = nil
 	ex.metricMu.Unlock()
@@ -619,34 +667,92 @@ func (f *bridgeFilter) flushMetrics(ex *bridgeExchange) {
 }
 
 // refreshAttrs snapshots Envoy attributes for Attr lookups.
-// request.* come from the live request; the rest from GetProperty.
+// request.* come from the live request (no cgo); xds.* and response.* come
+// from GetProperty. request.* never change after decode, so the response
+// phase refreshes only response.*.
 func (f *bridgeFilter) refreshAttrs(ex *bridgeExchange, r *http.Request, response bool) {
+	if !response {
+		ex.attrMu.Lock()
+		if r != nil {
+			if r.Host != "" {
+				if ex.attrs == nil {
+					ex.attrs = make(map[string]string)
+				}
+				ex.attrs["request.host"] = r.Host
+			}
+			if r.Method != "" {
+				if ex.attrs == nil {
+					ex.attrs = make(map[string]string)
+				}
+				ex.attrs["request.method"] = r.Method
+			}
+			if r.URL != nil && r.URL.Path != "" {
+				if ex.attrs == nil {
+					ex.attrs = make(map[string]string)
+				}
+				ex.attrs["request.path"] = r.URL.Path
+			}
+		}
+		ex.attrMu.Unlock()
+
+		c := f.ctx
+		for _, key := range xdsAttrKeys {
+			if v, err := c.GetProperty(key, ""); err == nil && v != "" {
+				ex.attrMu.Lock()
+				if ex.attrs == nil {
+					ex.attrs = make(map[string]string)
+				}
+				ex.attrs[key] = v
+				ex.attrMu.Unlock()
+			}
+		}
+
+		return
+	}
+
 	c := f.ctx
 
-	ex.attrMu.Lock()
-	defer ex.attrMu.Unlock()
+	if ex.respCode != 0 {
+		ex.attrMu.Lock()
+		if ex.attrs == nil {
+			ex.attrs = make(map[string]string)
+		}
+		ex.attrs["response.code"] = itoa(ex.respCode)
+		ex.attrMu.Unlock()
+	}
 
-	for _, key := range []string{"request.host", "request.method", "request.path", "xds.cluster_name", "xds.route_name"} {
+	for _, key := range xdsAttrKeys {
 		if v, err := c.GetProperty(key, ""); err == nil && v != "" {
+			ex.attrMu.Lock()
+			if ex.attrs == nil {
+				ex.attrs = make(map[string]string)
+			}
 			ex.attrs[key] = v
+			ex.attrMu.Unlock()
 		}
 	}
 
-	if response {
-		if ex.respCode != 0 {
-			ex.attrs["response.code"] = itoa(ex.respCode)
-		}
-
-		for _, key := range []string{"response.code_details", "response.flags"} {
-			if v, err := c.GetProperty(key, ""); err == nil && v != "" {
-				ex.attrs[key] = v
+	for _, key := range responseAttrKeys {
+		if v, err := c.GetProperty(key, ""); err == nil && v != "" {
+			ex.attrMu.Lock()
+			if ex.attrs == nil {
+				ex.attrs = make(map[string]string)
 			}
+			ex.attrs[key] = v
+			ex.attrMu.Unlock()
 		}
 	}
 }
 
+// xdsAttrKeys and responseAttrKeys are hoisted from per-call slice literals:
+// refreshAttrs runs on every request.
+var (
+	xdsAttrKeys      = []string{"xds.cluster_name", "xds.route_name"}
+	responseAttrKeys = []string{"response.code_details", "response.flags"}
+)
+
 func itoa(i int) string {
-	return fmt.Sprintf("%d", i)
+	return strconv.Itoa(i)
 }
 
 // newExchange builds the per-request exchange: snapshots, hooks, reader.
@@ -654,16 +760,31 @@ func (f *bridgeFilter) newExchange(header api.RequestHeaderMap, endStream bool) 
 	c := f.ctx
 	c.LoadRequestHeaders(header)
 
-	snap := snapshotRequestHeaders(header)
-
+	// Single-materialization: LoadRequestHeaders already walked the C headers
+	// once into c.httpReq.Header. Refill the snapshot Go-side instead of
+	// ranging C again. Saves one cgo callback per header on every request.
 	r := c.httpReq
 
-	ex := newBridgeExchange(f.h, r, newRecordingWriter(), bridgeHooks{})
-	gated := &gatedBodyReader{ex: ex, enabled: c.IsRequestBodyReadable() || c.IsRequestBodyWritable()}
-	r.Body = gated
-	ex.gatedBody = gated
-	ex.respReader = &gatedRespReader{ex: ex, enabled: c.IsResponseBodyReadable() || c.IsResponseBodyWritable()}
-	ex.reqSnapshot = snap
+	// Pooled exchanges arrive reset: writer, readers, maps, channels, and
+	// ex-capturing hooks stay valid (same exchange pointer). Fresh exchanges
+	// allocate each once, then join the pool after a clean destroy.
+	ex := acquireBridgeExchange(f.h, r)
+
+	// Reuse the gated readers: only the gate flips per request.
+	reqBodyEnabled := c.IsRequestBodyReadable() || c.IsRequestBodyWritable()
+	if ex.gatedBody == nil {
+		ex.gatedBody = &gatedBodyReader{ex: ex, enabled: reqBodyEnabled}
+	} else {
+		ex.gatedBody.enabled = reqBodyEnabled
+	}
+	r.Body = ex.gatedBody
+	respBodyEnabled := c.IsResponseBodyReadable() || c.IsResponseBodyWritable()
+	if ex.respReader == nil {
+		ex.respReader = &gatedRespReader{ex: ex, enabled: respBodyEnabled}
+	} else {
+		ex.respReader.enabled = respBodyEnabled
+	}
+	ex.reqSnapshot = refillHeader(ex.reqSnapshot, r.Header)
 	ex.reqHeaderMap = header
 	ex.origHost = r.Host
 	ex.origMethod = r.Method
@@ -679,37 +800,58 @@ func (f *bridgeFilter) newExchange(header api.RequestHeaderMap, endStream bool) 
 		}
 	}
 
-	ex.secretLookup = func(name string) (string, bool) {
-		return c.cb.SecretManager().GetGenericSecret(name)
+	// Reuse stream-stable closures: no per-request alloc for log/cache/secret lookup.
+	ex.secretLookup = f.sharedSecretLookup
+	if ex.secretLookup == nil {
+		ex.secretLookup = func(name string) (string, bool) {
+			return c.cb.SecretManager().GetGenericSecret(name)
+		}
+	}
+	logFn := f.sharedLog
+	if logFn == nil {
+		logFn = func() logr.Logger { return c.Log() }
+	}
+	cacheFn := f.sharedCache
+	if cacheFn == nil {
+		cacheFn = func() Cache { return c.GetCache() }
 	}
 
-	ex.hooks = bridgeHooks{
-		attr: func(name string) (string, bool) {
-			ex.attrMu.Lock()
-			defer ex.attrMu.Unlock()
-			v, ok := ex.attrs[name]
-			return v, ok
-		},
-		reroute: func() { ex.reroute = true },
-		overrideUpstream: func(host string, strict bool) {
-			ex.overrideHost, ex.overrideStrict, ex.hasOverride = host, strict, true
-		},
-		drain: func() { ex.drain = true },
-		secret: func(name string) (string, bool) {
-			return ex.requestSecret(name)
-		},
-		log:         func() logr.Logger { return c.Log() },
-		sharedCache: func() Cache { return c.GetCache() },
-		emitMetric: func(op MetricOp) {
-			ex.metricMu.Lock()
-			ex.metricOps = append(ex.metricOps, op)
-			ex.metricMu.Unlock()
-		},
+	if !ex.hooksWired {
+		// First use: every ex-capturing closure closes over this same
+		// exchange pointer, so pooled reuses keep them as-is.
+		ex.hooks = bridgeHooks{
+			attr: func(name string) (string, bool) {
+				ex.attrMu.Lock()
+				defer ex.attrMu.Unlock()
+				v, ok := ex.attrs[name]
+				return v, ok
+			},
+			reroute: func() { ex.reroute = true },
+			overrideUpstream: func(host string, strict bool) {
+				ex.overrideHost, ex.overrideStrict, ex.hasOverride = host, strict, true
+			},
+			drain: func() { ex.drain = true },
+			secret: func(name string) (string, bool) {
+				return ex.requestSecret(name)
+			},
+			log:         logFn,
+			sharedCache: cacheFn,
+			emitMetric: func(op MetricOp) {
+				ex.metricMu.Lock()
+				ex.metricOps = append(ex.metricOps, op)
+				ex.metricMu.Unlock()
+			},
+		}
+		ex.hooksWired = true
+	} else {
+		// Pooled reuse: only the stream-stable trio may belong to another
+		// stream's context. The rest still close over this exchange.
+		ex.hooks.log = logFn
+		ex.hooks.sharedCache = cacheFn
 	}
 
-	r = withBridgeConfig(r, c.filterConfig)
-	r = withBridgeHooks(r, ex.hooks)
-	r = withBridgeExchange(r, ex)
+	// Single context node: 1 request copy + 1 node instead of 3+3.
+	r = withBridgeValues(r, c.filterConfig, ex.hooks, ex)
 	ex.req = r
 
 	f.refreshAttrs(ex, r, false)
@@ -753,6 +895,23 @@ func snapshotRequestHeaders(header api.HeaderMap) http.Header {
 	})
 
 	return snap
+}
+
+// refillRequestHeaders copies the live Envoy headers into dst, reusing its
+// buckets. A nil dst snapshots fresh. Pooled exchanges refill the response
+// snapshot instead of reallocating it per response.
+func refillRequestHeaders(header api.HeaderMap, dst http.Header) http.Header {
+	if dst == nil {
+		return snapshotRequestHeaders(header)
+	}
+
+	clear(dst)
+	header.Range(func(key, value string) bool {
+		dst.Add(key, value)
+		return true
+	})
+
+	return dst
 }
 
 // applyHeaderDiff writes snapshot-to-current differences to the live map.

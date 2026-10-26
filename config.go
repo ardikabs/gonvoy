@@ -3,6 +3,7 @@ package gonvoy
 import (
 	"errors"
 	"strings"
+	"sync"
 
 	"github.com/ardikabs/gonvoy/pkg/util"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -27,6 +28,18 @@ type internalConfig struct {
 	preserveContentLengthOnResponse bool
 
 	autoReloadRoute bool
+
+	// metricCache holds shared metric handles defined once via cgo and reused
+	// across streams. Pointer so config copies (parent/child merge) share it
+	// without copying a mutex.
+	metricCache *metricHandleCache
+}
+
+// metricHandleCache memoizes DefineCounter/GaugeMetric handles.
+type metricHandleCache struct {
+	mu       sync.Mutex
+	counters map[string]api.CounterMetric
+	gauges   map[string]api.GaugeMetric
 }
 
 func newInternalConfig(options ConfigOptions) *internalConfig {
@@ -34,6 +47,7 @@ func newInternalConfig(options ConfigOptions) *internalConfig {
 		internalCache:   newInternalCache(),
 		autoReloadRoute: options.AutoReloadRoute,
 		metricsPrefix:   options.MetricsPrefix,
+		metricCache:     &metricHandleCache{},
 
 		strictBodyAccess:                !options.DisableStrictBodyAccess,
 		allowRequestBodyRead:            options.EnableRequestBodyRead,
@@ -60,12 +74,64 @@ func (c *internalConfig) Destroy() {
 
 func (c *internalConfig) defineCounterMetric(name string) api.CounterMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
-	return c.callbacks.DefineCounterMetric(name)
+
+	mc := c.metricCache
+	if mc == nil {
+		return c.callbacks.DefineCounterMetric(name)
+	}
+
+	mc.mu.Lock()
+	if mc.counters == nil {
+		mc.counters = make(map[string]api.CounterMetric)
+	}
+	if m, ok := mc.counters[name]; ok {
+		mc.mu.Unlock()
+		return m
+	}
+	mc.mu.Unlock()
+
+	m := c.callbacks.DefineCounterMetric(name)
+
+	mc.mu.Lock()
+	if existing, ok := mc.counters[name]; ok {
+		mc.mu.Unlock()
+		return existing
+	}
+	mc.counters[name] = m
+	mc.mu.Unlock()
+
+	return m
 }
 
 func (c *internalConfig) defineGaugeMetric(name string) api.GaugeMetric {
 	name = strings.ToLower(util.ReplaceAllEmptySpace(c.metricsPrefix + name))
-	return c.callbacks.DefineGaugeMetric(name)
+
+	mc := c.metricCache
+	if mc == nil {
+		return c.callbacks.DefineGaugeMetric(name)
+	}
+
+	mc.mu.Lock()
+	if mc.gauges == nil {
+		mc.gauges = make(map[string]api.GaugeMetric)
+	}
+	if m, ok := mc.gauges[name]; ok {
+		mc.mu.Unlock()
+		return m
+	}
+	mc.mu.Unlock()
+
+	m := c.callbacks.DefineGaugeMetric(name)
+
+	mc.mu.Lock()
+	if existing, ok := mc.gauges[name]; ok {
+		mc.mu.Unlock()
+		return existing
+	}
+	mc.gauges[name] = m
+	mc.mu.Unlock()
+
+	return m
 }
 
 func (c *internalConfig) defineHistogramMetric(name string) api.HistogramMetric {

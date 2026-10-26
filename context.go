@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/go-logr/logr"
@@ -273,7 +274,11 @@ type context struct {
 	cache        Cache
 	metrics      Metrics
 	logger       logr.Logger
-	committed    bool
+	// loggerInit builds logger lazily on first Log: filters that never log
+	// skip the zerolog construction per stream. Set either up front via
+	// options (tests, factories) or inside the Once from c.cb.
+	loggerInit sync.Once
+	committed  bool
 }
 
 func (c *context) reset() {

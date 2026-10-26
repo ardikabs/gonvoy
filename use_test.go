@@ -1,7 +1,9 @@
 package gonvoy
 
 import (
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -200,9 +202,10 @@ func TestUse_SingleMiddlewareObservesResponse(t *testing.T) {
 }
 
 // TestChain_ExplicitFinal pins Chain: layers wrap an explicit final Handler.
-// An unanswered final still reaches the internal upstream hop, so a custom
-// terminal keeps the callNext behavior by default. An answered final
-// short-circuits without forwarding.
+// An unanswered final passes through without parking for a response nobody
+// asked for; pre-next response header sets still reach the upstream reply
+// through the encode fast path. An answered final short-circuits without
+// forwarding.
 func TestChain_ExplicitFinal(t *testing.T) {
 	t.Parallel()
 
@@ -224,7 +227,7 @@ func TestChain_ExplicitFinal(t *testing.T) {
 	require.NoError(t, Chain(final, outer)(c))
 
 	assert.Equal(t, []string{"outer:before", "final", "outer:after"}, order)
-	assert.True(t, c.ex.nextCalled.Load(), "unanswered final must reach upstream via forwardUpstream")
+	assert.False(t, c.ex.nextCalled.Load(), "unanswered final passes through without parking")
 
 	order = nil
 	c2 := newTestHandlerContext()
@@ -248,9 +251,9 @@ func TestChain_NilPanics(t *testing.T) {
 	require.Panics(t, func() { Chain(final, nil) })
 }
 
-// TestChain_UnansweredFinalForwardsUpstream pins the terminal guarantee:
-// a final that leaves the request unanswered still reaches the internal
-// upstream hop instead of ending the chain silently.
+// TestChain_UnansweredFinalForwardsUpstream pins the passthrough guarantee:
+// a final that leaves the request unanswered still forwards upstream,
+// without parking for a response nobody observes.
 func TestChain_UnansweredFinalForwardsUpstream(t *testing.T) {
 	t.Parallel()
 
@@ -258,12 +261,28 @@ func TestChain_UnansweredFinalForwardsUpstream(t *testing.T) {
 	final := Handler(func(Context) error { return nil })
 
 	require.NoError(t, Chain(final)(c))
-	assert.True(t, c.ex.nextCalled.Load(), "unanswered final must reach upstream via forwardUpstream")
+	assert.False(t, c.ex.nextCalled.Load(), "unanswered final passes through without parking")
 }
 
-// TestChain_SkippedMiddlewareStillForwards pins the outer-boundary terminal:
-// an outer layer that returns without calling next still ends with the same
-// terminal behavior, so the filter always continues.
+// TestChain_ReplacedBodyStillReachesTerminal pins the carve-out: a final
+// that swaps r.Body without proceeding still goes through the terminal hop,
+// which alone streams the replacement upstream.
+func TestChain_ReplacedBodyStillReachesTerminal(t *testing.T) {
+	t.Parallel()
+
+	c := newTestHandlerContext()
+	final := Handler(func(c Context) error {
+		c.Request().Body = io.NopCloser(strings.NewReader("replacement"))
+		return nil
+	})
+
+	require.NoError(t, Chain(final)(c))
+	assert.True(t, c.ex.nextCalled.Load(), "swapped body must stream through the terminal hop")
+}
+
+// TestChain_SkippedMiddlewareStillForwards pins the outer-boundary passthrough:
+// an outer layer that returns without calling next still forwards the request
+// upstream, without parking for a response nobody observes.
 func TestChain_SkippedMiddlewareStillForwards(t *testing.T) {
 	t.Parallel()
 
@@ -283,5 +302,5 @@ func TestChain_SkippedMiddlewareStillForwards(t *testing.T) {
 	require.NoError(t, Chain(final, outer)(c))
 
 	assert.Equal(t, []string{"outer"}, order)
-	assert.True(t, c.ex.nextCalled.Load(), "skipped chain must still reach upstream via forwardUpstream")
+	assert.False(t, c.ex.nextCalled.Load(), "skipped chain passes through without parking")
 }

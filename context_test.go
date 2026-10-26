@@ -222,9 +222,10 @@ func TestContext_ResponseBodyAccessibility(t *testing.T) {
 
 			respHeaderMapMock := mock_envoy.NewResponseHeaderMap(t)
 			respHeaderMapMock.EXPECT().Status().Return(http.StatusOK, true)
-			respHeaderMapMock.EXPECT().Range(mock.Anything).Run(func(f func(string, string) bool) {
-				f("content-type", tc.contentType)
-			})
+			respHeaderMapMock.EXPECT().Get(HeaderXResponseBodyAccess).Return("", false).Maybe()
+			respHeaderMapMock.EXPECT().Get(HeaderContentType).Return(tc.contentType, true).Maybe()
+			respHeaderMapMock.EXPECT().Get(HeaderContentLength).Return("", false).Maybe()
+			respHeaderMapMock.EXPECT().Get(HeaderXContentOperation).Return("", false).Maybe()
 
 			ctx := fakeDummyContext(t, tc.config)
 			ctx.LoadResponseHeaders(respHeaderMapMock)

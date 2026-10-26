@@ -46,6 +46,18 @@ func (c *handlerContext) Request() *http.Request { return c.r }
 // The view is fresh per call because the upstream publication swaps
 // the header map: a view cached before next detaches and writes to it
 // are lost, so call Response again after next.
+// responseStatusCache precomputes "NNN Text" strings so Response() avoids
+// StatusText+Sprintf per call. Initialized once; covers 100-599.
+var responseStatusCache [600]string
+
+func init() {
+	for s := 100; s < 600; s++ {
+		if text := http.StatusText(s); text != "" {
+			responseStatusCache[s] = fmt.Sprintf("%03d %s", s, text)
+		}
+	}
+}
+
 func (c *handlerContext) Response() *http.Response {
 	if c.w == nil {
 		return &http.Response{Header: make(http.Header)}
@@ -53,7 +65,11 @@ func (c *handlerContext) Response() *http.Response {
 
 	status := c.w.Status()
 	resp := &http.Response{Header: c.w.Header(), StatusCode: status}
-	if text := http.StatusText(status); text != "" {
+	if status >= 100 && status < 600 {
+		if s := responseStatusCache[status]; s != "" {
+			resp.Status = s
+		}
+	} else if text := http.StatusText(status); text != "" {
 		resp.Status = fmt.Sprintf("%03d %s", status, text)
 	}
 
@@ -62,7 +78,7 @@ func (c *handlerContext) Response() *http.Response {
 		// Outside the bridge Body stays nil; ResponseBody reports the
 		// absence instead.
 	case !c.ex.nextCalled.Load():
-		resp.Body = &poisonRespReader{ex: c.ex, log: c.Log()}
+		resp.Body = &poisonRespReader{ex: c.ex}
 	case c.ex.respReader != nil:
 		resp.Body = c.ex.respReader
 	}
@@ -202,7 +218,7 @@ func (c *handlerContext) ResponseBody() (io.Reader, error) {
 	}
 
 	if c.ex != nil && !c.ex.nextCalled.Load() {
-		return nil, c.ex.failEarlyRespBody(c.Log())
+		return nil, c.ex.failEarlyRespBody()
 	}
 
 	return ResponseBody(c.r)

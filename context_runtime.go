@@ -35,6 +35,20 @@ func (c *context) GetCache() Cache {
 }
 
 func (c *context) Log() logr.Logger {
+	c.loggerInit.Do(func() {
+		if !c.logger.IsZero() {
+			return
+		}
+
+		if c.cb != nil {
+			c.logger = newLogger(c.cb)
+		}
+	})
+
+	if c.logger.IsZero() {
+		return logr.Discard()
+	}
+
 	return c.logger
 }
 

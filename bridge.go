@@ -198,13 +198,13 @@ func newBridgeExchange(h httpHandler, req *http.Request, w *recordingWriter, hoo
 // exited (gDone), so no live state crosses requests.
 var bridgeExchangePool sync.Pool
 
-// acquireBridgeExchange returns a reset exchange bound to (h, req). Pooled
-// exchanges keep their writer, readers, maps, channels, and ex-capturing
-// hooks: reset drops contents, newExchange refills per-request values.
+// acquireBridgeExchange returns an exchange bound to (h, req). Pooled
+// exchanges arrive reset at release and keep their writer, readers, maps,
+// channels, and ex-capturing hooks; newExchange refills per-request values.
+// Fresh exchanges are clean by construction.
 func acquireBridgeExchange(h httpHandler, req *http.Request) *bridgeExchange {
 	if v := bridgeExchangePool.Get(); v != nil {
 		ex := v.(*bridgeExchange)
-		resetBridgeExchange(ex)
 		ex.handler = h
 		ex.req = req
 
@@ -230,6 +230,8 @@ func releaseBridgeExchange(ex *bridgeExchange) {
 // leaks across requests. Anything that could outlive the stream (body bytes,
 // TLS slices, live Envoy maps) releases; capacities stay for reuse.
 // Channels drain; done/respReady renew (a closed channel cannot reset).
+// Runs once per pooled cycle, at release: pooled objects sit clean (pinning
+// nothing) and acquire only binds handler and request.
 func resetBridgeExchange(ex *bridgeExchange) {
 	resetRecordingWriter(ex.w)
 

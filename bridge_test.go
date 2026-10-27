@@ -1026,3 +1026,52 @@ func TestBridge_TLSGated(t *testing.T) {
 		assert.False(t, ok, "undeclared TLS must stay absent")
 	})
 }
+
+func TestResetBridgeExchange_DropsState(t *testing.T) {
+	t.Parallel()
+
+	h := HandlerFunc(func(ResponseWriter, *http.Request) {})
+	r, _ := http.NewRequest(http.MethodGet, "http://example.com/", nil)
+	ex := newBridgeExchange(h, r, newRecordingWriter(), bridgeHooks{})
+	oldDone, oldReady := ex.done, ex.respReady
+
+	ex.w.WriteHeader(http.StatusCreated)
+	_, _ = ex.w.Write([]byte("stale"))
+	ex.attrs["x-stale"] = "1"
+	ex.metricOps = append(ex.metricOps, MetricOp{Kind: MetricCounterAdd, Name: "stale"})
+	ex.reqSnapshot = http.Header{"X-Stale": {"1"}}
+	ex.tlsOK = true
+	ex.nextCalled.Store(true)
+	ex.failErr = errors.New("stale")
+	ex.replacedBody = []byte("stale")
+	ex.reroute = true
+	ex.drain = true
+	ex.secretCache = map[string]secretResult{"s": {value: "v", found: true}}
+	ex.feedBody([]byte("stale"), true)
+	ex.signal(brNeedBody)
+
+	resetBridgeExchange(ex)
+
+	assert.Equal(t, 0, ex.w.Status())
+	assert.Empty(t, ex.w.body)
+	assert.Empty(t, ex.w.Header())
+	assert.Empty(t, ex.attrs)
+	assert.Empty(t, ex.metricOps)
+	assert.False(t, ex.tlsOK)
+	assert.False(t, ex.nextCalled.Load())
+	assert.False(t, ex.gDone.Load())
+	assert.Nil(t, ex.failErr)
+	assert.Nil(t, ex.replacedBody)
+	assert.False(t, ex.reroute)
+	assert.False(t, ex.drain)
+	assert.Empty(t, ex.secretCache)
+	assert.Empty(t, ex.bodyChunks)
+	assert.False(t, ex.bodyEnded)
+	assert.Equal(t, 0, len(ex.sigCh))
+	assert.NotEqual(t, oldDone, ex.done)
+	assert.NotEqual(t, oldReady, ex.respReady)
+	// Snapshot maps intentionally survive reset: every read site refills
+	// them before use (refill drops stale keys), so clearing here would only
+	// throw away reused backing arrays.
+	assert.Equal(t, http.Header{"X-Stale": {"1"}}, ex.reqSnapshot)
+}

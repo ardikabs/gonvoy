@@ -50,6 +50,7 @@ One rule covers the only invalid combination: do not write an answer **and** cal
 - Writing real filters: read the [Filter Authoring Guide](user-guide/filter-authoring.md). It covers middleware, bodies, config, routing, metrics, and the rules that keep you out of trouble.
 - Looking up a specific capability: see the [Function Reference](user-guide/function-reference.md). It lists every handler need side by side with the old phase-based equivalent.
 - Choosing registration options: see [Registration Options](user-guide/options.md). It lists every `Handle` option, what it enables, and its default.
+- Costing a filter: see [Performance contract](user-guide/performance.md). It states what gonvoy's abstraction costs, what is free, and when raw Go fits better.
 - Verifying your work: see [Testing Filters](user-guide/testing.md) for unit tests and the end-to-end suite.
 - gRPC traffic: see [gRPC scope](user-guide/grpc-scope.md) before building message or stream logic.
 - Something wrong: check [Troubleshooting](user-guide/troubleshooting.md) first. It lists every common failure and its fix.

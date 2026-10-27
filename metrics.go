@@ -20,14 +20,15 @@ type Metrics interface {
 	Histogram(name string, labelKeyValues ...string) api.HistogramMetric
 }
 
+// newMetrics builds the per-stream recorder. Handles are memoized in the
+// shared config cache, so no per-stream maps are kept: a stream normally
+// serves one request and a lookup cache that is written once and never read
+// again is pure overhead.
 func newMetrics(counterFunc counterFunc, gaugeFunc gaugeFunc, histogramFunc histogramFunc) *metrics {
 	return &metrics{
 		counterFunc:   counterFunc,
 		gaugeFunc:     gaugeFunc,
 		histogramFunc: histogramFunc,
-
-		counterMap: make(map[string]api.CounterMetric),
-		gaugeMap:   make(map[string]api.GaugeMetric),
 	}
 }
 
@@ -42,9 +43,6 @@ type (
 		counterFunc   counterFunc
 		gaugeFunc     gaugeFunc
 		histogramFunc histogramFunc
-
-		counterMap map[string]api.CounterMetric
-		gaugeMap   map[string]api.GaugeMetric
 	}
 )
 
@@ -53,14 +51,7 @@ func (m *metrics) Gauge(name string, labelKeyValues ...string) api.GaugeMetric {
 		panic("metric gauge handler is not set")
 	}
 
-	stats := createStatsName(name, labelKeyValues...)
-	gauge, ok := m.gaugeMap[stats]
-	if !ok {
-		gauge = m.gaugeFunc(stats)
-		m.gaugeMap[stats] = gauge
-	}
-
-	return gauge
+	return m.gaugeFunc(createStatsName(name, labelKeyValues...))
 }
 
 func (m *metrics) Counter(name string, labelKeyValues ...string) api.CounterMetric {
@@ -68,14 +59,7 @@ func (m *metrics) Counter(name string, labelKeyValues ...string) api.CounterMetr
 		panic("metric counter handler is not set")
 	}
 
-	stats := createStatsName(name, labelKeyValues...)
-	counter, ok := m.counterMap[stats]
-	if !ok {
-		counter = m.counterFunc(stats)
-		m.counterMap[stats] = counter
-	}
-
-	return counter
+	return m.counterFunc(createStatsName(name, labelKeyValues...))
 }
 
 func (m *metrics) Histogram(name string, labelKeyValues ...string) api.HistogramMetric {
@@ -84,8 +68,11 @@ func (m *metrics) Histogram(name string, labelKeyValues ...string) api.Histogram
 
 // Create an Envoy stats name with the given name and labels.
 func createStatsName(name string, labels ...string) string {
+	if len(labels) == 0 {
+		return name + "_"
+	}
 	if len(labels)%2 != 0 {
-		return fmt.Sprintf("%s_%s", name, "bad_labels")
+		return name + "_bad_labels"
 	}
 
 	var fmtLabels []string
@@ -93,5 +80,5 @@ func createStatsName(name string, labels ...string) string {
 		fmtLabels = append(fmtLabels, fmt.Sprintf("%s=%s", strings.ReplaceAll(labels[i], "-", "_"), labels[i+1]))
 	}
 
-	return fmt.Sprintf("%s_%s", name, strings.Join(fmtLabels, "_"))
+	return name + "_" + strings.Join(fmtLabels, "_")
 }

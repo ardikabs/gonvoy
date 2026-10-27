@@ -41,6 +41,7 @@ func init() {
 			})
 		}),
 		gonvoy.MetricPrefix("mymetrics_"),
+		gonvoy.EnableEnvoyAttributes("xds.cluster_name", "xds.route_name"),
 	)
 }
 

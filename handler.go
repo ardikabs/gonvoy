@@ -74,6 +74,11 @@ func Config[T any](r *http.Request) (T, error) {
 
 	v := r.Context().Value(bridgeConfigKey{})
 	if v == nil {
+		if bv, ok := r.Context().Value(bridgeRequestKey{}).(bridgeRequestValues); ok {
+			v = bv.cfg
+		}
+	}
+	if v == nil {
 		return zero, fmt.Errorf("filter config is not available, %w", errInternalConfigNotFound)
 	}
 
@@ -231,6 +236,10 @@ func Stats(r *http.Request) MetricsRecorder {
 // re-evaluation happens after the mutations land. Outside the bridge it
 // is a no-op.
 func RefreshRouteCache(ctx stdcontext.Context) {
+	if bv, ok := ctx.Value(bridgeRequestKey{}).(bridgeRequestValues); ok && bv.ex != nil {
+		bv.ex.refreshRoute = true
+		return
+	}
 	if ex, ok := ctx.Value(bridgeExchangeKey{}).(*bridgeExchange); ok && ex != nil {
 		ex.refreshRoute = true
 	}

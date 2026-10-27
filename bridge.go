@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -124,6 +125,9 @@ type bridgeExchange struct {
 	secretMu     sync.Mutex
 	secretReq    secretRequest
 	secretLookup func(name string) (string, bool)
+	// secretCache memoizes lookups within one request: repeated Secret()
+	// calls for the same name skip the channel round-trip + cgo GetGenericSecret.
+	secretCache map[string]secretResult
 
 	// Request body feed. W appends; G drains.
 	bodyMu     sync.Mutex
@@ -157,9 +161,19 @@ type bridgeExchange struct {
 	attrMu sync.Mutex
 	attrs  map[string]string
 
+	// attrFetch is the shared prefetch config, refreshed per use: pooled
+	// exchanges cross configs, so the pointer must never go stale.
+	attrFetch *attrFetchConfig
+
 	// Hooks. Attr reads snapshots; reroute and emitMetric touch pure Go
 	// state only. W applies the rest on callback threads.
 	hooks bridgeHooks
+
+	// hooksWired records that hooks was built for this exchange. Pooled
+	// exchanges keep their ex-capturing closures across reuses: every one
+	// closes over the same exchange pointer, so only the stream-stable trio
+	// (log, sharedCache, secretLookup) refreshes per use.
+	hooksWired bool
 }
 
 // newBridgeExchange builds the exchange. Hooks may carry nil funcs when
@@ -176,6 +190,161 @@ func newBridgeExchange(h httpHandler, req *http.Request, w *recordingWriter, hoo
 		done:      make(chan struct{}),
 		attrs:     make(map[string]string),
 		hooks:     hooks,
+	}
+}
+
+// bridgeExchangePool recycles exchanges across requests on the coroutine
+// path. Release happens only in OnDestroy once the handler goroutine has
+// exited (gDone), so no live state crosses requests.
+var bridgeExchangePool sync.Pool
+
+// acquireBridgeExchange returns an exchange bound to (h, req). Pooled
+// exchanges arrive reset at release and keep their writer, readers, maps,
+// channels, and ex-capturing hooks; newExchange refills per-request values.
+// Fresh exchanges are clean by construction.
+func acquireBridgeExchange(h httpHandler, req *http.Request) *bridgeExchange {
+	if v := bridgeExchangePool.Get(); v != nil {
+		ex := v.(*bridgeExchange)
+		ex.handler = h
+		ex.req = req
+
+		return ex
+	}
+
+	return newBridgeExchange(h, req, newRecordingWriter(), bridgeHooks{})
+}
+
+// releaseBridgeExchange returns ex to the pool after a clean completion. A
+// handler still running at destroy (client abort) drops instead: its
+// goroutine may still touch the exchange while unwinding.
+func releaseBridgeExchange(ex *bridgeExchange) {
+	if ex == nil || !ex.gDone.Load() {
+		return
+	}
+
+	resetBridgeExchange(ex)
+	bridgeExchangePool.Put(ex)
+}
+
+// resetBridgeExchange drops every per-request value so pooled state never
+// leaks across requests. Anything that could outlive the stream (body bytes,
+// TLS slices, live Envoy maps) releases; capacities stay for reuse.
+// Channels drain; done/respReady renew (a closed channel cannot reset).
+// Runs once per pooled cycle, at release: pooled objects sit clean (pinning
+// nothing) and acquire only binds handler and request.
+func resetBridgeExchange(ex *bridgeExchange) {
+	resetRecordingWriter(ex.w)
+
+	ex.req = nil
+	// Snapshot maps are NOT cleared here: every read site refills them
+	// before use (newExchange, EncodeHeaders, callNext), and refill drops
+	// keys absent from the fresh headers. Clearing would only throw away
+	// the value backing arrays refill reuses. Attrs and the secret cache
+	// fill incrementally instead, so they clear below.
+	ex.reqHeaderMap = nil
+	ex.liveRespHeader = nil
+	ex.streamInfo = nil
+	ex.tls = TLSConnection{}
+	ex.tlsOK = false
+
+	ex.origHost = ""
+	ex.origMethod = ""
+	ex.origPath = ""
+
+	ex.nextCalled.Store(false)
+	ex.proceedUpstream.Store(false)
+	ex.gDone.Store(false)
+	ex.earlyRespBody.Store(false)
+	ex.nextWriter = nil
+	ex.failErr = nil
+	ex.replacedBody = nil
+	ex.reroute = false
+	ex.refreshRoute = false
+	ex.refreshDone = false
+	ex.overrideHost = ""
+	ex.overrideStrict = false
+	ex.hasOverride = false
+	ex.drain = false
+	ex.drainApplied = false
+
+	ex.secretReq = secretRequest{}
+	if ex.secretCache != nil {
+		clear(ex.secretCache)
+	}
+
+	for i := range ex.bodyChunks {
+		ex.bodyChunks[i] = nil
+	}
+	ex.bodyChunks = ex.bodyChunks[:0]
+	ex.bodyEnded = false
+	for i := range ex.respChunks {
+		ex.respChunks[i] = nil
+	}
+	ex.respChunks = ex.respChunks[:0]
+	ex.respEnded = false
+	ex.respCode = 0
+
+	drainSignal(ex.bodyWake)
+	drainSignal(ex.respWake)
+drainSig:
+	for {
+		select {
+		case <-ex.sigCh:
+		default:
+			break drainSig
+		}
+	}
+	ex.respReady = make(chan struct{})
+	ex.respReadyOnce = sync.Once{}
+	ex.done = make(chan struct{})
+	ex.doneOnce = sync.Once{}
+
+	ex.metricOps = ex.metricOps[:0]
+	if ex.attrs != nil {
+		clear(ex.attrs)
+	} else {
+		ex.attrs = make(map[string]string)
+	}
+	// Drop the config pointer across pool lifetime: newExchange refreshes it
+	// before any Attr read, so a pooled exchange never pins a stale config.
+	ex.attrFetch = nil
+}
+
+// warnUndeclaredAttr logs the one-time migration warning for cgo-backed Attr
+// misses with nothing declared. Runs on G; the shared Once keeps it to one
+// line per filter registration.
+func (ex *bridgeExchange) warnUndeclaredAttr(name string) {
+	cfg := ex.attrFetch
+	if cfg == nil || cfg.declares(name) {
+		return
+	}
+
+	cfg.warn.Do(func() {
+		log := logr.Discard()
+		if ex.hooks.log != nil {
+			log = ex.hooks.log()
+		}
+
+		log.Info("Attr has no snapshot; declare it with EnableEnvoyAttributes", "name", name)
+	})
+}
+
+// cgoBackedAttr reports whether name needs an Envoy fetch: anything but the
+// always-free request fields and the synthesized response code.
+func cgoBackedAttr(name string) bool {
+	switch name {
+	case "request.host", "request.method", "request.path", "response.code":
+		return false
+	}
+
+	return true
+}
+
+// drainSignal drops one pending wakeup, if any.
+func drainSignal(ch chan struct{}) {
+	select {
+	case <-ch:
+	default:
 	}
 }
 
@@ -215,6 +384,20 @@ func (ex *bridgeExchange) signal(s brSignal) {
 // header paths (headers must stay buffered until the decision lands).
 // Both converge at the next callback through drainDecision.
 func (ex *bridgeExchange) awaitSignal() (brSignal, bool) {
+	// Fast path: handler already signaled (common for header-only filters).
+	// Avoids the time.After timer alloc on every request.
+	select {
+	case s := <-ex.sigCh:
+		if s == brNeedSecret {
+			ex.fulfillSecret()
+		} else {
+			return s, true
+		}
+	case <-ex.done:
+		return 0, false
+	default:
+	}
+
 	for {
 		timeout := time.After(time.Second)
 
@@ -250,11 +433,15 @@ func (ex *bridgeExchange) fulfillSecret() {
 }
 
 // requestSecret asks W for a named secret and blocks G until it arrives
-// or the stream dies. Runs only on the handler goroutine.
+// or the stream dies. Runs only on the handler goroutine. Results are
+// memoized per exchange: repeated lookups skip the rendezvous + cgo.
 func (ex *bridgeExchange) requestSecret(name string) (string, bool) {
-	reply := make(chan secretResult, 1)
-
 	ex.secretMu.Lock()
+	if res, ok := ex.secretCache[name]; ok {
+		ex.secretMu.Unlock()
+		return res.value, res.found
+	}
+	reply := make(chan secretResult, 1)
 	ex.secretReq = secretRequest{name: name, reply: reply}
 	ex.secretMu.Unlock()
 
@@ -262,6 +449,12 @@ func (ex *bridgeExchange) requestSecret(name string) (string, bool) {
 
 	select {
 	case res := <-reply:
+		ex.secretMu.Lock()
+		if ex.secretCache == nil {
+			ex.secretCache = make(map[string]secretResult)
+		}
+		ex.secretCache[name] = res
+		ex.secretMu.Unlock()
 		return res.value, res.found
 	case <-ex.done:
 		return "", false
@@ -402,8 +595,7 @@ func (r *gatedRespReader) Read(p []byte) (int, error) {
 // exchange, and errors with ErrRuntime so returning it answers 500;
 // proceeding anyway fails in callNext all the same.
 type poisonRespReader struct {
-	ex  *bridgeExchange
-	log logr.Logger
+	ex *bridgeExchange
 }
 
 // Close is a no-op; nothing was opened.
@@ -411,13 +603,18 @@ func (p *poisonRespReader) Close() error { return nil }
 
 // Read records the phase violation and fails.
 func (p *poisonRespReader) Read([]byte) (int, error) {
-	return 0, p.ex.failEarlyRespBody(p.log)
+	return 0, p.ex.failEarlyRespBody()
 }
 
 // failEarlyRespBody records a pre-next response body touch and reports it
-// with ErrRuntime so the error handler answers 500.
-func (ex *bridgeExchange) failEarlyRespBody(log logr.Logger) error {
+// with ErrRuntime so the error handler answers 500. The logger is resolved
+// lazily so Response() views that never read Body pay no Log lookup.
+func (ex *bridgeExchange) failEarlyRespBody() error {
 	err := fmt.Errorf("response body is not available before next, %w", ErrRuntime)
+	log := logr.Discard()
+	if ex.hooks.log != nil {
+		log = ex.hooks.log()
+	}
 	log.Error(err, "response body read before next; proceed upstream with next(c) first")
 	ex.earlyRespBody.Store(true)
 
@@ -497,6 +694,51 @@ func (ex *bridgeExchange) runHandler() {
 	ex.handler.ServeHTTP(ex.w, ex.req)
 }
 
+// handlerTaskQueue hands exchanges to pooled handler workers. Unbuffered: a
+// send rendezvous with an idle worker, so saturation overflows instead of
+// queueing latency behind busy workers.
+var handlerTaskQueue = make(chan *bridgeExchange)
+
+// numHandlerWorkers sizes the pool: twice the CPUs, at least 8. Fast tasks
+// (deny, passthrough) recycle a worker in microseconds; parked next-paths
+// hold one for milliseconds, so saturation overflows to one-off goroutines
+// instead of hogging the pool.
+var numHandlerWorkers = handlerWorkerCount()
+
+func handlerWorkerCount() int {
+	if n := 2 * runtime.NumCPU(); n >= 8 {
+		return n
+	}
+
+	return 8
+}
+
+func init() {
+	for i := 0; i < numHandlerWorkers; i++ {
+		go handlerWorkerLoop()
+	}
+}
+
+// handlerWorkerLoop runs exchange handlers until the process exits. Idle
+// workers park on the queue with no CPU cost. Panics stay isolated per task
+// inside runHandler's own recovery.
+func handlerWorkerLoop() {
+	for ex := range handlerTaskQueue {
+		ex.runHandler()
+	}
+}
+
+// submitHandlerTask runs ex's handler without spawning per request: an idle
+// worker takes it, otherwise a one-off goroutine does, identical to the old
+// go statement. W never blocks here.
+func submitHandlerTask(ex *bridgeExchange) {
+	select {
+	case handlerTaskQueue <- ex:
+	default:
+		go ex.runHandler()
+	}
+}
+
 // callNext implements next.ServeHTTP for the terminal hop: it records the
 // intent to proceed, reads a replaced request body if the handler assigned
 // one, and parks G until W feeds the response. Calling next after writing
@@ -541,8 +783,9 @@ func (ex *bridgeExchange) callNext(w ResponseWriter, r *http.Request) {
 
 	// Stash pre-next response header sets from the passed writer; they are
 	// re-applied on top of the upstream response. Response bytes written
-	// before next were already rejected above.
-	ex.preHeaders = cloneHeader(w.Header())
+	// before next were already rejected above. The stash map survives pooled
+	// reuses via refill.
+	ex.preHeaders = refillHeader(ex.preHeaders, w.Header())
 	for k := range w.Header() {
 		delete(w.Header(), k)
 	}
@@ -596,6 +839,27 @@ func cloneHeader(h http.Header) http.Header {
 		out[k] = append([]string(nil), v...)
 	}
 	return out
+}
+
+// refillHeader copies src into dst, reusing dst's buckets and value backing
+// arrays. A nil dst clones. Keys absent from src are dropped so pooled maps
+// never leak a previous request's headers. Appends copy bytes, so no state
+// aliases across requests.
+func refillHeader(dst, src http.Header) http.Header {
+	if dst == nil {
+		return cloneHeader(src)
+	}
+
+	for k, v := range src {
+		dst[k] = append(dst[k][:0], v...)
+	}
+	for k := range dst {
+		if _, ok := src[k]; !ok {
+			delete(dst, k)
+		}
+	}
+
+	return dst
 }
 
 func uint64ptr(v uint64, ok bool) *uint64 {
@@ -679,6 +943,16 @@ func newRecordingWriter() *recordingWriter {
 	return &recordingWriter{
 		header: make(http.Header),
 	}
+}
+
+// resetRecordingWriter clears w for reuse: header entries dropped, status and
+// flags zeroed, body kept at zero length with its capacity.
+func resetRecordingWriter(w *recordingWriter) {
+	clear(w.header)
+	w.status = 0
+	w.body = w.body[:0]
+	w.wroteHeader = false
+	w.explicit = false
 }
 
 // Header returns the recorded response headers.
@@ -779,6 +1053,9 @@ func withBridgeHooks(r *http.Request, h bridgeHooks) *http.Request {
 
 // hooksOf returns the bridge callbacks on r, if any.
 func hooksOf(r *http.Request) (bridgeHooks, bool) {
+	if v, ok := r.Context().Value(bridgeRequestKey{}).(bridgeRequestValues); ok {
+		return v.hooks, true
+	}
 	h, ok := r.Context().Value(bridgeHooksKey{}).(bridgeHooks)
 	return h, ok
 }
@@ -793,8 +1070,28 @@ func withBridgeExchange(r *http.Request, ex *bridgeExchange) *http.Request {
 
 // exchangeFrom returns the live exchange for r, if any.
 func exchangeFrom(r *http.Request) (*bridgeExchange, bool) {
+	if v, ok := r.Context().Value(bridgeRequestKey{}).(bridgeRequestValues); ok && v.ex != nil {
+		return v.ex, true
+	}
 	ex, ok := r.Context().Value(bridgeExchangeKey{}).(*bridgeExchange)
 	return ex, ok
+}
+
+// bridgeRequestKey carries all per-request bridge values in one context node.
+// newExchange stores config+hooks+exchange once instead of three nested
+// WithContext layers (3 request copies + 3 nodes per request).
+type bridgeRequestKey struct{}
+
+// bridgeRequestValues is the single per-request context payload.
+type bridgeRequestValues struct {
+	cfg   any
+	hooks bridgeHooks
+	ex    *bridgeExchange
+}
+
+// withBridgeValues returns r carrying cfg+hooks+ex in one context node.
+func withBridgeValues(r *http.Request, cfg any, h bridgeHooks, ex *bridgeExchange) *http.Request {
+	return r.WithContext(stdcontext.WithValue(r.Context(), bridgeRequestKey{}, bridgeRequestValues{cfg: cfg, hooks: h, ex: ex}))
 }
 
 // terminal is the internal chain end: proceeding upstream means the

@@ -94,6 +94,17 @@ type ConfigOptions struct {
 	// Therefore turning this on will preserve the Content-Length header.
 	//
 	DisableChunkedEncodingResponse bool
+
+	// AttrFetch lists the Envoy attribute names prefetched per request for
+	// Attr lookups. Nil (the default) prefetches nothing beyond the
+	// always-free request fields and the synthesized response code. See
+	// EnableEnvoyAttributes.
+	AttrFetch []string
+
+	// EnableDownstreamTLS snapshots the downstream TLS connection per
+	// request for TLS lookups. It defaults to false. See
+	// EnableDownstreamTLS.
+	EnableDownstreamTLS bool
 }
 
 type configParser struct {

@@ -141,6 +141,17 @@ func TestContext(t *testing.T) {
 				expectedRead:   true,
 				expectedWrite:  false,
 			},
+			{
+				name: "all disabled| strict content-type: application/json stays off",
+				config: &internalConfig{
+					strictBodyAccess: true,
+				},
+				contentType:    MIMEApplicationJSON,
+				contentLength:  "100",
+				expectedAccess: false,
+				expectedRead:   false,
+				expectedWrite:  false,
+			},
 		}
 
 		for _, tc := range testcases {
@@ -213,6 +224,16 @@ func TestContext_ResponseBodyAccessibility(t *testing.T) {
 			expectedRead:   false,
 			expectedWrite:  false,
 		},
+		{
+			name: "disabled| strict content-type: application/json stays off",
+			config: &internalConfig{
+				strictBodyAccess: true,
+			},
+			contentType:    MIMEApplicationJSON,
+			expectedAccess: false,
+			expectedRead:   false,
+			expectedWrite:  false,
+		},
 	}
 
 	for _, tc := range testcases {
@@ -222,9 +243,10 @@ func TestContext_ResponseBodyAccessibility(t *testing.T) {
 
 			respHeaderMapMock := mock_envoy.NewResponseHeaderMap(t)
 			respHeaderMapMock.EXPECT().Status().Return(http.StatusOK, true)
-			respHeaderMapMock.EXPECT().Range(mock.Anything).Run(func(f func(string, string) bool) {
-				f("content-type", tc.contentType)
-			})
+			respHeaderMapMock.EXPECT().Get(HeaderXResponseBodyAccess).Return("", false).Maybe()
+			respHeaderMapMock.EXPECT().Get(HeaderContentType).Return(tc.contentType, true).Maybe()
+			respHeaderMapMock.EXPECT().Get(HeaderContentLength).Return("", false).Maybe()
+			respHeaderMapMock.EXPECT().Get(HeaderXContentOperation).Return("", false).Maybe()
 
 			ctx := fakeDummyContext(t, tc.config)
 			ctx.LoadResponseHeaders(respHeaderMapMock)

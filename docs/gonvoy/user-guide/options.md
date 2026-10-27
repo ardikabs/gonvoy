@@ -64,7 +64,7 @@ Pair it with the per-request `Reroute()` call, which flags the reload. Without t
 | `EnableEnvoyAttributes(names...)` | Prefetch exactly these attribute names (for example `"xds.cluster_name"`) for `Attr` lookups. Undeclared keys report absent with a one-time migration warning naming the key |
 | `EnableDownstreamTLS()` | Snapshot the downstream TLS connection per request for `TLS()` lookups. Without it `TLS()` reports absent (with a one-time warning when a connection is present). Plaintext listeners pay nothing either way |
 
-Omit both when the filter never calls `Attr` beyond request fields and never calls `TLS()` — that is the cheapest shape and the default.
+Omit both when the filter never calls `Attr` beyond request fields and never calls `TLS()`. That is the cheapest shape and the default.
 
 ## Plugin config
 
